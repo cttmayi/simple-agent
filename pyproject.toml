@@ -3,6 +3,11 @@ name = "simple-agent"
 version = "0.1.0"
 description = "A Claude Code-like CLI tool with hooks, skills, and subagents"
 requires-python = ">=3.11"
+authors = [
+    { name = "Your Name", email = "you@example.com" },
+]
+license = { file = "LICENSE" }
+keywords = ["cli", "agent", "claude"]
 dependencies = [
     "openai>=1.0.0",
     "pydantic>=2.0.0",
