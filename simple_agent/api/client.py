@@ -1,4 +1,4 @@
-from typing import AsyncGenerator, Dict, List
+from typing import Any, Generator, Dict, List
 from simple_agent.api.providers import OpenAIProvider, AnthropicProvider
 from simple_agent.config.settings import APIConfig
 
@@ -22,11 +22,12 @@ class APIClient:
             raise ValueError(f"Unknown provider: {self._provider}")
 
     def send_message(
-        self, messages: List[Dict[str, str]], tools: List[Dict[str, str]]
+        self, messages: List[Dict[str, str]], tools: List[Dict[str, Any]]
     ) -> List[Dict[str, str]]:
         return self._provider_impl.send_message(messages, tools)
 
     def stream_message(
-        self, messages: List[Dict[str, str]], tools: List[Dict[str, str]]
-    ) -> AsyncGenerator[str, None]:
-        return self._provider_impl.stream_message(messages, tools)
+        self, messages: List[Dict[str, str]], tools: List[Dict[str, Any]]
+    ) -> Generator[str, None]:
+        for chunk in self._provider_impl.stream_message(messages, tools):
+            yield chunk

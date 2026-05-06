@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, AsyncGenerator, Dict, List
+from typing import Any, Generator, Dict, List
 from openai import OpenAI, Stream
 from openai.types.chat import ChatCompletion, ChatCompletionChunk
 
@@ -14,7 +14,7 @@ class BaseProvider(ABC):
     @abstractmethod
     def stream_message(
         self, messages: List[Dict[str, str]], tools: List[Dict[str, Any]]
-    ) -> AsyncGenerator[str, None]:
+    ) -> Generator[str, None]:
         pass
 
 
@@ -57,7 +57,7 @@ class OpenAIProvider(BaseProvider):
 
     def stream_message(
         self, messages: List[Dict[str, str]], tools: List[Dict[str, Any]]
-    ) -> AsyncGenerator[str, None]:
+    ) -> Generator[str, None]:
         stream: Stream[ChatCompletionChunk] = self.client.chat.completions.create(
             model=self.model,
             messages=messages,
@@ -112,7 +112,7 @@ class AnthropicProvider(BaseProvider):
 
     def stream_message(
         self, messages: List[Dict[str, str]], tools: List[Dict[str, Any]]
-    ) -> AsyncGenerator[str, None]:
+    ) -> Generator[str, None]:
         stream = self.client.chat.completions.create(
             model=self.model,
             messages=messages,

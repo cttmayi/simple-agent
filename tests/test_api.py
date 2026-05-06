@@ -1,3 +1,4 @@
+import pytest
 from unittest.mock import Mock, patch
 from simple_agent.api.client import APIClient
 from simple_agent.config.settings import APIConfig
@@ -34,6 +35,8 @@ def test_api_client_stream():
         mock_stream.side_effect = mock_stream_func
 
         messages = [{"role": "user", "content": "Hello"}]
-        result = list(client.stream_message(messages, tools=[]))
+        result = []
+        for chunk in client.stream_message(messages, tools=[]):
+            result.append(chunk)
 
         assert result == chunks
