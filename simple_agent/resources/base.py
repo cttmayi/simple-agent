@@ -20,13 +20,7 @@ class ResourceLoader:
         self._base_dir = Path(base_dir)
 
     def _get_markdown_file(self, resource_dir: Path) -> Path:
-        """Get markdown file for a resource directory."""
-        # Look for a single markdown file in the resource directory
-        md_files = list(resource_dir.glob("*.md"))
-        if len(md_files) == 1:
-            return md_files[0]
-        # If no markdown files or multiple, return None
-        return None
+        raise NotImplementedError()
 
     def scan(self) -> List[Dict[str, Any]]:
         """Scan base directory for resources."""

@@ -14,6 +14,8 @@ class ToolDispatcher:
 
         try:
             result = self._registry.execute_tool(name, arguments)
+            if result is None:
+                return {"success": False, "error": f"Tool '{name}' not found"}
             return {"success": True, "result": result}
         except TypeError as e:
             return {"success": False, "error": f"Invalid arguments: {e}"}
