@@ -18,5 +18,5 @@ class SubagentLoader(ResourceLoader):
         resources = self.scan()
         for r in resources:
             if r["name"] == name:
-                return r["metadata"].get("tools", [])
+                return r["metadata"].get("tools")
         return None
