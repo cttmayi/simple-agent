@@ -25,8 +25,11 @@ def test_tool_execution():
 
 def test_tool_not_found():
     registry = ToolRegistry()
-    result = registry.execute_tool("nonexistent", {})
-    assert result is None
+    try:
+        registry.execute_tool("nonexistent", {})
+        assert False, "Expected exception but none was raised"
+    except Exception as e:
+        assert "Tool 'nonexistent' not found" in str(e)
 
 def test_tool_list_tools():
     registry = ToolRegistry()
@@ -43,3 +46,35 @@ def test_tool_list_tools():
     assert len(tools) == 2
     assert any(t["name"] == "tool1" for t in tools)
     assert any(t["name"] == "tool2" for t in tools)
+
+from simple_agent.tools.dispatcher import ToolDispatcher
+
+def test_tool_dispatcher_execute():
+    registry = ToolRegistry()
+
+    @tool(name="test", description="Test tool", registry=registry)
+    def test_fn(x: int) -> int:
+        return x * 2
+
+    dispatcher = ToolDispatcher(registry)
+    result = dispatcher.execute({"name": "test", "arguments": {"x": 5}})
+    assert result["success"] is True
+    assert result["result"] == 10
+
+def test_tool_dispatcher_invalid_tool():
+    registry = ToolRegistry()
+    dispatcher = ToolDispatcher(registry)
+    result = dispatcher.execute({"name": "nonexistent", "arguments": {}})
+    assert result["success"] is False
+    assert "error" in result
+
+def test_tool_dispatcher_invalid_arguments():
+    registry = ToolRegistry()
+
+    @tool(name="requires_int", description="Requires int", registry=registry)
+    def requires_int(x: int) -> int:
+        return x
+
+    dispatcher = ToolDispatcher(registry)
+    result = dispatcher.execute({"name": "requires_int", "arguments": {"x": "not an int"}})
+    assert result["success"] is False
