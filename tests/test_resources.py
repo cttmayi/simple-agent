@@ -1,6 +1,7 @@
 import tempfile
 from pathlib import Path
 from simple_agent.resources.base import BaseResource, ResourceLoader
+from simple_agent.resources.skills import SkillLoader
 
 
 class TestResource(BaseResource):
@@ -39,3 +40,32 @@ def test_resource_loader_with_frontmatter():
         resources = loader.scan()
         assert len(resources) == 1
         assert resources[0]["name"] == "test"
+
+
+def test_skill_loader_scan():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Create test skill
+        skill_dir = Path(tmpdir) / "test-skill"
+        skill_dir.mkdir()
+        md_file = skill_dir / "SKILL.md"
+        md_file.write_text("---\nname: test-skill\ndescription: A test skill\n---\n# Test Skill\n\nThis is a test.")
+
+        loader = SkillLoader(Path(tmpdir))
+        skills = loader.list_skills()
+        assert len(skills) == 1
+        assert skills[0]["name"] == "test-skill"
+        assert skills[0]["description"] == "A test skill"
+
+
+def test_skill_loader_get_content():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Create test skill
+        skill_dir = Path(tmpdir) / "test-skill"
+        skill_dir.mkdir()
+        md_file = skill_dir / "SKILL.md"
+        md_file.write_text("---\nname: test-skill\ndescription: A test skill\n---\n# Test Skill\n\nThis is content.")
+
+        loader = SkillLoader(Path(tmpdir))
+        content = loader.get_skill_content("test-skill")
+        assert "# Test Skill" in content
+        assert "This is content." in content
