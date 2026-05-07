@@ -1,4 +1,5 @@
 import os
+import json
 from pathlib import Path
 from typing import Dict, List, Optional
 from simple_agent.config.settings import Settings
@@ -107,7 +108,7 @@ class Runtime:
                             for tool_call in msg["tool_calls"]:
                                 result = self._tool_dispatcher.execute({
                                     "name": tool_call["function"]["name"],
-                                    "arguments": eval(tool_call["function"]["arguments"]),
+                                    "arguments": json.loads(tool_call["function"]["arguments"]),
                                 })
                                 self._session.add_message("tool", str(result))
                 else:
