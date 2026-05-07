@@ -4,7 +4,8 @@ A Claude Code-like CLI tool with support for hooks, skills, subagents, and slash
 
 ## Features
 
-- **Tools**: Register Python functions as tools for LLM function calling
+- **Built-in Tools**: File operations (READ, WRITE), shell execution (BASH), pattern search (GREP), web search (WebSearch)
+- **Custom Tools**: Register Python functions as tools for LLM function calling
 - **Skills**: Markdown-based knowledge documents that guide AI behavior
 - **Subagents**: Specialized AI agents for specific tasks
 - **Hooks**: Event-driven plugins for custom behavior

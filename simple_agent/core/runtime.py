@@ -6,13 +6,16 @@ from simple_agent.config.settings import Settings
 from simple_agent.api.client import APIClient
 from simple_agent.core.events import EventBus, Event
 from simple_agent.core.session import Session
-from simple_agent.tools.registry import ToolRegistry
+from simple_agent.tools.registry import get_global_registry
 from simple_agent.tools.dispatcher import ToolDispatcher
 from simple_agent.resources.skills import SkillLoader
 from simple_agent.resources.subagents import SubagentLoader
 from simple_agent.resources.hooks import HookLoader
 from simple_agent.resources.commands import CommandLoader
 from simple_agent.ui.renderer import UIRenderer
+
+# Import builtin tools to auto-register them
+from simple_agent.tools import builtin  # noqa: F401
 
 
 class Runtime:
@@ -22,7 +25,8 @@ class Runtime:
         self._session = Session()
         self._renderer = UIRenderer()
         self._api_client = APIClient(config.api)
-        self._tool_registry = ToolRegistry()
+        # Use global registry (includes builtin tools)
+        self._tool_registry = get_global_registry()
         self._tool_dispatcher = ToolDispatcher(self._tool_registry)
 
         # Initialize resource loaders
