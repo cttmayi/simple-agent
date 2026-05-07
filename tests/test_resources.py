@@ -159,3 +159,17 @@ def test_command_get_usage():
         loader = CommandLoader(Path(tmpdir))
         usage = loader.get_command_usage("test-cmd")
         assert usage == "/test <arg1> [arg2]"
+
+
+def test_command_get_usage_default():
+    from simple_agent.resources.commands import CommandLoader
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Create test command without usage in metadata
+        cmd_dir = Path(tmpdir) / "test-cmd"
+        cmd_dir.mkdir()
+        md_file = cmd_dir / "COMMAND.md"
+        md_file.write_text("---\nname: test-cmd\ndescription: A test command\n---\n# Test Command")
+
+        loader = CommandLoader(Path(tmpdir))
+        usage = loader.get_command_usage("test-cmd")
+        assert usage == "/test-cmd"
