@@ -129,3 +129,33 @@ def test_hook_get_events():
         loader = HookLoader(Path(tmpdir))
         events = loader.get_hook_events("test-hook")
         assert events == ["message_send_before", "tool_call_after"]
+
+
+def test_command_loader_scan():
+    from simple_agent.resources.commands import CommandLoader
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Create test command
+        cmd_dir = Path(tmpdir) / "test-cmd"
+        cmd_dir.mkdir()
+        md_file = cmd_dir / "COMMAND.md"
+        md_file.write_text("---\nname: test-cmd\nusage: /test [args]\n---\n# Test Command")
+
+        loader = CommandLoader(Path(tmpdir))
+        commands = loader.list_commands()
+        assert len(commands) == 1
+        assert commands[0]["name"] == "test-cmd"
+        assert commands[0]["usage"] == "/test [args]"
+
+
+def test_command_get_usage():
+    from simple_agent.resources.commands import CommandLoader
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Create test command
+        cmd_dir = Path(tmpdir) / "test-cmd"
+        cmd_dir.mkdir()
+        md_file = cmd_dir / "COMMAND.md"
+        md_file.write_text("---\nname: test-cmd\nusage: /test <arg1> [arg2]\n---\n# Test Command")
+
+        loader = CommandLoader(Path(tmpdir))
+        usage = loader.get_command_usage("test-cmd")
+        assert usage == "/test <arg1> [arg2]"
