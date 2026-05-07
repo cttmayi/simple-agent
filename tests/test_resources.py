@@ -99,3 +99,33 @@ def test_subagent_get_tools():
         loader = SubagentLoader(Path(tmpdir))
         tools = loader.get_subagent_tools("test-agent")
         assert tools == ["Read", "Glob", "Grep"]
+
+
+def test_hook_loader_scan():
+    from simple_agent.resources.hooks import HookLoader
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Create test hook
+        hook_dir = Path(tmpdir) / "test-hook"
+        hook_dir.mkdir()
+        md_file = hook_dir / "HOOK.md"
+        md_file.write_text("---\nname: test-hook\nevents: [message_send_before]\n---\n# Test Hook")
+
+        loader = HookLoader(Path(tmpdir))
+        hooks = loader.list_hooks()
+        assert len(hooks) == 1
+        assert hooks[0]["name"] == "test-hook"
+        assert "message_send_before" in hooks[0]["events"]
+
+
+def test_hook_get_events():
+    from simple_agent.resources.hooks import HookLoader
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Create test hook
+        hook_dir = Path(tmpdir) / "test-hook"
+        hook_dir.mkdir()
+        md_file = hook_dir / "HOOK.md"
+        md_file.write_text("---\nname: test-hook\nevents: [message_send_before, tool_call_after]\n---\n# Test Hook")
+
+        loader = HookLoader(Path(tmpdir))
+        events = loader.get_hook_events("test-hook")
+        assert events == ["message_send_before", "tool_call_after"]
