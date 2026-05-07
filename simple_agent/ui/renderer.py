@@ -8,7 +8,7 @@ from rich.panel import Panel
 
 class UIRenderer:
     def __init__(self, output: TextIO = sys.stdout):
-        self.console = Console(file=output, force_terminal=True)
+        self.console = Console(file=output)
 
     def render_message(self, role: str, content: str) -> None:
         """Render a chat message."""
