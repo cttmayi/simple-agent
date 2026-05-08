@@ -6,16 +6,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 # Run the agent
+source .venv/bin/activate
 simple-agent
 
+# Run
+source .venv/bin/activate && python ...
+
 # Run tests
-pytest
+source .venv/bin/activate && pytest
 
 # Run specific test file
-pytest tests/test_tools.py
+source .venv/bin/activate && pytest tests/test_tools.py
 
 # Run specific test
-pytest tests/test_tools.py::test_register_tool
+source .venv/bin/activate && pytest tests/test_tools.py::test_register_tool
 ```
 
 ## Architecture Overview
