@@ -115,8 +115,18 @@ class Runtime:
                     result=result,
                 )
 
+            # Format tool result for AI understanding
+            # Builtin tools return structured dicts with 'success' field
+            # When failed, add clear ERROR prefix for AI to understand
+            tool_content = json.dumps(result, ensure_ascii=False, indent=2)
+
+            if not result.get("success", True):
+                error_msg = result.get("error", "Unknown error")
+                # Add a prominent error indicator for AI
+                tool_content = f"[TOOL_ERROR] {error_msg}\n\nDetails:\n{tool_content}"
+
             # Add tool result to session with tool_call_id
-            self._session.add_message("tool", str(result), tool_call_id=tool_call["id"])
+            self._session.add_message("tool", tool_content, tool_call_id=tool_call["id"])
             self._renderer.render_tool_result(tool_call["function"]["name"], result)
 
         # Send tool results back to API for next response
