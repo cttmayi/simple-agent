@@ -18,12 +18,47 @@ class UIRenderer:
         elif role == "assistant":
             style = "bold green"
             prefix = "Assistant"
+        elif role == "tool":
+            style = "bold cyan"
+            prefix = "Tool"
         else:
             style = "bold yellow"
             prefix = role
 
         self.console.print(f"\n[{style}]{prefix}[/{style}]:")
-        self.console.print(Markdown(content))
+        if content:
+            self.console.print(Markdown(content))
+
+    def render_tool_result(self, tool_name: str, result: dict) -> None:
+        """Render a tool execution result."""
+        success = result.get("success", False)
+        status = "[bold green]✓[/bold green]" if success else "[bold red]✗[/bold red]"
+        self.console.print(f"  {status} {tool_name}")
+
+        if "error" in result:
+            self.console.print(f"    [red]Error:[/red] {result['error']}")
+        elif "content" in result:
+            # Truncate long content
+            content = result["content"]
+            if len(content) > 200:
+                content = content[:200] + "..."
+            self.console.print(f"    {content}")
+        elif "stdout" in result:
+            stdout = result["stdout"].strip()
+            if stdout:
+                self.console.print(f"    [dim]{stdout}[/dim]")
+            if result.get("stderr"):
+                self.console.print(f"    [red]{result['stderr'].strip()}[/red]")
+        elif "matches" in result:
+            matches = result["matches"]
+            if matches:
+                self.console.print(f"    Found {len(matches)} match(es)")
+                for m in matches[:3]:  # Show first 3 matches
+                    self.console.print(f"      Line {m['line']}: {m['content'][:80]}")
+                if len(matches) > 3:
+                    self.console.print(f"      ... and {len(matches) - 3} more")
+            else:
+                self.console.print(f"    [dim]No matches found[/dim]")
 
     def render_code(self, language: str, code: str) -> None:
         """Render a code block with syntax highlighting."""

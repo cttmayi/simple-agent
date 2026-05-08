@@ -104,11 +104,12 @@ class Runtime:
 
                     response = self._api_client.send_message(messages, tools)
                     for msg in response:
-                        self._session.add_message(msg["role"], msg["content"])
-
                         # Handle tool calls
                         if "tool_calls" in msg and msg["tool_calls"]:
                             self._renderer.render_message("system", f"Executing {len(msg['tool_calls'])} tool(s)...")
+
+                            # Add assistant message with tool_calls to session
+                            self._session.add_message(msg["role"], msg.get("content", ""), tool_calls=msg["tool_calls"])
 
                             # Execute each tool call
                             for tool_call in msg["tool_calls"]:
@@ -116,18 +117,19 @@ class Runtime:
                                     "name": tool_call["function"]["name"],
                                     "arguments": json.loads(tool_call["function"]["arguments"]),
                                 })
-                                # Add tool result to session
-                                self._session.add_message("tool", str(result))
-                                self._renderer.render_message("tool", f"{tool_call['function']['name']}: {result.get('success', False)}")
+                                # Add tool result to session with tool_call_id
+                                self._session.add_message("tool", str(result), tool_call_id=tool_call["id"])
+                                self._renderer.render_tool_result(tool_call["function"]["name"], result)
 
                             # Send tool results back to API for final response
                             messages = self._session.get_messages()
                             final_response = self._api_client.send_message(messages, tools)
                             for final_msg in final_response:
-                                self._session.add_message(final_msg["role"], final_msg["content"])
-                                self._renderer.render_message(final_msg["role"], final_msg["content"])
+                                self._session.add_message(final_msg["role"], final_msg.get("content", ""))
+                                self._renderer.render_message(final_msg["role"], final_msg.get("content", ""))
                         else:
                             # Regular message (no tool calls)
+                            self._session.add_message(msg["role"], msg["content"])
                             self._renderer.render_message(msg["role"], msg["content"])
                 else:
                     self._renderer.render_message("system", result)
