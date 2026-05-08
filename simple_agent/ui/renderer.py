@@ -51,7 +51,7 @@ class UIRenderer:
                 if key not in ["cwd", "timeout", "case_sensitive"]:
                     args_display.append(f"{key}={value}")
             if args_display:
-                self.console.print(f"  {status} {tool_name} [{' + ', '.join(args_display) + ']}')
+                self.console.print(f"  {status} {tool_name} [{' + ', '.join(args_display) + ']}")
             else:
                 self.console.print(f"  {status} {tool_name}")
         else:
@@ -65,12 +65,12 @@ class UIRenderer:
             # Show full file content (no truncation for user feedback)
             content = tool_result["content"]
             if content:
-                self.console.print(f"  [dim]{content}[/dim]")
+                self.console.print(f"  {content}")
         elif "stdout" in tool_result:
             # Show stdout (no truncation)
             stdout = tool_result.get("stdout", "").strip()
             if stdout:
-                self.console.print(f"  [dim]{stdout}[/dim]")
+                self.console.print(f"  {stdout}")
             # Show stderr if present
             stderr = tool_result.get("stderr", "").strip()
             if stderr:
@@ -85,7 +85,7 @@ class UIRenderer:
             if matches:
                 self.console.print(f"  [dim]Found {len(matches)} matches:[/dim]")
                 for m in matches:
-                    self.console.print(f"    [cyan]Line {m['line']}:[/cyan] {m['content']}")
+                    self.console.print(f"  [cyan]Line {m['line']}:[/cyan] {m['content']}")
             else:
                 self.console.print(f"  [dim]No matches found[/dim]")
         elif "results" in tool_result:
@@ -93,17 +93,17 @@ class UIRenderer:
             results = tool_result.get("results", [])
             if results:
                 self.console.print(f"  [dim]Found {len(results)} results:[/dim]")
-                for i, r in enumerate(results[:5], 1):
+                for i, r in enumerate(results[:5], start=1):
                     title = r.get("title", "")
                     url = r.get("url", "")
                     snippet = r.get("snippet", "")
-                    self.console.print(f"    [{i}] [link]{title}[/link]")
+                    self.console.print(f"  [{i}] [link]{title}[/link]")
                     if url:
                         self.console.print(f"          URL: {url}")
                     if snippet and len(snippet) < 150:
                         self.console.print(f"          {snippet}")
                 if len(results) > 5:
-                    self.console.print(f"    ... and {len(results) - 5} more results")
+                    self.console.print(f"  ... and {len(results) - 5} more results")
             else:
                 self.console.print(f"  [dim]No results found[/dim]")
 
