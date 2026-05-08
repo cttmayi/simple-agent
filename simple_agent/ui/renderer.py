@@ -31,26 +31,29 @@ class UIRenderer:
 
     def render_tool_result(self, tool_name: str, result: dict) -> None:
         """Render a tool execution result."""
-        success = result.get("success", False)
+        # Handle both direct result and wrapped result formats
+        tool_result = result.get("result", result)
+
+        success = tool_result.get("success", False)
         status = "[bold green]✓[/bold green]" if success else "[bold red]✗[/bold red]"
         self.console.print(f"  {status} {tool_name}")
 
-        if "error" in result:
-            self.console.print(f"    [red]Error:[/red] {result['error']}")
-        elif "content" in result:
+        if "error" in tool_result:
+            self.console.print(f"    [red]Error:[/red] {tool_result['error']}")
+        elif "content" in tool_result:
             # Truncate long content
-            content = result["content"]
+            content = tool_result["content"]
             if len(content) > 200:
                 content = content[:200] + "..."
             self.console.print(f"    {content}")
-        elif "stdout" in result:
-            stdout = result["stdout"].strip()
+        elif "stdout" in tool_result:
+            stdout = tool_result["stdout"].strip()
             if stdout:
                 self.console.print(f"    [dim]{stdout}[/dim]")
-            if result.get("stderr"):
-                self.console.print(f"    [red]{result['stderr'].strip()}[/red]")
-        elif "matches" in result:
-            matches = result["matches"]
+            if tool_result.get("stderr"):
+                self.console.print(f"    [red]{tool_result['stderr'].strip()}[/red]")
+        elif "matches" in tool_result:
+            matches = tool_result["matches"]
             if matches:
                 self.console.print(f"    Found {len(matches)} match(es)")
                 for m in matches[:3]:  # Show first 3 matches

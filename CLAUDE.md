@@ -78,6 +78,10 @@ simple-agent
 - Use `simple-agent --logs` to view in human-readable format
 - Log entries include: request_id, timestamp, model, messages, tool_calls, usage, tool executions
 
+**Tool Execution Logging**: All tool executions are logged to the log file (not just to the session).
+- The log captures: tool_name, tool_call_id, arguments, and the full result dict
+- Check `simple-agent --logs` to review tool execution results
+
 ### Resource Loading
 
 Skills, subagents, hooks, and commands are loaded from frontmatter markdown files using `python-frontmatter`. The loader classes (`SkillLoader`, `SubagentLoader`, etc.) provide `list_*()` and `get_*()` methods.

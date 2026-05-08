@@ -16,10 +16,11 @@ class ToolDispatcher:
             result = self._registry.execute_tool(name, arguments)
             if result is None:
                 return {"success": False, "error": f"Tool '{name}' not found"}
-            # If result already has success field (from builtin tools), return as-is
-            # Otherwise, wrap in success format
+            # Builtin tools return structured dicts with 'success' field
+            # Custom tools might return other formats - check for success field
             if isinstance(result, dict) and "success" in result:
-                return result
+                return result  # Already has correct format
+            # Custom tool without success field - wrap it
             return {"success": True, "result": result}
         except TypeError as e:
             return {"success": False, "error": f"Invalid arguments: {e}"}

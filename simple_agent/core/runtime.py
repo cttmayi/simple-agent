@@ -105,7 +105,7 @@ class Runtime:
                 "arguments": arguments,
             })
 
-            # Log tool execution if logger is available
+            # Log tool execution if logger is available (before any formatting)
             if self._logger and request_id:
                 self._logger.log_tool_execution(
                     request_id=request_id,
@@ -117,17 +117,20 @@ class Runtime:
 
             # Format tool result for AI understanding
             # Builtin tools return structured dicts with 'success' field
-            # When failed, add clear ERROR prefix for AI to understand
-            tool_content = json.dumps(result, ensure_ascii=False, indent=2)
+            # Dispatcher may wrap results: {"success": True, "result": ...}
+            # or return builtin result directly when it already has 'success' field
+            tool_result = result.get("result", result)
 
-            if not result.get("success", True):
-                error_msg = result.get("error", "Unknown error")
+            tool_content = json.dumps(tool_result, ensure_ascii=False, indent=2)
+
+            if not tool_result.get("success", True):
+                error_msg = tool_result.get("error", "Unknown error")
                 # Add a prominent error indicator for AI
                 tool_content = f"[TOOL_ERROR] {error_msg}\n\nDetails:\n{tool_content}"
 
             # Add tool result to session with tool_call_id
             self._session.add_message("tool", tool_content, tool_call_id=tool_call["id"])
-            self._renderer.render_tool_result(tool_call["function"]["name"], result)
+            self._renderer.render_tool_result(tool_call["function"]["name"], tool_result)
 
         # Send tool results back to API for next response
         messages = self._session.get_messages()
