@@ -85,7 +85,7 @@ class UIRenderer:
             if matches:
                 self.console.print(f"  [dim]Found {len(matches)} matches:[/dim]")
                 for m in matches:
-                    self.console.print(f"  [cyan]Line {m['line']}:[/cyan] {m['content']}")
+                    self.console.print(f"    [cyan]Line {m['line']}:[/cyan] {m['content']}")
             else:
                 self.console.print(f"  [dim]No matches found[/dim]")
         elif "results" in tool_result:
@@ -99,9 +99,9 @@ class UIRenderer:
                     snippet = r.get("snippet", "")
                     self.console.print(f"  [{i}] [link]{title}[/link]")
                     if url:
-                        self.console.print(f"          URL: {url}")
+                        self.console.print(f"        URL: {url}")
                     if snippet and len(snippet) < 150:
-                        self.console.print(f"          {snippet}")
+                        self.console.print(f"        {snippet}")
                 if len(results) > 5:
                     self.console.print(f"  ... and {len(results) - 5} more results")
             else:
