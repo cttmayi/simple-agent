@@ -82,6 +82,63 @@ class Runtime:
             return "exit"
         return f"Unknown command: /{command}"
 
+    def _handle_tool_calls_in_message(self, msg: Dict[str, Any], response: List[Dict[str, Any]]) -> None:
+        """Handle tool calls in a message (recursive for multi-step tool use).
+
+        Args:
+            msg: The message containing tool_calls
+            response: The full response list containing _request_id
+        """
+        # Get request_id for tool logging
+        request_id = response[0].pop("_request_id", None) if response else None
+
+        self._renderer.render_message("system", f"Executing {len(msg['tool_calls'])} tool(s)...")
+
+        # Add assistant message with tool_calls to session
+        self._session.add_message(msg["role"], msg.get("content", ""), tool_calls=msg["tool_calls"])
+
+        # Execute each tool call
+        for tool_call in msg["tool_calls"]:
+            arguments = json.loads(tool_call["function"]["arguments"])
+            result = self._tool_dispatcher.execute({
+                "name": tool_call["function"]["name"],
+                "arguments": arguments,
+            })
+
+            # Log tool execution if logger is available
+            if self._logger and request_id:
+                self._logger.log_tool_execution(
+                    request_id=request_id,
+                    tool_name=tool_call["function"]["name"],
+                    tool_call_id=tool_call["id"],
+                    arguments=arguments,
+                    result=result,
+                )
+
+            # Add tool result to session with tool_call_id
+            self._session.add_message("tool", str(result), tool_call_id=tool_call["id"])
+            self._renderer.render_tool_result(tool_call["function"]["name"], result)
+
+        # Send tool results back to API for next response
+        messages = self._session.get_messages()
+        tools = self._tool_registry.to_openai_format()
+        next_response = self._api_client.send_message(messages, tools)
+
+        for next_msg in next_response:
+            # Get request_id for next iteration
+            request_id = next_msg.pop("_request_id", None)
+
+            if "tool_calls" in next_msg and next_msg["tool_calls"]:
+                # More tool calls - recurse
+                self._handle_tool_calls_in_message(next_msg, next_response)
+            else:
+                # Final response with content
+                self._session.add_message(next_msg["role"], next_msg.get("content", ""))
+                content = next_msg.get("content", "")
+                if not content:
+                    content = "(工具执行完成，AI 无额外响应)"
+                self._renderer.render_message(next_msg["role"], content)
+
     def process_input(self, input: str) -> str:
         """Process user input."""
         # Check for slash commands
@@ -112,44 +169,9 @@ class Runtime:
 
                     response = self._api_client.send_message(messages, tools)
                     for msg in response:
-                        # Get request_id for tool logging
-                        request_id = msg.pop("_request_id", None)
-
                         # Handle tool calls
                         if "tool_calls" in msg and msg["tool_calls"]:
-                            self._renderer.render_message("system", f"Executing {len(msg['tool_calls'])} tool(s)...")
-
-                            # Add assistant message with tool_calls to session
-                            self._session.add_message(msg["role"], msg.get("content", ""), tool_calls=msg["tool_calls"])
-
-                            # Execute each tool call
-                            for tool_call in msg["tool_calls"]:
-                                arguments = json.loads(tool_call["function"]["arguments"])
-                                result = self._tool_dispatcher.execute({
-                                    "name": tool_call["function"]["name"],
-                                    "arguments": arguments,
-                                })
-
-                                # Log tool execution if logger is available
-                                if self._logger and request_id:
-                                    self._logger.log_tool_execution(
-                                        request_id=request_id,
-                                        tool_name=tool_call["function"]["name"],
-                                        tool_call_id=tool_call["id"],
-                                        arguments=arguments,
-                                        result=result,
-                                    )
-
-                                # Add tool result to session with tool_call_id
-                                self._session.add_message("tool", str(result), tool_call_id=tool_call["id"])
-                                self._renderer.render_tool_result(tool_call["function"]["name"], result)
-
-                            # Send tool results back to API for final response
-                            messages = self._session.get_messages()
-                            final_response = self._api_client.send_message(messages, tools)
-                            for final_msg in final_response:
-                                self._session.add_message(final_msg["role"], final_msg.get("content", ""))
-                                self._renderer.render_message(final_msg["role"], final_msg.get("content", ""))
+                            self._handle_tool_calls_in_message(msg, response)
                         else:
                             # Regular message (no tool calls)
                             self._session.add_message(msg["role"], msg["content"])
