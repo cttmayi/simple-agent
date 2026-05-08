@@ -156,7 +156,7 @@ class Runtime:
 
             # Add tool result to session with tool_call_id
             self._session.add_message("tool", tool_content, tool_call_id=tool_call["id"])
-            self._renderer.render_tool_result(tool_call["function"]["name"], tool_result)
+            self._renderer.render_tool_result(tool_call["function"]["name"], tool_result, arguments)
 
         # Send tool results back to API for next response
         messages = self._session.get_messages()
