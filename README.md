@@ -11,6 +11,7 @@ A Claude Code-like CLI tool with support for hooks, skills, subagents, and slash
 - **Hooks**: Event-driven plugins for custom behavior
 - **Commands**: Built-in and custom slash commands
 - **Multi-Provider**: Support for OpenAI and Anthropic/Claude APIs
+- **Request Logging**: Track LLM requests and responses for analysis
 
 ## Installation
 
@@ -40,6 +41,28 @@ paths:
 ui:
   theme: dark
   show_thinking: true
+
+logging:
+  enabled: true
+  log_dir: ./logs/llm  # Optional, defaults to ./logs/llm
+```
+
+### Log Analysis
+
+LLM requests and responses are logged to daily JSONL files (`logs/llm/llm-YYYY-MM-DD.jsonl`).
+
+To analyze logs:
+
+```python
+from simple_agent.core.llm_logger import parse_log_file, get_conversation
+
+# Parse all entries
+entries = parse_log_file(Path("logs/llm/llm-2024-01-01.jsonl"))
+
+# Get a specific conversation
+conv = get_conversation(entries, request_id="...")
+print(f"Model: {conv['request']['model']}")
+print(f"Tokens: {conv['response']['usage']}")
 ```
 
 ## Usage
