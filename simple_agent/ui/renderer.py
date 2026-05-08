@@ -51,7 +51,7 @@ class UIRenderer:
                 if key not in ["cwd", "timeout", "case_sensitive"]:
                     args_display.append(f"{key}={value}")
             if args_display:
-                self.console.print(f"  {status} {tool_name} [{' + ', '.join(args_display) + ']}")
+                self.console.print(f"  {status} {tool_name} [" + ', '.join(args_display) + ']')
             else:
                 self.console.print(f"  {status} {tool_name}")
         else:
@@ -85,7 +85,7 @@ class UIRenderer:
             if matches:
                 self.console.print(f"  [dim]Found {len(matches)} matches:[/dim]")
                 for m in matches:
-                    self.console.print(f"    [cyan]Line {m['line']}:[/cyan] {m['content']}")
+                    self.console.print(f"      [cyan]Line {m['line']}:[/cyan] {m['content']}")
             else:
                 self.console.print(f"  [dim]No matches found[/dim]")
         elif "results" in tool_result:
