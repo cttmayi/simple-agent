@@ -121,12 +121,38 @@ class Runtime:
             # or return builtin result directly when it already has 'success' field
             tool_result = result.get("result", result)
 
-            tool_content = json.dumps(tool_result, ensure_ascii=False, indent=2)
-
+            # Build concise content for API (to avoid Extra data errors)
             if not tool_result.get("success", True):
+                # Tool failed - send error message
                 error_msg = tool_result.get("error", "Unknown error")
-                # Add a prominent error indicator for AI
-                tool_content = f"[TOOL_ERROR] {error_msg}\n\nDetails:\n{tool_content}"
+                tool_content = f"[TOOL_ERROR] {error_msg}"
+            elif "stdout" in tool_result:
+                # Shell command - show stdout/stderr
+                stdout = tool_result.get("stdout", "").strip()
+                stderr = tool_result.get("stderr", "").strip()
+                if stderr:
+                    tool_content = f"Output:\n{stdout}\nErrors:\n{stderr}"
+                else:
+                    tool_content = f"Output:\n{stdout}"
+            elif "content" in tool_result:
+                # File read - show content
+                content = tool_result.get("content", "")
+                if len(content) > 500:
+                    content = content[:500] + "..."
+                tool_content = f"Content:\n{content}"
+            elif "matches" in tool_result:
+                # Grep - show match count and samples
+                matches = tool_result.get("matches", [])
+                if matches:
+                    tool_content = f"Found {len(matches)} matches. First few:\n{matches[:3]}"
+                else:
+                    tool_content = "No matches found"
+            elif "results" in tool_result:
+                # Web search - show result count
+                results = tool_result.get("results", [])
+                tool_content = f"Found {len(results)} results"
+            else:
+                tool_content = str(tool_result)
 
             # Add tool result to session with tool_call_id
             self._session.add_message("tool", tool_content, tool_call_id=tool_call["id"])
