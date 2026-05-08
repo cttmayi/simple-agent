@@ -25,6 +25,7 @@ dev = [
 
 [project.scripts]
 simple-agent = "simple_agent.main:main"
+simple-agent-logs = "simple_agent.cli.view_logs:main"
 
 [build-system]
 requires = ["hatchling"]

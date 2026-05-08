@@ -51,7 +51,26 @@ logging:
 
 LLM requests and responses are logged to daily JSONL files (`logs/llm/llm-YYYY-MM-DD.jsonl`).
 
-To analyze logs:
+View logs in human-readable format:
+
+```bash
+# View all conversations from today
+simple-agent --logs
+
+# View recent 5 conversations
+simple-agent --logs -r 5
+
+# Search for specific text
+simple-agent --logs -s "error"
+
+# List only conversation IDs
+simple-agent --logs -i
+
+# View specific date
+simple-agent-logs logs/llm/llm-2024-01-01.jsonl
+```
+
+Programmatic analysis:
 
 ```python
 from simple_agent.core.llm_logger import parse_log_file, get_conversation
