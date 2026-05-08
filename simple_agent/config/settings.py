@@ -26,10 +26,16 @@ class UIConfig(BaseModel):
     show_thinking: bool = True
 
 
+class LoggingConfig(BaseModel):
+    enabled: bool = True
+    log_dir: Optional[str] = None  # Defaults to ./logs/llm
+
+
 class Settings(BaseModel):
     api: APIConfig = Field(default_factory=APIConfig)
     paths: PathsConfig = Field(default_factory=PathsConfig)
     ui: UIConfig = Field(default_factory=UIConfig)
+    logging: LoggingConfig = Field(default_factory=LoggingConfig)
 
 
 def _resolve_env_var(value: str) -> str:

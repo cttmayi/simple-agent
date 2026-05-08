@@ -1,3 +1,21 @@
-.simple-agent/*
+.simple-agent/
 
 *.pyc
+__pycache__/
+*.pyo
+*.pyd
+.Python
+
+# Logs
+logs/
+*.log
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

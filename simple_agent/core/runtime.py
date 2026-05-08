@@ -6,6 +6,7 @@ from simple_agent.config.settings import Settings
 from simple_agent.api.client import APIClient
 from simple_agent.core.events import EventBus, Event
 from simple_agent.core.session import Session
+from simple_agent.core.llm_logger import LLMLogger
 from simple_agent.tools.registry import get_global_registry
 from simple_agent.tools.dispatcher import ToolDispatcher
 from simple_agent.resources.skills import SkillLoader
@@ -24,7 +25,14 @@ class Runtime:
         self._event_bus = EventBus()
         self._session = Session()
         self._renderer = UIRenderer()
-        self._api_client = APIClient(config.api)
+
+        # Initialize logger
+        log_dir = Path(config.logging.log_dir) if config.logging.log_dir else None
+        self._logger = LLMLogger(log_dir, enabled=config.logging.enabled)
+
+        # Initialize API client with logger
+        self._api_client = APIClient(config.api, self._logger)
+
         # Use global registry (includes builtin tools)
         self._tool_registry = get_global_registry()
         self._tool_dispatcher = ToolDispatcher(self._tool_registry)
@@ -104,6 +112,9 @@ class Runtime:
 
                     response = self._api_client.send_message(messages, tools)
                     for msg in response:
+                        # Get request_id for tool logging
+                        request_id = msg.pop("_request_id", None)
+
                         # Handle tool calls
                         if "tool_calls" in msg and msg["tool_calls"]:
                             self._renderer.render_message("system", f"Executing {len(msg['tool_calls'])} tool(s)...")
@@ -113,10 +124,22 @@ class Runtime:
 
                             # Execute each tool call
                             for tool_call in msg["tool_calls"]:
+                                arguments = json.loads(tool_call["function"]["arguments"])
                                 result = self._tool_dispatcher.execute({
                                     "name": tool_call["function"]["name"],
-                                    "arguments": json.loads(tool_call["function"]["arguments"]),
+                                    "arguments": arguments,
                                 })
+
+                                # Log tool execution if logger is available
+                                if self._logger and request_id:
+                                    self._logger.log_tool_execution(
+                                        request_id=request_id,
+                                        tool_name=tool_call["function"]["name"],
+                                        tool_call_id=tool_call["id"],
+                                        arguments=arguments,
+                                        result=result,
+                                    )
+
                                 # Add tool result to session with tool_call_id
                                 self._session.add_message("tool", str(result), tool_call_id=tool_call["id"])
                                 self._renderer.render_tool_result(tool_call["function"]["name"], result)
