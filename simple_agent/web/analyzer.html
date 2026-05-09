@@ -613,18 +613,7 @@
 
 
 
-        function renderAssistantMessage(msg) {
-            const role = msg.role;
-            const isAssistant = role === 'assistant';
-
-            let toolCallsHtml = '';
-            if (msg.tool_calls && msg.tool_calls.length > 0) {
-                toolCallsHtml = `
-                    <div style="margin-top: 15px; border-top: 1px solid #333; padding-top: 15px;">
-                        <div style="color: #f59e0b; font-size: 0.85em; margin-bottom: 10px;">Tool Calls:</div>
-                        ${msg.tool_calls.map(tc => `
-                            <div class="tool-call-inline">
-                                <div style="font-weight: bold; color: #f59e0b; margin-bottom: 8px;">→ ${escapeHtml(tc.function.name)}</div>
+        function.name)}</div>
                                 <div class="tool-arguments">${renderArguments(tc.function.arguments)}</div>
                             </div>
                         `).join('')}
@@ -646,38 +635,6 @@
                     </div>
                     ${contentHtml}
                     ${toolCallsHtml}
-                </div>
-            `;
-        }
-
-        function renderToolMessage(msg) {
-            let argsHtml = '';
-            if (msg.tool_call_args) {
-                try {
-                    const args = JSON.parse(msg.tool_call_args);
-                    if (Object.keys(args).length > 0) {
-                        argsHtml = `
-                            <div style="background: #0a0a1a; padding: 10px; border-radius: 4px; margin: 10px 0; font-size: 0.9em;">
-                                <div style="color: #f59e0b; margin-bottom: 5px;">Arguments:</div>
-                                ${renderArguments(msg.tool_call_args)}
-                            </div>
-                        `;
-                    }
-                } catch (e) {}
-            }
-
-            return `
-                <div class="message tool">
-                    <div class="message-header">
-                        <span class="message-role">← Tool Result: ${escapeHtml(msg.tool_name)}</span>
-                        <span class="badge ${msg.result.success ? 'response' : 'error'}">
-                            ${msg.result.success ? 'OK' : 'Error'}
-                        </span>
-                    </div>
-                    ${argsHtml}
-                    <div class="tool-result ${msg.result.success ? 'success' : 'error'}">
-                        ${msg.result.error || renderResultContent(msg.result)}
-                    </div>
                 </div>
             `;
         }
