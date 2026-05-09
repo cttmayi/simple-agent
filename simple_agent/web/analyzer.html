@@ -868,6 +868,199 @@
                 .replace(/"/g, '&quot;')
                 .replace(/'/g, '&#039;');
         }
+// 渲染卡片摘要
+function renderCardSummary(conv) {
+    const request = conv.request;
+    const response = conv.response;
+    const toolExecutions = conv.tool_executions || [];
+
+    // 获取最后一条user消息
+    let userMessage = '';
+    if (request.messages) {
+        const userMsgs = request.messages.filter(m => m.role === 'user');
+        if (userMsgs.length > 0) {
+            const lastUserMsg = userMsgs[userMsgs.length - 1].content || '';
+            userMessage = lastUserMsg.length > 50 ? lastUserMsg.substring(0, 50) + '...' : lastUserMsg;
+        }
+    }
+
+    // 获取response内容预览和usage
+    let responsePreview = '';
+    let usageDisplay = '';
+    let toolCount = 0;
+
+    if (response) {
+        const content = response.content || '';
+        responsePreview = content.length > 50 ? content.substring(0, 50) + '...' : content;
+
+        const usage = response.usage || {};
+        const totalTokens = usage.total_tokens || 0;
+        const promptTokens = usage.prompt_tokens || 0;
+        const completionTokens = usage.completion_tokens || 0;
+
+        if (totalTokens > 0) {
+            usageDisplay = `<span class="usage-display">| ${totalTokens} tokens (${promptTokens} + ${completionTokens})</span>`;
+        }
+
+        toolCount = (response.tool_calls || []).length;
+    }
+
+    // Tool摘要
+    let toolSummary = '';
+    if (toolExecutions.length > 0) {
+        const toolBadges = toolExecutions.map(te => {
+            const status = te.result?.success ? 'OK' : 'ERR';
+            return `<span class="badge ${te.result?.success ? 'response' : 'error'}">🔧 ${escapeHtml(te.tool_name)} (${status})</span>`;
+        }).join(' ');
+        toolSummary = `<div class="card-summary-section">${toolBadges}</div>`;
+    }
+
+    return `
+        <div class="card-summary" onclick="toggleCard(this)">
+            <div class="card-summary-header">
+                <span class="card-summary-title">📄 API Call: ${escapeHtml(request.model || 'unknown')}</span>
+                <span class="card-summary-meta">${new Date(request.timestamp).toLocaleString()}</span>
+            </div>
+            ${userMessage ? `
+                <div class="card-summary-section">
+                    <span class="badge request">📄 [REQUEST]</span>
+                    <span style="color: #aaa;">${escapeHtml(userMessage)}</span>
+                </div>
+            ` : ''}
+            ${response ? `
+                <div class="card-summary-section">
+                    <span class="badge response">📤 [RESPONSE]</span>
+                    <span style="color: #aaa;">${escapeHtml(responsePreview)}</span>
+                    ${usageDisplay}
+                    ${toolCount > 0 ? `<span class="badge tool">| ${toolCount} tools</span>` : ''}
+                </div>
+            ` : ''}
+            ${toolSummary}
+        </div>
+    `;
+}
+
+// 渲染卡片详情
+function renderCardDetails(conv) {
+    const request = conv.request;
+    const response = conv.response;
+    const toolExecutions = conv.tool_executions || [];
+
+    let sections = '';
+
+    // Request区块
+    if (request && request.messages) {
+        sections += `
+            <div class="detail-section">
+                <div class="detail-section-header" onclick="toggleSection(this)">
+                    <span>📄 Request</span>
+                    <span>▼</span>
+                </div>
+                <div class="detail-section-content active">
+                    ${request.messages.map(msg => `
+                        <div class="message ${msg.role}">
+                            <div class="message-header">
+                                <span class="message-role">${msg.role}</span>
+                            </div>
+                            <div class="message-content">${escapeHtml(msg.content || '(no content)')}</div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    // Response区块
+    if (response) {
+        const toolCalls = response.tool_calls || [];
+        const usage = response.usage || {};
+
+        sections += `
+            <div class="detail-section">
+                <div class="detail-section-header" onclick="toggleSection(this)">
+                    <span>📤 Response</span>
+                    <span>▼</span>
+                </div>
+                <div class="detail-section-content active">
+                    ${response.content ? `
+                        <div style="margin-bottom: 15px;">
+                            <div style="color: #888; font-size: 0.85em; margin-bottom: 5px;">Content:</div>
+                            <div class="message-content">${escapeHtml(response.content)}</div>
+                        </div>
+                    ` : ''}
+                    <div style="margin-bottom: 15px;">
+                        <div style="color: #888; font-size: 0.85em; margin-bottom: 5px;">Usage:</div>
+                        <div class="usage-display">
+                            ${usage.total_tokens || 0} total (${usage.prompt_tokens || 0} prompt + ${usage.completion_tokens || 0} completion)
+                        </div>
+                    </div>
+
+                    ${toolCalls.length > 0 ? `
+                        <div style="margin-bottom: 15px;">
+                            <div style="color: #888; font-size: 0.85em; margin-bottom: 5px;">Tool Calls (${toolCalls.length}):</div>
+                            ${toolCalls.map((tc, i) => `
+                                <div class="detail-section" style="margin-top: 10px;">
+                                    <div class="detail-section-header" onclick="toggleSection(this)">
+                                        <span>→ ${escapeHtml(tc.function.name)}</span>
+                                        <span>▼</span>
+                                    </div>
+                                    <div class="detail-section-content">
+                                        <div class="tool-arguments">${renderArguments(tc.function.arguments)}</div>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    ` : ''}
+                </div>
+            </div>
+        `;
+    }
+
+    // Tool Execution区块
+    if (toolExecutions.length > 0) {
+        sections += `
+            <div class="detail-section">
+                <div class="detail-section-header" onclick="toggleSection(this)">
+                    <span>🔧 Tool Executions (${toolExecutions.length})</span>
+                    <span>▼</span>
+                </div>
+                <div class="detail-section-content active">
+                    ${toolExecutions.map(te => `
+                        <div class="message tool">
+                            <div class="message-header">
+                                <span class="message-role">← ${escapeHtml(te.tool_name)}</span>
+                                <span class="badge ${te.result?.success ? 'response' : 'error'}">
+                                    ${te.result?.success ? 'OK' : 'Error'}
+                                </span>
+                            </div>
+                            <div class="tool-result ${te.result?.success ? 'success' : 'error'}">
+                                ${te.result?.error || renderResultContent(te.result || {})}
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    return `<div class="card-details">${sections}</div>`;
+}
+
+// 切换卡片展开/收起
+function toggleCard(element) {
+    const card = element.parentElement;
+    const details = card.querySelector('.card-details');
+    details.classList.toggle('active');
+}
+
+// 切换详情区块展开/收起
+function toggleSection(element) {
+    const content = element.nextElementSibling;
+    content.classList.toggle('active');
+    const arrow = element.querySelector('span:last-child');
+    arrow.textContent = content.classList.contains('active') ? '▼' : '▶';
+}
+
 
         // Search functionality
         document.getElementById('search-input').addEventListener('input', (e) => {
