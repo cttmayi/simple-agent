@@ -1,86 +1,86 @@
-# Dialogue Card Display Design
+# 对话卡片显示设计
 
-**Date:** 2026-05-09
-**Author:** Claude
-**Status:** Approved
+**日期:** 2026-05-09
+**作者:** Claude
+**状态:** 已批准
 
-## Overview
+## 概述
 
-Redesign the web log analyzer to display conversations as cards organized by log file. Each API call is shown as a card with a summary view and expandable details.
+重新设计Web日志分析器，以卡片形式显示对话，按日志文件组织。每个API调用显示为一个卡片，包含摘要视图和可展开的详细信息。
 
-## Requirements
+## 需求
 
-1. **Organize by log file** - Conversations from the same log file are grouped together
-2. **Card-based display** - Each API call (request/response/tool_execution) is displayed as a card
-3. **Summary view** - Cards show key information at a glance
-4. **Expandable details** - Clicking a card reveals complete information in structured sections
-5. **Usage display** - Response cards show token usage in summary
+1. **按日志文件组织** - 同一日志文件的对话分组显示
+2. **卡片式显示** - 每个API调用（request/response/tool_execution）显示为一张卡片
+3. **摘要视图** - 卡片显示关键信息概览
+4. **可展开详情** - 点击卡片显示结构化的完整信息
+5. **Usage显示** - Response卡片在摘要中显示token使用情况
 
-## Design
+## 设计
 
-### Two-Level Structure
+### 两级结构
 
-**Level 1: Log File Group**
-- Shows log file name and total API calls
-- Click to expand/collapse all cards in the group
+**第一级：日志文件组**
+- 显示日志文件名称和API调用总数
+- 点击展开/收起该组下的所有卡片
 
-**Level 2: API Call Card**
-- Shows summary of request, response, and tool executions
-- Click to expand/collapse detailed view
+**第二级：API调用卡片**
+- 显示request、response、tool_execution的摘要
+- 点击展开/收起详细信息视图
 
-### Card Summary
+### 卡片摘要
 
-Each card displays:
-- **Header**: Model name + timestamp
-- **Request summary**: `[REQUEST]` badge + last user message preview
-- **Response summary**: `[RESPONSE]` badge + timestamp + **usage info** + tool count
-- **Tool summary**: `[TOOL]` badges for each tool (if any)
+每张卡片显示：
+- **标题**: 模型名称 + 时间戳
+- **Request摘要**: `[REQUEST]` 徽章 + 最后一条user消息预览
+- **Response摘要**: `[RESPONSE]` 徽章 + 时间戳 + **usage信息** + tool数量
+- **Tool摘要**: `[TOOL]` 徽章列表（如果有多个工具调用）
 
-**Usage display format:**
+**Usage显示格式:**
 ```
 📤 [RESPONSE] 18:16:05 | 1500 tokens (500 + 1000) | 2 tools
                         总计    prompt  completion
 ```
 
-### Expanded View
+### 展开视图
 
-When expanded, each card shows structured sections:
+展开后，每张卡片显示结构化区块：
 
-**Request Section**
-- Complete messages array
-- Each message shows role and content
-- Collapsible
+**Request区块**
+- 完整的messages数组
+- 每条消息显示role和content
+- 可折叠
 
-**Response Section**
-- Complete content
-- Usage breakdown (prompt + completion + total)
-- Tool calls list with names and parameters
-- Each tool call collapsible for detailed parameters
+**Response区块**
+- 完整的content
+- Usage明细（prompt + completion + total）
+- Tool calls列表（名称+参数）
+- 每个tool call可折叠显示详细参数
 
-**Tool Execution Section**
-- Tool name and call ID
-- Complete result object
-- JSON formatted
-- Red highlight for errors
+**Tool Execution区块**
+- 工具名称和调用ID
+- 完整的result对象
+- JSON格式化显示
+- 错误时红色高亮
 
-### Interaction
+### 交互
 
-- Click card header: toggle entire card
-- Click section header: toggle individual section
-- Double-click: quick expand/collapse
+- 点击卡片头部：展开/收起整个卡片
+- 点击区块头部：展开/收起单个区块
+- 双击：快速展开/收起
 
-## Data Flow
+## 数据流
 
-1. `get_all_conversations()` returns conversations grouped by log file
-2. Frontend groups conversations by `log_file` field
-3. For each group, render a session header with the cards
-4. Each card renders its summary by default
-5. On click, card expands to show structured sections
+1. `get_all_conversations()` 返回按日志文件分组的对话
+2. 前端通过 `log_file` 字段分组
+3. 每个组渲染一个会话头部和对应的卡片
+4. 每张卡片默认渲染摘要视图
+5. 点击后展开显示结构化区块
 
-## Implementation Notes
+## 实施说明
 
-- Reuse existing `groupConversationsByLog()` function
-- Modify `renderConversations()` to use card layout
-- Add new `renderCardSummary()` and `renderCardDetails()` functions
-- Add CSS for card styling and animations
-- Maintain existing deduplication logic for messages
+- 复用现有的 `groupConversationsByLog()` 函数
+- 修改 `renderConversations()` 使用卡片布局
+- 添加新的 `renderCardSummary()` 和 `renderCardDetails()` 函数
+- 添加卡片样式和动画的CSS
+- 保持现有的消息去重逻辑

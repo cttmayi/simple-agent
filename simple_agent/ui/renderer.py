@@ -4,6 +4,8 @@ from rich.console import Console
 from rich.markdown import Markdown
 from rich.syntax import Syntax
 from rich.panel import Panel
+from rich.text import Text
+from rich.markup import escape
 
 
 class UIRenderer:
@@ -25,9 +27,15 @@ class UIRenderer:
             style = "bold yellow"
             prefix = role
 
-        self.console.print(f"\n[{style}]{prefix}[/{style}]:")
-        if content:
-            self.console.print(Markdown(content))
+        try:
+            self.console.print(f"\n[{style}]{prefix}[/{style}]:")
+            if content:
+                self.console.print(Markdown(content))
+        except Exception as e:
+            # Fallback to plain text if Markdown rendering fails
+            self.console.print(f"\n[{style}]{prefix}[/{style}]:")
+            if content:
+                self.console.print(escape(content))
 
     def render_tool_result(self, tool_name: str, result: dict, arguments: dict = None) -> None:
         """Render a tool execution result with detailed output.
@@ -37,75 +45,87 @@ class UIRenderer:
             result: Result dict from tool execution
             arguments: Optional arguments dict for display
         """
-        # Handle both direct result and wrapped result formats
-        tool_result = result.get("result", result)
+        try:
+            # Handle both direct result and wrapped result formats
+            tool_result = result.get("result", result)
 
-        success = tool_result.get("success", False)
-        status = "[bold green]✓[/bold green]" if success else "[bold red]✗[/bold red]"
+            success = tool_result.get("success", False)
+            status = "[bold green]✓[/bold green]" if success else "[bold red]✗[/bold red]"
 
-        # Show full command/parameters on same line with status
-        if arguments:
-            args_display = []
-            for key, value in arguments.items():
-                # Only show user-relevant args
-                if key not in ["cwd", "timeout", "case_sensitive"]:
-                    args_display.append(f"{key}={value}")
-            if args_display:
-                self.console.print(f"  {status} {tool_name} [" + ', '.join(args_display) + ']')
+            # Show full command/parameters on same line with status
+            if arguments:
+                args_display = []
+                for key, value in arguments.items():
+                    # Only show user-relevant args
+                    if key not in ["cwd", "timeout", "case_sensitive"]:
+                        # Truncate long values for display
+                        value_str = str(value)
+                        if len(value_str) > 20:
+                            value_str = value_str[:20] + "..."
+                        args_display.append(f"{key}={value_str}")
+                if args_display:
+                    # Build args string and escape it
+                    args_str = '[' + ', '.join(args_display) + ']'
+                    # Print status with markup, tool name, and escaped args
+                    self.console.print(f"  {status} {tool_name} {escape(args_str)}")
+                else:
+                    self.console.print(f"  {status} {tool_name}")
             else:
                 self.console.print(f"  {status} {tool_name}")
-        else:
-            self.console.print(f"  {status} {tool_name}")
 
-        # Show detailed output (not truncated for user feedback)
-        if "error" in tool_result:
-            # Show full error message
-            self.console.print(f"  [red]Error:[/red] {tool_result['error']}")
-        elif "content" in tool_result:
-            # Show full file content (no truncation for user feedback)
-            content = tool_result["content"]
-            if content:
-                self.console.print(f"  {content}")
-        elif "stdout" in tool_result:
-            # Show stdout (no truncation)
-            stdout = tool_result.get("stdout", "").strip()
-            if stdout:
-                self.console.print(f"  {stdout}")
-            # Show stderr if present
-            stderr = tool_result.get("stderr", "").strip()
-            if stderr:
-                self.console.print(f"  [red]{stderr}[/red]")
-            # Show return code if non-zero
-            returncode = tool_result.get("returncode")
-            if returncode and returncode != 0:
-                self.console.print(f"  [dim]Exit code: {returncode}[/dim]")
-        elif "matches" in tool_result:
-            # Show match details
-            matches = tool_result["matches"]
-            if matches:
-                self.console.print(f"  [dim]Found {len(matches)} matches:[/dim]")
-                for m in matches:
-                    self.console.print(f"      [cyan]Line {m['line']}:[/cyan] {m['content']}")
-            else:
-                self.console.print(f"  [dim]No matches found[/dim]")
-        elif "results" in tool_result:
-            # Show web search results
-            results = tool_result.get("results", [])
-            if results:
-                self.console.print(f"  [dim]Found {len(results)} results:[/dim]")
-                for i, r in enumerate(results[:5], start=1):
-                    title = r.get("title", "")
-                    url = r.get("url", "")
-                    snippet = r.get("snippet", "")
-                    self.console.print(f"  [{i}] [link]{title}[/link]")
-                    if url:
-                        self.console.print(f"        URL: {url}")
-                    if snippet and len(snippet) < 150:
-                        self.console.print(f"        {snippet}")
-                if len(results) > 5:
-                    self.console.print(f"  ... and {len(results) - 5} more results")
-            else:
-                self.console.print(f"  [dim]No results found[/dim]")
+            # Show detailed output (not truncated for user feedback)
+            if "error" in tool_result:
+                # Show full error message
+                self.console.print(f"  [red]Error:[/red] {escape(tool_result['error'])}")
+            elif "content" in tool_result:
+                # Show full file content (no truncation for user feedback)
+                content = tool_result["content"]
+                if content:
+                    # Escape rich markup to prevent MarkupError
+                    self.console.print(f"  {escape(content)}")
+            elif "stdout" in tool_result:
+                # Show stdout (no truncation)
+                stdout = tool_result.get("stdout", "").strip()
+                if stdout:
+                    self.console.print(f"  {stdout}")
+                # Show stderr if present
+                stderr = tool_result.get("stderr", "").strip()
+                if stderr:
+                    self.console.print(f"  [red]{escape(stderr)}[/red]")
+                # Show return code if non-zero
+                returncode = tool_result.get("returncode")
+                if returncode and returncode != 0:
+                    self.console.print(f"  [dim]Exit code: {returncode}[/dim]")
+            elif "matches" in tool_result:
+                # Show match details
+                matches = tool_result["matches"]
+                if matches:
+                    self.console.print(f"  [dim]Found {len(matches)} matches:[/dim]")
+                    for m in matches:
+                        self.console.print(f"      [cyan]Line {m['line']}:[/cyan] {escape(m['content'])}")
+                else:
+                    self.console.print(f"  [dim]No matches found[/dim]")
+            elif "results" in tool_result:
+                # Show web search results
+                results = tool_result.get("results", [])
+                if results:
+                    self.console.print(f"  [dim]Found {len(results)} results:[/dim]")
+                    for i, r in enumerate(results[:5], start=1):
+                        title = r.get("title", "")
+                        url = r.get("url", "")
+                        snippet = r.get("snippet", "")
+                        self.console.print(f"  [{i}] [link]{escape(title)}[/link]")
+                        if url:
+                            self.console.print(f"        URL: {url}")
+                        if snippet and len(snippet) < 150:
+                            self.console.print(f"        {escape(snippet)}")
+                    if len(results) > 5:
+                        self.console.print(f"  ... and {len(results) - 5} more results")
+                else:
+                    self.console.print(f"  [dim]No results found[/dim]")
+        except Exception as e:
+            # Fallback to simple output if rendering fails
+            self.console.print(f"  Error rendering tool result: {escape(str(e))}")
 
     def render_code(self, language: str, code: str) -> None:
         """Render a code block with syntax highlighting."""
@@ -114,12 +134,15 @@ class UIRenderer:
 
     def render_error(self, message: str) -> None:
         """Render an error message."""
-        self.console.print(f"\n[bold red]Error:[/bold red] {message}")
+        self.console.print(f"\n[bold red]Error:[/bold red] {escape(message)}")
 
     def render_warning(self, message: str) -> None:
         """Render a warning message."""
-        self.console.print(f"\n[bold yellow]Warning:[/bold yellow] {message}")
+        self.console.print(f"\n[bold yellow]Warning:[/bold yellow] {escape(message)}")
 
     def render_thinking(self, message: str) -> None:
         """Render a thinking indicator."""
-        self.console.print(f"[dim italic]... {message}[/dim italic]")
+        self.console.print(Text.assemble(
+            Text("... ", style="dim italic"),
+            Text(escape(message), style="dim italic")
+        ))

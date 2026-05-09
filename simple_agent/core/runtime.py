@@ -17,18 +17,21 @@ from simple_agent.ui.renderer import UIRenderer
 
 # Import builtin tools to auto-register them
 from simple_agent.tools import builtin  # noqa: F401
+from simple_agent.tools.builtin.load_skill import LoadSkill
+from simple_agent.tools.builtin.load_subagent import LoadSubagent
 
 
 class Runtime:
-    def __init__(self, config: Settings):
+    def __init__(self, config: Settings, log_file: Optional[str] = None):
         self._config = config
         self._event_bus = EventBus()
         self._session = Session()
         self._renderer = UIRenderer()
+        self._session_id: Optional[str] = None
 
         # Initialize logger
         log_dir = Path(config.logging.log_dir) if config.logging.log_dir else None
-        self._logger = LLMLogger(log_dir, enabled=config.logging.enabled)
+        self._logger = LLMLogger(log_dir, enabled=config.logging.enabled, log_file=log_file)
 
         # Initialize API client with logger
         self._api_client = APIClient(config.api, self._logger)
@@ -37,14 +40,64 @@ class Runtime:
         self._tool_registry = get_global_registry()
         self._tool_dispatcher = ToolDispatcher(self._tool_registry)
 
-        # Initialize resource loaders
-        self._skill_loader = SkillLoader(Path(config.paths.skills_dir))
-        self._subagent_loader = SubagentLoader(Path(config.paths.subagents_dir))
-        self._hook_loader = HookLoader(Path(config.paths.hooks_dir))
-        self._command_loader = CommandLoader(Path(config.paths.commands_dir))
+        # Initialize resource loaders (resolve relative paths from current directory)
+        base_dir = Path.cwd()
+        self._skill_loader = SkillLoader(base_dir / config.paths.skills_dir)
+        self._subagent_loader = SubagentLoader(base_dir / config.paths.subagents_dir)
+        self._hook_loader = HookLoader(base_dir / config.paths.hooks_dir)
+        self._command_loader = CommandLoader(base_dir / config.paths.commands_dir)
 
         # Load and register hooks
         self._load_hooks()
+
+        # Load skills and build skills context (only metadata for lazy loading)
+        self._skills_context = self._build_skills_context()
+        self._loaded_skills = set()  # Track which skills have been fully loaded
+
+        # Load subagents and build subagents context (only metadata for lazy loading)
+        self._subagents_context = self._build_subagents_context()
+        self._loaded_subagents = set()  # Track which subagents have been fully loaded
+
+        # Set up load_skill and load_subagent tools
+        LoadSkill.set_runtime(self._skill_loader, self._loaded_skills, self)
+        LoadSubagent.set_runtime(self._subagent_loader, self._loaded_subagents, self)
+
+        # Register the tool definitions
+        from simple_agent.tools.builtin.load_skill import load_skill_tool_def
+        from simple_agent.tools.builtin.load_subagent import load_subagent_tool_def
+        self._tool_registry.register(load_skill_tool_def)
+        self._tool_registry.register(load_subagent_tool_def)
+
+    def _build_skills_context(self) -> str:
+        """Build context string from all available skills (metadata only for lazy loading)."""
+        skills = self._skill_loader.list_skills()
+        if not skills:
+            return ""
+
+        context_parts = ["# Available Skills\n"]
+        context_parts.append("The following skills are available. Ask to load them by name.\n\n")
+
+        for skill in skills:
+            context_parts.append(f"- **{skill['name']}**: {skill['description']}")
+
+        return "\n".join(context_parts)
+
+    def _build_subagents_context(self) -> str:
+        """Build context string from all available subagents (metadata only for lazy loading)."""
+        subagents = self._subagent_loader.list_subagents()
+        if not subagents:
+            return ""
+
+        context_parts = ["# Available Subagents\n"]
+        context_parts.append("The following subagents are available. Mention them in your request to auto-load.\n\n")
+
+        for subagent in subagents:
+            tools = subagent['metadata'].get('tools', [])
+            tools_str = ', '.join(tools) if tools else 'all tools'
+            context_parts.append(f"- **{subagent['name']}**: {subagent['description']}")
+            context_parts.append(f"  Tools: {tools_str}\n")
+
+        return "\n".join(context_parts)
 
     def _load_hooks(self):
         """Load and register all hooks."""
@@ -77,7 +130,25 @@ class Runtime:
     def _handle_slash_command(self, command: str, args: List[str]) -> str:
         """Handle a slash command."""
         if command == "help":
-            return "Available commands: /help, /exit"
+            skills = self._skill_loader.list_skills()
+            subagents = self._subagent_loader.list_subagents()
+            help_text = "# Available Commands\n\n- `/help` - Show this help message\n- `/exit` - Exit the agent\n\n"
+            help_text += "AI can automatically load skills and subagents by mentioning them in your request.\n"
+
+            if skills:
+                help_text += "\n# Available Skills\n\n"
+                for skill in skills:
+                    help_text += f"- **{skill['name']}**: {skill['description']}\n"
+
+            if subagents:
+                help_text += "\n# Available Subagents\n\n"
+                for subagent in subagents:
+                    tools = subagent['metadata'].get('tools', [])
+                    tools_str = ', '.join(tools) if tools else 'all tools'
+                    help_text += f"- **{subagent['name']}**: {subagent['description']}\n"
+                    help_text += f"  Tools: {tools_str}\n"
+
+            return help_text
         elif command == "exit" or command == "quit":
             return "exit"
         return f"Unknown command: /{command}"
@@ -115,51 +186,62 @@ class Runtime:
                     result=result,
                 )
 
-            # Format tool result for AI understanding
-            # Builtin tools return structured dicts with 'success' field
-            # Dispatcher may wrap results: {"success": True, "result": ...}
-            # or return builtin result directly when it already has 'success' field
-            tool_result = result.get("result", result)
+            # Handle load_skill and load_subagent tools specially
+            # These tools are handled separately - content is added to session
+            # and we don't format/send their result to the API
+            tool_name = tool_call["function"]["name"]
 
-            # Build concise content for API (to avoid Extra data errors)
-            if not tool_result.get("success", True):
-                # Tool failed - send error message
-                error_msg = tool_result.get("error", "Unknown error")
-                tool_content = f"[TOOL_ERROR] {error_msg}"
-            elif "stdout" in tool_result:
-                # Shell command - show stdout/stderr
-                stdout = tool_result.get("stdout", "").strip()
-                stderr = tool_result.get("stderr", "").strip()
-                if stderr:
-                    tool_content = f"Output:\n{stdout}\nErrors:\n{stderr}"
-                else:
-                    tool_content = f"Output:\n{stdout}"
-            elif "content" in tool_result:
-                # File read - show content
-                content = tool_result.get("content", "")
-                if len(content) > 500:
-                    content = content[:500] + "..."
-                tool_content = f"Content:\n{content}"
-            elif "matches" in tool_result:
-                # Grep - show match count and samples
-                matches = tool_result.get("matches", [])
-                if matches:
-                    tool_content = f"Found {len(matches)} matches. First few:\n{matches[:3]}"
-                else:
-                    tool_content = "No matches found"
-            elif "results" in tool_result:
-                # Web search - show result count
-                results = tool_result.get("results", [])
-                tool_content = f"Found {len(results)} results"
-            else:
-                tool_content = str(tool_result)
+            if tool_name not in ["load_skill", "load_subagent"]:
+                # Regular tool - normal processing
+                tool_result = result.get("result", result)
 
-            # Add tool result to session with tool_call_id
-            self._session.add_message("tool", tool_content, tool_call_id=tool_call["id"])
-            self._renderer.render_tool_result(tool_call["function"]["name"], tool_result, arguments)
+                # Format tool result for AI understanding
+                # Builtin tools return structured dicts with 'success' field
+                # Dispatcher may wrap results: {"success": True, "result": ...}
+                # or return builtin result directly when it already has 'success' field
+
+                # Build concise content for API (to avoid Extra data errors)
+                if not tool_result.get("success", True):
+                    # Tool failed - send error message
+                    error_msg = tool_result.get("error", "Unknown error")
+                    tool_content = f"[TOOL_ERROR] {error_msg}"
+                elif "stdout" in tool_result:
+                    # Shell command - show stdout/stderr
+                    stdout = tool_result.get("stdout", "").strip()
+                    stderr = tool_result.get("stderr", "").strip()
+                    if stderr:
+                        tool_content = f"Output:\n{stdout}\nErrors:\n{stderr}"
+                    else:
+                        tool_content = f"Output:\n{stdout}"
+                elif "content" in tool_result:
+                    # File read - show content
+                    content = tool_result.get("content", "")
+                    if len(content) > 500:
+                        content = content[:500] + "..."
+                    tool_content = f"Content:\n{content}"
+                elif "matches" in tool_result:
+                    # Grep - show match count and samples
+                    matches = tool_result.get("matches", [])
+                    if matches:
+                        tool_content = f"Found {len(matches)} matches. First few:\n{matches[:3]}"
+                    else:
+                        tool_content = "No matches found"
+                elif "results" in tool_result:
+                    # Web search - show result count
+                    results = tool_result.get("results", [])
+                    tool_content = f"Found {len(results)} results"
+                else:
+                    tool_content = str(tool_result)
+
+                # Add tool result to session with tool_call_id
+                self._session.add_message("tool", tool_content, tool_call_id=tool_call["id"])
+
+                # Send message to user for load_skill/load_subagent
+                if tool_name in ["load_skill", "load_subagent"]:
+                    self._renderer.render_message("system", tool_result.get("message", ""))
 
         # Send tool results back to API for next response
-        messages = self._session.get_messages()
+        messages = self._prepare_messages_with_context()
         tools = self._tool_registry.to_openai_format()
         next_response = self._api_client.send_message(messages, tools)
 
@@ -178,6 +260,58 @@ class Runtime:
                     content = "(工具执行完成，AI 无额外响应)"
                 self._renderer.render_message(next_msg["role"], content)
 
+    def _prepare_messages_with_context(self) -> List[Dict[str, str]]:
+        """Prepare messages with skills, subagents, and agent context."""
+        messages = self._session.get_messages()
+
+        # Build system context with skills, subagents, and AGENT.md
+        system_parts = []
+
+        # Add skills context
+        if self._skills_context:
+            system_parts.append(self._skills_context)
+
+        # Add subagents context
+        if self._subagents_context:
+            system_parts.append(self._subagents_context)
+
+        # Add AGENT.md context
+        agent_context = self.get_agent_context()
+        if agent_context:
+            system_parts.append("# Agent Context\n")
+            system_parts.append(agent_context)
+
+        # Add manually loaded skills/subagents from session
+        # These are added via /load-skill and /load-subagent commands
+        manually_loaded_context = []
+        for msg in messages:
+            if msg.get("role") == "system" and msg.get("content"):
+                content = msg.get("content", "")
+                # Check if it's a manually loaded skill or subagent
+                if content.startswith("# Skill:") or content.startswith("# Subagent:"):
+                    manually_loaded_context.append(content)
+
+        # Combine all system parts
+        if manually_loaded_context:
+            system_parts.extend(manually_loaded_context)
+
+        # Prepare messages for API
+        api_messages = []
+
+        # Add combined system context if available
+        if system_parts:
+            api_messages.append({
+                "role": "system",
+                "content": "\n\n".join(system_parts)
+            })
+
+        # Add session messages (skip system messages since they're already in system_parts)
+        for msg in messages:
+            if msg.get("role") != "system":
+                api_messages.append(msg)
+
+        return api_messages
+
     def process_input(self, input: str) -> str:
         """Process user input."""
         # Check for slash commands
@@ -191,7 +325,37 @@ class Runtime:
 
     def run(self):
         """Main run loop."""
+        # Restore loaded skills/subagents from session (if resuming)
+        loaded_skills = self._session.get_loaded_skills()
+        loaded_subagents = self._session.get_loaded_subagents()
+        if loaded_skills:
+            self._loaded_skills.update(loaded_skills)
+        if loaded_subagents:
+            self._loaded_subagents.update(loaded_subagents)
+
+        # Generate session ID and log session start
+        import uuid
+        self._session_id = str(uuid.uuid4())
+        if self._logger:
+            self._logger.log_session_start(self._session_id)
+
         self._renderer.render_message("system", "Simple Agent started. Type /help for commands.")
+
+        # Debug: Show available skills (metadata only)
+        skills = self._skill_loader.list_skills()
+        if skills:
+            self._renderer.render_message("system", f"Found {len(skills)} skill(s): {', '.join([s['name'] for s in skills])}")
+            self._renderer.render_message("system", "Skills are loaded on-demand. Use /load-skill <name> to load a skill.")
+        else:
+            self._renderer.render_message("system", "No skills found in ./skills directory.")
+
+        # Debug: Show available subagents (metadata only)
+        subagents = self._subagent_loader.list_subagents()
+        if subagents:
+            self._renderer.render_message("system", f"Found {len(subagents)} subagent(s): {', '.join([s['name'] for s in subagents])}")
+            self._renderer.render_message("system", "Subagents are loaded on-demand. Use /load-subagent <name> to load a subagent.")
+        else:
+            self._renderer.render_message("system", "No subagents found in ./subagents directory.")
 
         while True:
             try:
@@ -203,7 +367,7 @@ class Runtime:
                     break
                 elif result == "message_processed":
                     # Process message with API
-                    messages = self._session.get_messages()
+                    messages = self._prepare_messages_with_context()
                     tools = self._tool_registry.to_openai_format()
 
                     response = self._api_client.send_message(messages, tools)
@@ -213,8 +377,16 @@ class Runtime:
                             self._handle_tool_calls_in_message(msg, response)
                         else:
                             # Regular message (no tool calls)
-                            self._session.add_message(msg["role"], msg["content"])
-                            self._renderer.render_message(msg["role"], msg["content"])
+                            content = msg.get("content", "")
+                            self._session.add_message(msg["role"], content)
+                            try:
+                                self._renderer.render_message(msg["role"], content)
+                            except Exception as e:
+                                # Fallback to plain text if rendering fails
+                                self._renderer.render_error(f"Failed to render message: {str(e)}")
+                                # Try showing first 500 chars as plain text
+                                plain_content = content[:500] if content else ""
+                                print(f"\n{msg['role']}: {plain_content}")
                 else:
                     self._renderer.render_message("system", result)
 

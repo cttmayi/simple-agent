@@ -1,11 +1,29 @@
 import sys
+from pathlib import Path
 from simple_agent.config.settings import load_config
 from simple_agent.core.runtime import Runtime
 from simple_agent.cli.view_logs import main as view_logs_main
 
 
+def get_latest_log_file() -> Path:
+    """Get the most recently modified log file.
+
+    Returns:
+        Path to the latest log file, or None if no logs exist
+    """
+    log_dir = Path.cwd() / "logs" / "llm"
+    if not log_dir.exists():
+        return None
+
+    log_files = list(log_dir.glob("*.jsonl"))
+    if not log_files:
+        return None
+
+    return max(log_files, key=lambda f: f.stat().st_mtime)
+
+
 def main():
-    # Check for --view-logs flag
+    # Check for --view-logs or --logs flag
     if "--view-logs" in sys.argv or len(sys.argv) > 1 and sys.argv[1] in ["-l", "--logs"]:
         # Remove the flag and pass remaining args to view_logs
         if "--view-logs" in sys.argv:
@@ -18,14 +36,60 @@ def main():
         view_logs_main()
         return
 
+    # Check for --web flag
+    if "--web" in sys.argv:
+        run_web_server()
+        return
+
+    # Check for --resume flag
+    resume_log = None
+    if "--resume" in sys.argv:
+        try:
+            resume_index = sys.argv.index("--resume")
+            if resume_index + 1 < len(sys.argv) and not sys.argv[resume_index + 1].startswith("-"):
+                resume_log = sys.argv[resume_index + 1]
+        except ValueError:
+            pass
+
+    # If --resume without argument, use latest log file
+    if "--resume" in sys.argv and not resume_log:
+        latest = get_latest_log_file()
+        if latest:
+            resume_log = str(latest)
+
     config = load_config()
 
     if not config.api.api_key:
         print("Error: No API key found. Set OPENAI_API_KEY or ANTHROPIC_API_KEY environment variable.")
         sys.exit(1)
 
-    runtime = Runtime(config)
+    runtime = Runtime(config, log_file=resume_log)
+
+    # Resume session if log file specified
+    if resume_log:
+        log_path = Path(resume_log)
+        if log_path.exists():
+            print(f"Resuming session from: {resume_log}")
+            runtime._session.load_from_log(log_path)
+        else:
+            print(f"Warning: Log file not found: {resume_log}")
+
     runtime.run()
+
+
+def run_web_server():
+    """Run the web analyzer server."""
+    try:
+        from simple_agent.web.server import app
+        import os
+        os.environ['FLASK_ENV'] = 'development'
+        print("Starting web server...")
+        print("Web interface: http://localhost:5001")
+        print("Press Ctrl+C to stop the server")
+        app.run(host='0.0.0.0', port=5001, debug=False)
+    except ImportError:
+        print("Error: Flask is not installed. Install with: pip install flask flask-cors")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

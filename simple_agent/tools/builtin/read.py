@@ -9,6 +9,9 @@ from simple_agent.tools.registry import get_global_registry, ToolDefinition
 # Max file size: 1MB
 MAX_FILE_SIZE = 1024 * 1024
 
+# Max lines to return (default 200)
+MAX_LINES = 200
+
 
 class READ:
     """Read file contents safely."""
@@ -17,12 +20,13 @@ class READ:
     description = "Read the contents of a file"
 
     @staticmethod
-    def _read(path: str, cwd: Optional[str] = None) -> Dict[str, Any]:
+    def _read(path: str, cwd: Optional[str] = None, start_line: Optional[int] = None) -> Dict[str, Any]:
         """Read file contents with security checks.
 
         Args:
             path: File path (relative or absolute)
             cwd: Working directory for relative paths (defaults to current directory)
+            start_line: Line number to start reading from (1-indexed, defaults to 1)
 
         Returns:
             Dict with success, content, and optional error
@@ -45,10 +49,6 @@ class READ:
                     "content": "",
                     "error": "Invalid path"
                 }
-
-            # Verify the path is within the allowed directory
-            # Allow reading anywhere, but warn about potential issues
-            # For stricter security, you could restrict to base_dir
 
             # Check if file exists
             if not file_path.exists():
@@ -77,9 +77,51 @@ class READ:
             # Read file content
             content = file_path.read_text(encoding="utf-8")
 
+            # Process lines
+            lines = content.splitlines(keepends=True)
+
+            # Set default start_line to 1
+            if start_line is None:
+                start_line = 1
+            elif start_line < 1:
+                return {
+                    "success": False,
+                    "content": "",
+                    "error": f"start_line must be at least 1 (got {start_line})"
+                }
+
+            # Get requested lines
+            start_index = start_line - 1  # Convert to 0-indexed
+            end_index = start_index + MAX_LINES
+
+            if start_index >= len(lines):
+                return {
+                    "success": False,
+                    "content": "",
+                    "error": f"start_line {start_line} exceeds file length ({len(lines)} lines)"
+                }
+
+            # Get lines from start_line to start_line + MAX_LINES
+            selected_lines = lines[start_index:end_index]
+
+            # Check if file was truncated
+            is_truncated = end_index < len(lines)
+            total_lines = len(lines)
+
+            # Build result
+            result_lines = selected_lines
+            if is_truncated:
+                result_lines.append(f"\n\n[文件已被截断，仅显示前 {MAX_LINES} 行]\n如需查看完整文件，请使用 start_line 参数从指定行开始读取。")
+
+            result_content = "".join(result_lines)
+
             return {
                 "success": True,
-                "content": content,
+                "content": result_content,
+                "total_lines": total_lines,
+                "lines_shown": len(selected_lines),
+                "start_line": start_line,
+                "is_truncated": is_truncated,
             }
         except PermissionError:
             return {
@@ -101,17 +143,18 @@ class READ:
             }
 
     @staticmethod
-    def execute(path: str, cwd: Optional[str] = None) -> Dict[str, Any]:
+    def execute(path: str, cwd: Optional[str] = None, start_line: Optional[int] = None) -> Dict[str, Any]:
         """Read file contents.
 
         Args:
             path: File path (relative or absolute)
             cwd: Working directory for relative paths (defaults to current directory)
+            start_line: Line number to start reading from (1-indexed, defaults to 1)
 
         Returns:
             Dict with success, content, and optional error
         """
-        return READ._read(path, cwd)
+        return READ._read(path, cwd, start_line)
 
 
 # Auto-register with ToolRegistry
@@ -129,6 +172,10 @@ read_tool_def = ToolDefinition(
             "cwd": {
                 "type": "string",
                 "description": "Working directory for relative paths (optional)"
+            },
+            "start_line": {
+                "type": "integer",
+                "description": "Line number to start reading from (1-indexed, defaults to 1). If file is truncated, use this parameter to continue reading from the specified line."
             }
         },
         "required": ["path"]
