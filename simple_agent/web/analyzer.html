@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Agent Log Analyzer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #1a1a2e;
+            color: #eaeaea;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 30px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+        }
+
+        h1 {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .controls input, .controls button {
+            padding: 10px 15px;
+            border: 1px solid #444;
+            border-radius: 6px;
+            background: #16213e;
+            color: #eaeaea;
+            font-size: 14px;
+        }
+
+        .controls input {
+            flex: 1;
+            max-width: 400px;
+        }
+
+        .controls button {
+            cursor: pointer;
+            background: #667eea;
+            border: none;
+            padding: 10px 20px;
+            transition: background 0.2s;
+        }
+
+        .controls button:hover {
+            background: #5568d3;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: #16213e;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #333;
+        }
+
+        .stat-card h3 {
+            font-size: 0.9em;
+            color: #888;
+            margin-bottom: 5px;
+        }
+
+        .stat-card .value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .conversation {
+            background: #16213e;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid #333;
+            overflow: hidden;
+        }
+
+        .conversation-header {
+            background: #0f3460;
+            padding: 15px 20px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background 0.2s;
+        }
+
+        .conversation-header:hover {
+            background: #1a426c;
+        }
+
+        .conversation-header .info {
+            flex: 1;
+        }
+
+        .conversation-header .timestamp {
+            color: #888;
+            font-size: 0.9em;
+        }
+
+        .conversation-header .tools-count {
+            background: #667eea;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.85em;
+        }
+
+        .conversation-body {
+            display: none;
+            padding: 20px;
+            border-top: 1px solid #333;
+        }
+
+        .conversation-body.active {
+            display: block;
+        }
+
+        /* 卡片摘要样式 */
+        .card-summary {
+            padding: 15px 20px;
+            cursor: pointer;
+            border-left: 4px solid #667eea;
+            transition: background 0.2s;
+        }
+
+        .card-summary:hover {
+            background: #1a253a;
+        }
+
+        .card-summary-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .card-summary-title {
+            font-weight: bold;
+            font-size: 1.1em;
+            color: #eaeaea;
+        }
+
+        .card-summary-meta {
+            color: #888;
+            font-size: 0.85em;
+        }
+
+        .card-summary-section {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+            font-size: 0.9em;
+        }
+
+        .card-summary-section:last-child {
+            margin-bottom: 0;
+        }
+
+        /* 卡片详情样式 */
+        .card-details {
+            display: none;
+            padding: 0 20px 20px 20px;
+            border-top: 1px solid #333;
+        }
+
+        .card-details.active {
+            display: block;
+        }
+
+        /* 详情区块样式 */
+        .detail-section {
+            margin-top: 15px;
+            background: #0f1f2e;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        .detail-section-header {
+            background: #1a2a3a;
+            padding: 10px 15px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: bold;
+            font-size: 0.9em;
+        }
+
+        .detail-section-header:hover {
+            background: #253545;
+        }
+
+        .detail-section-content {
+            display: none;
+            padding: 15px;
+        }
+
+        .detail-section-content.active {
+            display: block;
+        }
+
+        /* Usage显示样式 */
+        .usage-display {
+            background: #0a0a1a;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 0.85em;
+            color: #667eea;
+        }
+
+        /* 卡片容器样式 */
+        .api-call-card {
+            background: #16213e;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            border: 1px solid #333;
+            overflow: hidden;
+        }
+
+        .api-call-card:last-child {
+            margin-bottom: 0;
+        }
+
+        .message {
+            margin-bottom: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .message.user {
+            background: #1a1a2e;
+            border-left-color: #4ade80;
+        }
+
+        .message.assistant {
+            background: #1e1e3f;
+            border-left-color: #667eea;
+        }
+
+        .message.system {
+            background: #16213e;
+            border-left-color: #f59e0b;
+            font-style: italic;
+        }
+
+        .message.tool {
+            background: #0f1f2e;
+            border-left-color: #10b981;
+            margin: 15px 0;
+            padding: 12px;
+            border-radius: 6px;
+        }
+
+        .tool-call-inline {
+            background: #0a0a1a;
+            padding: 12px;
+            border-radius: 6px;
+            border-left: 3px solid #f59e0b;
+            margin-top: 10px;
+        }
+
+        .message-header {
+            font-weight: bold;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .message-role {
+            text-transform: uppercase;
+            font-size: 0.85em;
+            color: #888;
+        }
+
+        .message-content {
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .tool-calls {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #333;
+        }
+
+        .tool-call {
+            background: #0a0a1a;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            border-left: 3px solid #f59e0b;
+        }
+
+        .tool-call-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+
+        .tool-arguments {
+            background: #1a1a2e;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 0.9em;
+            margin-bottom: 10px;
+        }
+
+        .tool-result {
+            background: #16213e;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 0.9em;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .tool-result.error {
+            color: #ef4444;
+        }
+
+        .tool-result.success {
+            color: #4ade80;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.75em;
+            margin-left: 10px;
+        }
+
+        .badge.request {
+            background: #3b82f6;
+        }
+
+        .badge.response {
+            background: #10b981;
+        }
+
+        .badge.tool {
+            background: #f59e0b;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #666;
+        }
+
+        .empty-state svg {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+
+        .filter-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .filter-tab {
+            padding: 8px 16px;
+            background: #16213e;
+            border: 1px solid #333;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .filter-tab:hover, .filter-tab.active {
+            background: #667eea;
+            border-color: #667eea;
+        }
+
+        pre {
+            background: #0a0a1a;
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-size: 0.9em;
+        }
+
+        code {
+            background: #0a0a1a;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+    
+        .session-group {
+            background: #1a1a2e;
+            border-radius: 8px;
+            margin-bottom: 25px;
+            border: 1px solid #444;
+            overflow: hidden;
+        }
+
+        .session-header {
+            background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%);
+            padding: 15px 20px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background 0.2s;
+            border-bottom: 2px solid #667eea;
+        }
+
+        .session-header:hover {
+            background: linear-gradient(135deg, #3d4760 0%, #2a303c 100%);
+        }
+
+        .session-header .info {
+            flex: 1;
+        }
+
+        .session-header .log-file {
+            color: #667eea;
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+
+        .session-header .conv-count {
+            background: #667eea;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.85em;
+        }
+
+        .session-body {
+            display: none;
+            padding: 15px;
+        }
+
+        .session-body.active {
+            display: block;
+        }
+</style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Simple Agent Log Analyzer</h1>
+            <p>View and analyze conversation logs, tool calls, and API interactions</p>
+        </header>
+
+        <div class="stats">
+            <div class="stat-card">
+                <h3>Total Conversations</h3>
+                <div class="value" id="stat-conversations">0</div>
+            </div>
+            <div class="stat-card">
+                <h3>Total Tool Calls</h3>
+                <div class="value" id="stat-tools">0</div>
+            </div>
+            <div class="stat-card">
+                <h3>Total Tokens Used</h3>
+                <div class="value" id="stat-tokens">0</div>
+            </div>
+            <div class="stat-card">
+                <h3>Success Rate</h3>
+                <div class="value" id="stat-success">0%</div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <input type="text" id="search-input" placeholder="Search conversations...">
+            <button onclick="loadLogs()">Load Logs</button>
+            <button onclick="filterByType('all')">All</button>
+            <button onclick="filterByType('tool')">With Tools</button>
+            <button onclick="filterByType('error')">Errors Only</button>
+        </div>
+
+        <div id="conversations-container"></div>
+        <div id="empty-state" class="empty-state" style="display: none;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+            </svg>
+            <h2>No logs found</h2>
+            <p>Load logs to start analyzing conversations</p>
+        </div>
+    </div>
+
+    <script>
+        let allConversations = [];
+        let currentFilter = 'all';
+
+        async function loadLogs() {
+            try {
+                // Load only the most recent 50 conversations to avoid large data
+                const response = await fetch('/api/logs?limit=50&offset=0');
+                allConversations = await response.json();
+                renderConversations(allConversations);
+                updateStats(allConversations);
+            } catch (error) {
+                console.error('Failed to load logs:', error);
+                alert('Failed to load logs. Make sure the server is running.');
+            }
+        }
+
+        function filterByType(type) {
+            currentFilter = type;
+            document.querySelectorAll('.controls button').forEach(btn => {
+                btn.style.background = '#667eea';
+            });
+            event.target.style.background = '#5568d3';
+
+            let filtered = allConversations;
+            if (type === 'tool') {
+                filtered = allConversations.filter(c => c.tool_executions.length > 0);
+            } else if (type === 'error') {
+                filtered = allConversations.filter(c =>
+                    c.tool_executions.some(t => !t.result.success)
+                );
+            }
+            renderConversations(filtered);
+        }
+
+        function groupConversationsByLog(conversations) {
+            const groups = {};
+            conversations.forEach(conv => {
+                const logFile = conv.log_file || 'unknown';
+                if (!groups[logFile]) {
+                    groups[logFile] = {
+                        log_file: logFile,
+                        conversations: []
+                    };
+                }
+                groups[logFile].conversations.push(conv);
+            });
+            return Object.values(groups).sort((a, b) => b.conversations[0].request.timestamp.localeCompare(a.conversations[0].request.timestamp));
+        }
+
+        function renderConversations(conversations) {
+            const container = document.getElementById('conversations-container');
+            const emptyState = document.getElementById('empty-state');
+
+            if (conversations.length === 0) {
+                container.innerHTML = '';
+                emptyState.style.display = 'block';
+                return;
+            }
+
+            emptyState.style.display = 'none';
+
+            const groups = groupConversationsByLog(conversations);
+            let globalIndex = 0;
+
+            container.innerHTML = groups.map((group, groupIndex) => {
+                // Merge all messages from this session
+                const dialogue = buildDialogue(group.conversations);
+                const idx = globalIndex++;
+                return `
+                    <div class="session-group">
+                        <div class="session-header" onclick="toggleSession(${idx})">
+                            <div class="info">
+                                <div class="log-file">📁 ${escapeHtml(group.log_file)}</div>
+                                <div style="margin-top: 5px; color: #888; font-size: 0.9em;">
+                                    ${group.conversations.length} API call${group.conversations.length > 1 ? 's' : ''}
+                                </div>
+                            </div>
+                            <div class="conv-count">${group.conversations.length}</div>
+                        </div>
+                        <div class="session-body" id="session-${idx}">
+                            <div class="conversation" style="margin-bottom: 0;">
+                                <div class="conversation-body active" style="display: block; padding: 0;">
+                                    ${renderDialogue(dialogue)}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Helper to check if two messages are duplicates
+        function isDuplicateMessage(msg1, msg2) {
+            if (!msg1 || !msg2) return false;
+            if (msg1.role !== msg2.role) return false;
+            if (msg1.content !== msg2.content) return false;
+            // For assistant, also check tool_calls
+            if (msg1.role === 'assistant' && msg2.role === 'assistant') {
+                const tc1 = JSON.stringify(msg1.tool_calls || []);
+                const tc2 = JSON.stringify(msg2.tool_calls || []);
+                return tc1 === tc2;
+            }
+            return true;
+        }
+
+        // Build a complete dialogue from multiple API calls in the same session
+        function buildDialogue(conversations) {
+            const allMessages = [];
+            let lastSystemContent = null;
+
+            // Collect all messages in order
+            conversations.forEach(conv => {
+                const requestMessages = conv.request.messages || [];
+                const response = conv.response;
+                const toolExecutions = conv.tool_executions || [];
+
+                // Add messages from request (deduplicating)
+                requestMessages.forEach(msg => {
+                    if (msg.role === 'system') {
+                        // Only show system if it's different from the last one
+                        if (msg.content !== lastSystemContent) {
+                            allMessages.push({
+                                role: 'system',
+                                content: msg.content,
+                                type: 'message'
+                            });
+                            lastSystemContent = msg.content;
+                        }
+                    } else if (msg.role === 'user' || msg.role === 'assistant') {
+                        // Check if this is a duplicate of the last message
+                        const lastMsg = allMessages[allMessages.length - 1];
+                        if (!lastMsg || !isDuplicateMessage(lastMsg, {
+                            role: msg.role,
+                            content: msg.content,
+                            tool_calls: msg.tool_calls
+                        })) {
+                            // For assistant messages from request, only add if they have content
+                            // (they're usually history, we'll get the fresh response below)
+                            if (msg.role !== 'assistant' || (msg.content && msg.content.trim())) {
+                                allMessages.push({
+                                    role: msg.role,
+                                    content: msg.content,
+                                    type: 'message'
+                                });
+                            }
+                        }
+                    }
+                });
+
+                // Add assistant response with tool calls (this is the NEW response)
+                if (response) {
+                    let assistantContent = response.content || '';
+                    let toolCalls = response.tool_calls || [];
+
+                    // Only add assistant message if there's content or tool_calls
+                    if (assistantContent.trim() || (toolCalls && toolCalls.length > 0)) {
+                        // Don't add if it's a duplicate of the last message
+                        const lastMsg = allMessages[allMessages.length - 1];
+                        if (!lastMsg || !isDuplicateMessage(lastMsg, {
+                            role: 'assistant',
+                            content: assistantContent,
+                            tool_calls: toolCalls
+                        })) {
+                            allMessages.push({
+                                role: 'assistant',
+                                content: assistantContent,
+                                tool_calls: toolCalls,
+                                usage: response.usage,
+                                type: 'message'
+                            });
+
+                            // Add tool results with tool call linking
+                            if (toolExecutions && toolExecutions.length > 0) {
+                                toolExecutions.forEach(te => {
+                                    allMessages.push({
+                                        role: 'tool',
+                                        tool_name: te.tool_name,
+                                        result: te.result,
+                                        tool_call_id: te.tool_call_id,
+                                        tool_call_args: toolCalls.find(tc => tc.id === te.tool_call_id)?.function.arguments || null,
+                                        type: 'tool'
+                                    });
+                                });
+                            }
+                        }
+                    }
+                }
+            });
+
+            return allMessages;
+        }
+
+        function renderDialogue(messages) {
+            return messages.map(msg => {
+                if (msg.type === 'tool') {
+                    return renderToolMessage(msg);
+                }
+                return renderAssistantMessage(msg);
+            }).join('');
+        }
+
+        function renderAssistantMessage(msg) {
+            const role = msg.role;
+            const isAssistant = role === 'assistant';
+
+            let toolCallsHtml = '';
+            if (msg.tool_calls && msg.tool_calls.length > 0) {
+                toolCallsHtml = `
+                    <div style="margin-top: 15px; border-top: 1px solid #333; padding-top: 15px;">
+                        <div style="color: #f59e0b; font-size: 0.85em; margin-bottom: 10px;">Tool Calls:</div>
+                        ${msg.tool_calls.map(tc => `
+                            <div class="tool-call-inline">
+                                <div style="font-weight: bold; color: #f59e0b; margin-bottom: 8px;">→ ${escapeHtml(tc.function.name)}</div>
+                                <div class="tool-arguments">${renderArguments(tc.function.arguments)}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            }
+
+            let contentHtml = '';
+            if (msg.content && msg.content.trim()) {
+                contentHtml = `<div class="message-content">${escapeHtml(msg.content)}</div>`;
+            }
+
+            // Don't show "(no content)" if there are tool calls
+            return `
+                <div class="message ${role}">
+                    <div class="message-header">
+                        <span class="message-role">${role}</span>
+                        ${isAssistant && msg.usage ? `<span style="font-size: 0.85em; color: #888;">${msg.usage.total_tokens} tokens</span>` : ''}
+                    </div>
+                    ${contentHtml}
+                    ${toolCallsHtml}
+                </div>
+            `;
+        }
+
+        function renderToolMessage(msg) {
+            let argsHtml = '';
+            if (msg.tool_call_args) {
+                try {
+                    const args = JSON.parse(msg.tool_call_args);
+                    if (Object.keys(args).length > 0) {
+                        argsHtml = `
+                            <div style="background: #0a0a1a; padding: 10px; border-radius: 4px; margin: 10px 0; font-size: 0.9em;">
+                                <div style="color: #f59e0b; margin-bottom: 5px;">Arguments:</div>
+                                ${renderArguments(msg.tool_call_args)}
+                            </div>
+                        `;
+                    }
+                } catch (e) {}
+            }
+
+            return `
+                <div class="message tool">
+                    <div class="message-header">
+                        <span class="message-role">← Tool Result: ${escapeHtml(msg.tool_name)}</span>
+                        <span class="badge ${msg.result.success ? 'response' : 'error'}">
+                            ${msg.result.success ? 'OK' : 'Error'}
+                        </span>
+                    </div>
+                    ${argsHtml}
+                    <div class="tool-result ${msg.result.success ? 'success' : 'error'}">
+                        ${msg.result.error || renderResultContent(msg.result)}
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderResultContent(result) {
+            // If there's an explicit error, return it
+            if (result.error) {
+                return `<span style="color: #ef4444;">${escapeHtml(result.error)}</span>`;
+            }
+            // For successful results with content, show it
+            if (result.success) {
+                const content = result.content || result.stdout || result.output;
+                if (content) {
+                    const contentStr = String(content);
+                    if (contentStr.includes('\n')) {
+                        return `<pre style="margin: 0;">${escapeHtml(contentStr)}</pre>`;
+                    }
+                    return escapeHtml(contentStr);
+                }
+            }
+            // Otherwise show the full result as JSON
+            return `<pre>${escapeHtml(JSON.stringify(result, null, 2))}</pre>`;
+        }
+
+        function renderArguments(argsStr) {
+            try {
+                const args = JSON.parse(argsStr);
+                if (Object.keys(args).length === 0) {
+                    return '(no arguments)';
+                }
+                let items = Object.entries(args);
+                return items.map(([key, value], i) => {
+                    const style = i > 0 ? 'margin-top: 10px;' : '';
+                    const valueStr = String(value);
+                    // For command parameter, display it specially
+                    if (key === 'command') {
+                        return `<div style="${style}"><span style="color: #f59e0b; margin-right: 8px;">$</span> <code style="background: #1a1a2e; padding: 2px 6px; border-radius: 3px;">${escapeHtml(valueStr)}</code></div>`;
+                    }
+                    return `<div style="${style}"><span style="color: #f59e0b; margin-right: 8px;">${key}:</span> <span style="color: #eaeaea;">${escapeHtml(valueStr)}</span></div>`;
+                }).join('');
+            } catch (e) {
+                // Parse as string then show as-is for JSON string
+                const displayValue = argsStr.length > 50 ? argsStr.substring(0, 50) + '...' : argsStr;
+                return `<div style="margin-top: 10px;"><span style="color: #f59e0b; margin-right: 8px;">arguments:</span> <span style="color: #666;">${escapeHtml(displayValue)}</span></div>`;
+            }
+        }
+
+        function toggleConversation(index) {
+            const body = document.getElementById(`conv-${index}`);
+            body.classList.toggle('active');
+        }
+
+        function toggleSession(groupIndex) {
+            const body = document.getElementById(`session-${groupIndex}`);
+            body.classList.toggle('active');
+        }
+
+        function updateStats(conversations) {
+            const totalConv = conversations.length;
+            const totalTools = conversations.reduce((sum, c) => sum + c.tool_executions.length, 0);
+            const totalTokens = conversations.reduce((sum, c) => {
+                return sum + (c.response?.usage?.total_tokens || 0);
+            }, 0);
+
+            const successfulTools = conversations.reduce((sum, c) => {
+                return sum + c.tool_executions.filter(t => t.result.success).length;
+            }, 0);
+            const successRate = totalTools > 0 ? Math.round((successfulTools / totalTools) * 100) : 0;
+
+            document.getElementById('stat-conversations').textContent = totalConv;
+            document.getElementById('stat-tools').textContent = totalTools;
+            document.getElementById('stat-tokens').textContent = totalTokens.toLocaleString();
+            document.getElementById('stat-success').textContent = successRate + '%';
+        }
+
+        function escapeHtml(text) {
+            if (typeof text !== 'string') return text;
+            return text
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        // Search functionality
+        document.getElementById('search-input').addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase();
+            const filtered = allConversations.filter(conv => {
+                const content = conv.request.messages.map(m => m.content).join(' ').toLowerCase();
+                return content.includes(query) ||
+                       conv.request.model.toLowerCase().includes(query) ||
+                       conv.tool_executions.some(t => t.tool_name.toLowerCase().includes(query));
+            });
+            renderConversations(filtered);
+        });
+
+        // Load logs on page load
+        window.addEventListener('load', loadLogs);
+    </script>
+</body>
+</html>
