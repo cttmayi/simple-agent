@@ -568,156 +568,50 @@
         }
 
         function renderConversations(conversations) {
-            const container = document.getElementById('conversations-container');
-            const emptyState = document.getElementById('empty-state');
+    const container = document.getElementById('conversations-container');
+    const emptyState = document.getElementById('empty-state');
 
-            if (conversations.length === 0) {
-                container.innerHTML = '';
-                emptyState.style.display = 'block';
-                return;
-            }
+    if (conversations.length === 0) {
+        container.innerHTML = '';
+        emptyState.style.display = 'block';
+        return;
+    }
 
-            emptyState.style.display = 'none';
+    emptyState.style.display = 'none';
 
-            const groups = groupConversationsByLog(conversations);
-            let globalIndex = 0;
+    const groups = groupConversationsByLog(conversations);
+    let globalIndex = 0;
 
-            container.innerHTML = groups.map((group, groupIndex) => {
-                // Merge all messages from this session
-                const dialogue = buildDialogue(group.conversations);
-                const idx = globalIndex++;
-                return `
-                    <div class="session-group">
-                        <div class="session-header" onclick="toggleSession(${idx})">
-                            <div class="info">
-                                <div class="log-file">📁 ${escapeHtml(group.log_file)}</div>
-                                <div style="margin-top: 5px; color: #888; font-size: 0.9em;">
-                                    ${group.conversations.length} API call${group.conversations.length > 1 ? 's' : ''}
-                                </div>
-                            </div>
-                            <div class="conv-count">${group.conversations.length}</div>
-                        </div>
-                        <div class="session-body" id="session-${idx}">
-                            <div class="conversation" style="margin-bottom: 0;">
-                                <div class="conversation-body active" style="display: block; padding: 0;">
-                                    ${renderDialogue(dialogue)}
-                                </div>
-                            </div>
+    container.innerHTML = groups.map((group, groupIndex) => {
+        const idx = globalIndex++;
+        const cardsHtml = group.conversations.map((conv, convIndex) => `
+            <div class="api-call-card">
+                ${renderCardSummary(conv)}
+                ${renderCardDetails(conv)}
+            </div>
+        `).join('');
+
+        return `
+            <div class="session-group">
+                <div class="session-header" onclick="toggleSession(${idx})">
+                    <div class="info">
+                        <div class="log-file">📁 ${escapeHtml(group.log_file)}</div>
+                        <div style="margin-top: 5px; color: #888; font-size: 0.9em;">
+                            ${group.conversations.length} API call${group.conversations.length > 1 ? 's' : ''}
                         </div>
                     </div>
-                `;
-            }).join('');
-        }
+                    <div class="conv-count">${group.conversations.length}</div>
+                </div>
+                <div class="session-body" id="session-${idx}">
+                    ${cardsHtml}
+                </div>
+            </div>
+        `;
+    }).join('');
+}
 
-        // Helper to check if two messages are duplicates
-        function isDuplicateMessage(msg1, msg2) {
-            if (!msg1 || !msg2) return false;
-            if (msg1.role !== msg2.role) return false;
-            if (msg1.content !== msg2.content) return false;
-            // For assistant, also check tool_calls
-            if (msg1.role === 'assistant' && msg2.role === 'assistant') {
-                const tc1 = JSON.stringify(msg1.tool_calls || []);
-                const tc2 = JSON.stringify(msg2.tool_calls || []);
-                return tc1 === tc2;
-            }
-            return true;
-        }
 
-        // Build a complete dialogue from multiple API calls in the same session
-        function buildDialogue(conversations) {
-            const allMessages = [];
-            let lastSystemContent = null;
 
-            // Collect all messages in order
-            conversations.forEach(conv => {
-                const requestMessages = conv.request.messages || [];
-                const response = conv.response;
-                const toolExecutions = conv.tool_executions || [];
-
-                // Add messages from request (deduplicating)
-                requestMessages.forEach(msg => {
-                    if (msg.role === 'system') {
-                        // Only show system if it's different from the last one
-                        if (msg.content !== lastSystemContent) {
-                            allMessages.push({
-                                role: 'system',
-                                content: msg.content,
-                                type: 'message'
-                            });
-                            lastSystemContent = msg.content;
-                        }
-                    } else if (msg.role === 'user' || msg.role === 'assistant') {
-                        // Check if this is a duplicate of the last message
-                        const lastMsg = allMessages[allMessages.length - 1];
-                        if (!lastMsg || !isDuplicateMessage(lastMsg, {
-                            role: msg.role,
-                            content: msg.content,
-                            tool_calls: msg.tool_calls
-                        })) {
-                            // For assistant messages from request, only add if they have content
-                            // (they're usually history, we'll get the fresh response below)
-                            if (msg.role !== 'assistant' || (msg.content && msg.content.trim())) {
-                                allMessages.push({
-                                    role: msg.role,
-                                    content: msg.content,
-                                    type: 'message'
-                                });
-                            }
-                        }
-                    }
-                });
-
-                // Add assistant response with tool calls (this is the NEW response)
-                if (response) {
-                    let assistantContent = response.content || '';
-                    let toolCalls = response.tool_calls || [];
-
-                    // Only add assistant message if there's content or tool_calls
-                    if (assistantContent.trim() || (toolCalls && toolCalls.length > 0)) {
-                        // Don't add if it's a duplicate of the last message
-                        const lastMsg = allMessages[allMessages.length - 1];
-                        if (!lastMsg || !isDuplicateMessage(lastMsg, {
-                            role: 'assistant',
-                            content: assistantContent,
-                            tool_calls: toolCalls
-                        })) {
-                            allMessages.push({
-                                role: 'assistant',
-                                content: assistantContent,
-                                tool_calls: toolCalls,
-                                usage: response.usage,
-                                type: 'message'
-                            });
-
-                            // Add tool results with tool call linking
-                            if (toolExecutions && toolExecutions.length > 0) {
-                                toolExecutions.forEach(te => {
-                                    allMessages.push({
-                                        role: 'tool',
-                                        tool_name: te.tool_name,
-                                        result: te.result,
-                                        tool_call_id: te.tool_call_id,
-                                        tool_call_args: toolCalls.find(tc => tc.id === te.tool_call_id)?.function.arguments || null,
-                                        type: 'tool'
-                                    });
-                                });
-                            }
-                        }
-                    }
-                }
-            });
-
-            return allMessages;
-        }
-
-        function renderDialogue(messages) {
-            return messages.map(msg => {
-                if (msg.type === 'tool') {
-                    return renderToolMessage(msg);
-                }
-                return renderAssistantMessage(msg);
-            }).join('');
-        }
 
         function renderAssistantMessage(msg) {
             const role = msg.role;
