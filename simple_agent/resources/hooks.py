@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from simple_agent.resources.base import ResourceLoader
 
 
@@ -9,18 +9,34 @@ class HookLoader(ResourceLoader):
     def _get_markdown_file(self, resource_dir: Path) -> Path:
         return resource_dir / "HOOK.md"
 
-    def list_hooks(self) -> List[dict]:
-        """List all available hooks."""
-        hooks = self.scan()
-        # Ensure events field is present
-        for h in hooks:
-            h["events"] = h["metadata"].get("events", [])
+    def scan(self) -> List[Dict[str, Any]]:
+        """Scan hooks/ directory subdirectories, each subdirectory is an event."""
+        if not self._base_dir.exists():
+            return []
+
+        hooks = []
+
+        for event_dir in sorted(self._base_dir.iterdir()):
+            if not event_dir.is_dir():
+                continue
+
+            # Scan all hook files within the event directory
+            hook_files = []
+            for item in sorted(event_dir.iterdir()):
+                if item.is_file():
+                    ext = item.suffix.lower()
+                    if ext in [".py", ".sh", ".cmd", ".md"]:
+                        hook_files.append(item.name)
+
+            if hook_files:
+                hooks.append({
+                    "event_name": event_dir.name,
+                    "path": str(event_dir),
+                    "files": hook_files,
+                })
+
         return hooks
 
-    def get_hook_events(self, name: str) -> Optional[List[str]]:
-        """Get event list for a hook."""
-        hooks = self.list_hooks()
-        for h in hooks:
-            if h["name"] == name:
-                return h["events"]
-        return None
+    def list_hooks(self) -> List[dict]:
+        """List all available hooks."""
+        return self.scan()
