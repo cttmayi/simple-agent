@@ -104,31 +104,36 @@ def test_subagent_get_tools():
 def test_hook_loader_scan():
     from simple_agent.resources.hooks import HookLoader
     with tempfile.TemporaryDirectory() as tmpdir:
-        # Create test hook
-        hook_dir = Path(tmpdir) / "test-hook"
-        hook_dir.mkdir()
-        md_file = hook_dir / "HOOK.md"
-        md_file.write_text("---\nname: test-hook\nevents: [message_send_before]\n---\n# Test Hook")
+        # Create test hook directory structure
+        event_dir = Path(tmpdir) / "message_send_before"
+        event_dir.mkdir()
+        (event_dir / "hook.py").write_text("def on_message_send_before(): pass")
 
         loader = HookLoader(Path(tmpdir))
         hooks = loader.list_hooks()
         assert len(hooks) == 1
-        assert hooks[0]["name"] == "test-hook"
-        assert "message_send_before" in hooks[0]["events"]
+        assert hooks[0]["event_name"] == "message_send_before"
+        assert "hook.py" in hooks[0]["files"]
 
 
 def test_hook_get_events():
     from simple_agent.resources.hooks import HookLoader
     with tempfile.TemporaryDirectory() as tmpdir:
-        # Create test hook
-        hook_dir = Path(tmpdir) / "test-hook"
-        hook_dir.mkdir()
-        md_file = hook_dir / "HOOK.md"
-        md_file.write_text("---\nname: test-hook\nevents: [message_send_before, tool_call_after]\n---\n# Test Hook")
+        # Create multiple event directories
+        event1 = Path(tmpdir) / "message_send_before"
+        event1.mkdir()
+        (event1 / "hook.py").write_text("def on_message_send_before(): pass")
+
+        event2 = Path(tmpdir) / "tool_call_after"
+        event2.mkdir()
+        (event2 / "hook.py").write_text("def on_tool_call_after(): pass")
 
         loader = HookLoader(Path(tmpdir))
-        events = loader.get_hook_events("test-hook")
-        assert events == ["message_send_before", "tool_call_after"]
+        hooks = loader.list_hooks()
+        assert len(hooks) == 2
+        event_names = [h["event_name"] for h in hooks]
+        assert "message_send_before" in event_names
+        assert "tool_call_after" in event_names
 
 
 def test_command_loader_scan():
