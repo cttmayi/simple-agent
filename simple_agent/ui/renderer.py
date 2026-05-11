@@ -11,25 +11,27 @@ from rich.markup import escape
 class UIRenderer:
     def __init__(self, output: TextIO = sys.stdout):
         self.console = Console(file=output)
-        self._current_role = None  # Track current role for merging consecutive system messages
+        self._current_role = None  # Track current role
+        self._has_shown_system_prefix = False  # Track if system: prefix has been shown
 
     def render_message(self, role: str, content: str) -> None:
         """Render a chat message."""
-        # Skip empty content
-        if not content:
+        # Skip empty content (but not for system to allow empty lines if needed)
+        if not content and role != "system":
             return
 
-        # For system role, we want to merge consecutive system messages
+        # For system role, show prefix only on first message
         if role == "system":
-            if self._current_role != "system":
-                # Starting a new block of system messages, show the prefix
-                self._current_role = "system"
+            if not self._has_shown_system_prefix:
+                # First system message: show the prefix
+                self._has_shown_system_prefix = True
                 self.console.print(f"\n[bold yellow]system:[/bold yellow]")
-            # Just print content without additional prefix for system
+            # Print content directly (no additional prefix)
             self.console.print(Markdown(content))
             return
 
-        # For non-system roles, reset current role and handle normally
+        # For non-system roles, reset the prefix flag and handle normally
+        self._has_shown_system_prefix = False
         self._current_role = role
 
         if role == "user":
@@ -51,12 +53,6 @@ class UIRenderer:
                 self.console.print(Markdown(content))
         except Exception as e:
             # Fallback to plain text if Markdown rendering fails
-            # For system role, just print content
-            if role == "system":
-                if content:
-                    self.console.print(escape(content))
-                return
-
             self.console.print(f"\n[{style}]{prefix}[/{style}]:")
             if content:
                 self.console.print(escape(content))
