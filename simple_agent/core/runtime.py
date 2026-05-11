@@ -479,6 +479,8 @@ class Runtime:
 
         # Regular message - add to session (don't render, it's shown in prompt)
         self._session.add_message("user", input)
+        # Publish message_sent event
+        self._event_bus.publish(Event("message_sent", {"role": "user", "content": input}))
         return "message_processed"
 
     def run(self):
@@ -496,6 +498,9 @@ class Runtime:
         self._session_id = str(uuid.uuid4())
         if self._logger:
             self._logger.log_session_start(self._session_id)
+
+        # Publish session_start event
+        self._event_bus.publish(Event("session_start", {"session_id": self._session_id}))
 
         self._renderer.render_message("system", "Simple Agent started. Type /help for commands.")
 
