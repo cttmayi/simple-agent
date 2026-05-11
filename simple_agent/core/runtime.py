@@ -396,6 +396,13 @@ class Runtime:
                     content = "(工具执行完成，AI 无额外响应)"
                 self._renderer.render_message(next_msg["role"], content)
 
+                # Publish message_received event
+                if content:
+                    self._event_bus.publish(Event("message_received", {
+                        "role": next_msg["role"],
+                        "content": content
+                    }))
+
     def _prepare_messages_with_context(self) -> List[Dict[str, str]]:
         """Prepare messages with skills, subagents, and agent context."""
         messages = self._session.get_messages()
@@ -528,6 +535,9 @@ class Runtime:
 
             except KeyboardInterrupt:
                 self._renderer.render_message("system", "\nGoodbye!")
+
+                # Publish session_end event
+                self._event_bus.publish(Event("session_end", {"session_id": self._session_id}))
                 break
             except Exception as e:
                 self._renderer.render_error(str(e))
