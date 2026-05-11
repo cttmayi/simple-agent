@@ -534,5 +534,14 @@ class Runtime:
                 # Publish session_end event
                 self._event_bus.publish(Event("session_end", {"session_id": self._session_id}))
                 break
+            except HookBlockedException:
+                # Hook blocked, continue to next input
+                continue
             except Exception as e:
                 self._renderer.render_error(str(e))
+
+                # Publish error_occurred event
+                self._event_bus.publish(Event("error_occurred", {
+                    "error_type": type(e).__name__,
+                    "error_message": str(e)
+                }))
