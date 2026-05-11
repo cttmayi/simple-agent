@@ -11,6 +11,11 @@ class Event:
     data: dict
 
 
+class HookBlockedException(Exception):
+    """Hook blocked execution."""
+    pass
+
+
 class EventBus:
     def __init__(self):
         self._handlers: Dict[str, List[Callable[[Event], None]]] = {}

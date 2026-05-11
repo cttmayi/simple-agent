@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 from simple_agent.config.settings import Settings
 from simple_agent.api.client import APIClient
-from simple_agent.core.events import EventBus, Event
+from simple_agent.core.events import EventBus, Event, HookBlockedException
 from simple_agent.core.session import Session
 from simple_agent.core.llm_logger import LLMLogger
 from simple_agent.tools.registry import get_global_registry
@@ -19,11 +19,6 @@ from simple_agent.ui.renderer import UIRenderer
 from simple_agent.tools import builtin  # noqa: F401
 from simple_agent.tools.builtin.load_skill import LoadSkill
 from simple_agent.tools.builtin.load_subagent import LoadSubagent
-
-
-class HookBlockedException(Exception):
-    """Hook blocked execution."""
-    pass
 
 
 class Runtime:
@@ -43,7 +38,7 @@ class Runtime:
 
         # Use global registry (includes builtin tools)
         self._tool_registry = get_global_registry()
-        self._tool_dispatcher = ToolDispatcher(self._tool_registry)
+        self._tool_dispatcher = ToolDispatcher(self._tool_registry, self._event_bus)
 
         # Initialize resource loaders (resolve relative paths from current directory)
         base_dir = Path.cwd()
