@@ -675,7 +675,12 @@
                 }
                 groups[logFile].conversations.push(conv);
             });
-            return Object.values(groups).sort((a, b) => b.conversations[0].request.timestamp.localeCompare(a.conversations[0].request.timestamp));
+            // Sort groups by their earliest conversation timestamp (descending = newest first)
+            return Object.values(groups).sort((a, b) => {
+                const aMinTime = Math.min(...a.conversations.map(c => new Date(c.request.timestamp).getTime()));
+                const bMinTime = Math.min(...b.conversations.map(c => new Date(c.request.timestamp).getTime()));
+                return bMinTime - aMinTime;
+            });
         }
 
         function renderConversations(conversations) {
@@ -696,7 +701,9 @@
 
     container.innerHTML = groups.map((group, groupIndex) => {
         const idx = globalIndex++;
-        const cardsHtml = group.conversations.map((conv, convIndex) => {
+        // Sort conversations within each group by timestamp (ascending)
+        const sortedConversations = [...group.conversations].sort((a, b) => a.request.timestamp.localeCompare(b.request.timestamp));
+        const cardsHtml = sortedConversations.map((conv, convIndex) => {
             const cardId = `card-${cardIndex++}`;
             return `
             <div class="api-call-card">
@@ -707,13 +714,13 @@
         }).join('');
 
         // 计算 total tokens
-        const totalTokens = group.conversations.reduce((sum, conv) => {
+        const totalTokens = sortedConversations.reduce((sum, conv) => {
             return sum + (conv.response?.usage?.total_tokens || 0);
         }, 0);
-        const totalPromptTokens = group.conversations.reduce((sum, conv) => {
+        const totalPromptTokens = sortedConversations.reduce((sum, conv) => {
             return sum + (conv.response?.usage?.prompt_tokens || 0);
         }, 0);
-        const totalCompletionTokens = group.conversations.reduce((sum, conv) => {
+        const totalCompletionTokens = sortedConversations.reduce((sum, conv) => {
             return sum + (conv.response?.usage?.completion_tokens || 0);
         }, 0);
 
@@ -723,7 +730,7 @@
                     <div class="info">
                         <div class="log-file">📁 ${escapeHtml(group.log_file)}</div>
                         <div style="margin-top: 5px; color: #888; font-size: 0.9em;">
-                            ${group.conversations.length} API call${group.conversations.length > 1 ? 's' : ''}
+                            ${sortedConversations.length} API call${sortedConversations.length > 1 ? 's' : ''}
                         </div>
                         ${totalTokens > 0 ? `
                         <div style="margin-top: 3px; color: #667eea; font-size: 0.85em;">
@@ -731,7 +738,7 @@
                         </div>
                         ` : ''}
                     </div>
-                    <div class="conv-count">${group.conversations.length}</div>
+                    <div class="conv-count">${sortedConversations.length}</div>
                 </div>
                 <div class="session-body" id="session-${idx}">
                     ${cardsHtml}
