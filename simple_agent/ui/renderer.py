@@ -11,15 +11,26 @@ from rich.markup import escape
 class UIRenderer:
     def __init__(self, output: TextIO = sys.stdout):
         self.console = Console(file=output)
+        self._current_role = None  # Track current role for merging consecutive system messages
 
     def render_message(self, role: str, content: str) -> None:
         """Render a chat message."""
-        # For system role, just print content directly without prefix/suffix formatting
-        # This avoids "system:" prefix in the output
-        if role == "system":
-            if content:
-                self.console.print(content)
+        # Skip empty content
+        if not content:
             return
+
+        # For system role, we want to merge consecutive system messages
+        if role == "system":
+            if self._current_role != "system":
+                # Starting a new block of system messages, show the prefix
+                self._current_role = "system"
+                self.console.print(f"\n[bold yellow]system:[/bold yellow]")
+            # Just print content without additional prefix for system
+            self.console.print(Markdown(content))
+            return
+
+        # For non-system roles, reset current role and handle normally
+        self._current_role = role
 
         if role == "user":
             style = "bold blue"
