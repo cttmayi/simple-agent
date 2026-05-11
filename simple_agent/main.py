@@ -11,7 +11,7 @@ def get_latest_log_file() -> Path:
     Returns:
         Path to the latest log file, or None if no logs exist
     """
-    log_dir = Path.cwd() / "logs" / "llm"
+    log_dir = Path.cwd() / ".simple-agent" / "logs"
     if not log_dir.exists():
         return None
 
@@ -80,11 +80,16 @@ def main():
 def run_web_server():
     """Run the web analyzer server."""
     try:
-        from simple_agent.web.server import app
+        from simple_agent.web.server import app, set_log_dir
+        from pathlib import Path
         import os
+        # Set log dir to where log files are actually stored
+        log_dir = Path.cwd() / ".simple-agent" / "logs"
+        set_log_dir(log_dir)
         os.environ['FLASK_ENV'] = 'development'
         print("Starting web server...")
         print("Web interface: http://localhost:5001")
+        print(f"Log directory: {log_dir}")
         print("Press Ctrl+C to stop the server")
         app.run(host='0.0.0.0', port=5001, debug=False)
     except ImportError:

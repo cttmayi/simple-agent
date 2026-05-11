@@ -13,12 +13,13 @@ class APIConfig(BaseModel):
 
 
 class PathsConfig(BaseModel):
-    skills_dir: str = "./skills"
-    subagents_dir: str = "./subagents"
-    hooks_dir: str = "./hooks"
-    commands_dir: str = "./commands"
-    tools_dir: str = "./tools"
-    memory_dir: str = "./memory"
+    skills_dir: str = "./.simple-agent/skills"
+    subagents_dir: str = "./.simple-agent/subagents"
+    hooks_dir: str = "./.simple-agent/hooks"
+    commands_dir: str = "./.simple-agent/commands"
+    tools_dir: str = "./.simple-agent/tools"
+    memory_dir: str = "./.simple-agent/memory"
+    logs_dir: str = "./.simple-agent/logs"
 
 
 class UIConfig(BaseModel):
@@ -28,7 +29,7 @@ class UIConfig(BaseModel):
 
 class LoggingConfig(BaseModel):
     enabled: bool = True
-    log_dir: Optional[str] = None  # Defaults to ./logs/llm
+    log_dir: Optional[str] = None  # Defaults to ./.simple-agent/logs
 
 
 class Settings(BaseModel):

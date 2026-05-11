@@ -15,7 +15,7 @@ class LLMLogger:
         """Initialize the LLM logger.
 
         Args:
-            log_dir: Directory to store log files (defaults to ./logs/llm)
+            log_dir: Directory to store log files (defaults to ./.simple-agent/logs/llm)
             enabled: Whether logging is enabled
             log_file: Specific log file path (for resuming sessions). If None, creates a new file with timestamp.
         """
@@ -23,7 +23,7 @@ class LLMLogger:
         self._lock = Lock()
 
         if log_dir is None:
-            log_dir = Path.cwd() / "logs" / "llm"
+            log_dir = Path.cwd() / ".simple-agent" / "logs"
 
         self._log_dir = Path(log_dir)
         self._log_dir.mkdir(parents=True, exist_ok=True)
@@ -319,13 +319,20 @@ def get_conversation(log_entries: List[Dict[str, Any]], request_id: str) -> Opti
     return conversation
 
 
-def get_all_conversations() -> List[Dict[str, Any]]:
+def get_all_conversations(log_dir: Optional[Path] = None) -> List[Dict[str, Any]]:
     """Get all parsed conversations from all log files.
+
+    Args:
+        log_dir: Optional log directory path (defaults to ./.simple-agent/logs/llm)
 
     Returns:
         List of all conversations with their requests, responses, and tool executions
     """
-    log_dir = Path.cwd() / "logs" / "llm"
+    if log_dir is None:
+        log_dir = Path.cwd() / ".simple-agent" / "logs"
+    else:
+        log_dir = Path(log_dir)
+
     conversations = {}
 
     if log_dir.exists():
