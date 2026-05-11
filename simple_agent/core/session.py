@@ -59,6 +59,10 @@ class Session:
             tool_call_id: For tool role messages, ID of the tool call being responded to
             tool_calls: For assistant messages, list of tool calls
         """
+        # Skip empty assistant messages to avoid cluttering session
+        if role == "assistant" and not content.strip() and not tool_calls and not tool_call_id:
+            return
+
         msg: Dict[str, Any] = {"role": role, "content": content}
         if tool_call_id:
             msg["tool_call_id"] = tool_call_id

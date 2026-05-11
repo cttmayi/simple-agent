@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -14,6 +15,8 @@ from simple_agent.resources.subagents import SubagentLoader
 from simple_agent.resources.hooks import HookLoader
 from simple_agent.resources.commands import CommandLoader
 from simple_agent.ui.renderer import UIRenderer
+from prompt_toolkit.shortcuts import PromptSession
+from prompt_toolkit.history import InMemoryHistory
 
 # Import builtin tools to auto-register them
 from simple_agent.tools import builtin  # noqa: F401
@@ -28,9 +31,14 @@ class Runtime:
         self._session = Session()
         self._renderer = UIRenderer()
         self._session_id: Optional[str] = None
+        # Initialize prompt session with history for better input handling (especially for Chinese characters)
+        self._prompt_session = PromptSession(
+            history=InMemoryHistory()
+        )
 
         # Initialize logger
-        log_dir = Path(config.logging.log_dir) if config.logging.log_dir else None
+        # Use configured log_dir or default to ./.simple-agent/logs
+        log_dir = Path(config.logging.log_dir) if config.logging.log_dir else Path.cwd() / ".simple-agent" / "logs"
         self._logger = LLMLogger(log_dir, enabled=config.logging.enabled, log_file=log_file)
 
         # Initialize API client with logger
@@ -161,7 +169,7 @@ class Runtime:
                 elif ext == ".md":
                     self._execute_prompt_hook(filepath, event)
             except Exception as e:
-                print(f"Hook {filename} failed: {str(e)}")
+                self._renderer.render_message("system", f"Hook {filename} failed: {str(e)}")
 
         return None
 
@@ -216,12 +224,11 @@ class Runtime:
                 timeout=5,
             )
             if result.stdout:
-                # Don't use render_message to avoid "system:" prefix
-                print(result.stdout.strip())
+                self._renderer.render_message("system", result.stdout.strip())
             if result.stderr:
-                print(f"Hook stderr: {result.stderr.strip()}")
+                self._renderer.render_message("system", f"Hook stderr: {result.stderr.strip()}")
         except subprocess.TimeoutExpired:
-            print("Shell hook timed out")
+            self._renderer.render_message("system", "Shell hook timed out")
 
     def _execute_prompt_hook(self, filepath: Path, event: Event) -> None:
         """Execute Prompt hook (simplified version, displays content).
@@ -237,8 +244,7 @@ class Runtime:
             prompt_content = prompt_content.replace(f"{{{{{key}}}}}", str(value))
 
         # TODO: Full implementation should send to LLM
-        # Don't use render_message to avoid "system:" prefix
-        print(f"[Prompt Hook] {prompt_content[:100]}...")
+        self._renderer.render_message("system", f"[Prompt Hook] {prompt_content[:100]}...")
 
     def get_agent_context(self) -> Optional[str]:
         """Load AGENT.md from project root."""
@@ -296,16 +302,31 @@ class Runtime:
         # Get request_id for tool logging
         request_id = response[0].pop("_request_id", None) if response else None
 
-        print(f"Executing {len(msg['tool_calls'])} tool(s)...")
-
         # Add assistant message with tool_calls to session
         self._session.add_message(msg["role"], msg.get("content", ""), tool_calls=msg["tool_calls"])
 
-        # Execute each tool call
+        # Execute each tool call and show details
         for tool_call in msg["tool_calls"]:
+            tool_name = tool_call["function"]["name"]
             arguments = json.loads(tool_call["function"]["arguments"])
+
+            # Show which tool is being executed with details
+            args_str = ""
+            if arguments:
+                args_parts = []
+                for k, v in arguments.items():
+                    if k not in ["cwd", "timeout", "case_sensitive"]:  # Skip internal params
+                        v_str = str(v)
+                        if len(v_str) > 50:
+                            v_str = v_str[:50] + "..."
+                        args_parts.append(f"{k}={v_str}")
+                if args_parts:
+                    args_str = " " + " ".join(args_parts)
+            self._renderer.render_message("system", f"Running {tool_name}{args_str}")
+
+            # Execute the tool
             result = self._tool_dispatcher.execute({
-                "name": tool_call["function"]["name"],
+                "name": tool_name,
                 "arguments": arguments,
             })
 
@@ -313,7 +334,7 @@ class Runtime:
             if self._logger and request_id:
                 self._logger.log_tool_execution(
                     request_id=request_id,
-                    tool_name=tool_call["function"]["name"],
+                    tool_name=tool_name,
                     tool_call_id=tool_call["id"],
                     arguments=arguments,
                     result=result,
@@ -322,8 +343,6 @@ class Runtime:
             # Handle load_skill and load_subagent tools specially
             # These tools are handled separately - content is added to session
             # and we don't format/send their result to the API
-            tool_name = tool_call["function"]["name"]
-
             if tool_name not in ["load_skill", "load_subagent"]:
                 # Regular tool - normal processing
                 tool_result = result.get("result", result)
@@ -368,10 +387,9 @@ class Runtime:
 
                 # Add tool result to session with tool_call_id
                 self._session.add_message("tool", tool_content, tool_call_id=tool_call["id"])
-
+            else:
                 # Send message to user for load_skill/load_subagent
-                if tool_name in ["load_skill", "load_subagent"]:
-                    print(tool_result.get("message", ""))
+                self._renderer.render_message("system", result.get("message", ""))
 
         # Send tool results back to API for next response
         messages = self._prepare_messages_with_context()
@@ -459,7 +477,7 @@ class Runtime:
         if command:
             return self._handle_slash_command(command, args)
 
-        # Regular message
+        # Regular message - add to session (don't render, it's shown in prompt)
         self._session.add_message("user", input)
         return "message_processed"
 
@@ -479,31 +497,35 @@ class Runtime:
         if self._logger:
             self._logger.log_session_start(self._session_id)
 
-        print("Simple Agent started. Type /help for commands.")
+        self._renderer.render_message("system", "Simple Agent started. Type /help for commands.")
 
         # Debug: Show available skills (metadata only)
         skills = self._skill_loader.list_skills()
         if skills:
-            print(f"Found {len(skills)} skill(s): {', '.join([s['name'] for s in skills])}")
-            print("Skills are loaded on-demand. Use /load-skill <name> to load a skill.")
+            self._renderer.render_message("system", f"Found {len(skills)} skill(s): {', '.join([s['name'] for s in skills])}")
+            self._renderer.render_message("system", "Skills are loaded on-demand. Use /load-skill <name> to load a skill.")
         else:
-            print("No skills found in ./skills directory.")
+            self._renderer.render_message("system", "No skills found in ./skills directory.")
 
         # Debug: Show available subagents (metadata only)
         subagents = self._subagent_loader.list_subagents()
         if subagents:
-            print(f"Found {len(subagents)} subagent(s): {', '.join([s['name'] for s in subagents])}")
-            print("Subagents are loaded on-demand. Use /load-subagent <name> to load a subagent.")
+            self._renderer.render_message("system", f"Found {len(subagents)} subagent(s): {', '.join([s['name'] for s in subagents])}")
+            self._renderer.render_message("system", "Subagents are loaded on-demand. Use /load-subagent <name> to load a subagent.")
         else:
-            print("No subagents found in ./subagents directory.")
+            self._renderer.render_message("system", "No subagents found in ./subagents directory.")
 
         while True:
             try:
-                user_input = input("\n> ")
+                # Flush output and print empty line to ensure terminal state is clean before prompt
+                sys.stdout.flush()
+                print()  # Add a newline before the prompt
+                # Use prompt_toolkit for better multi-byte character handling (Chinese input)
+                user_input = self._prompt_session.prompt("> ")
                 result = self.process_input(user_input)
 
                 if result == "exit":
-                    print("Goodbye!")
+                    self._renderer.render_message("system", "Goodbye!")
                     break
                 elif result == "message_processed":
                     # Process message with API
@@ -528,10 +550,11 @@ class Runtime:
                                 plain_content = content[:500] if content else ""
                                 print(f"\n{msg['role']}: {plain_content}")
                 else:
-                    print(result)
+                    # Unknown command result
+                    self._renderer.render_message("system", result)
 
             except KeyboardInterrupt:
-                print("\nGoodbye!")
+                self._renderer.render_message("system", "Goodbye!")
 
                 # Publish session_end event
                 self._event_bus.publish(Event("session_end", {"session_id": self._session_id}))
