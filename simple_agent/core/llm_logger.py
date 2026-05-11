@@ -181,6 +181,27 @@ class LLMLogger:
 
         self._write_entry(entry)
 
+    def log_hook_block(self, event_name: str, hook_name: str, message: str) -> None:
+        """Log a hook blocking an event.
+
+        Args:
+            event_name: Name of the event being blocked
+            hook_name: Name of the hook that blocked the event
+            message: Block message from the hook
+        """
+        if not self._enabled:
+            return
+
+        entry = {
+            "type": "hook_block",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "event_name": event_name,
+            "hook_name": hook_name,
+            "message": message,
+        }
+
+        self._write_entry(entry)
+
     def _write_entry(self, entry: Dict[str, Any]) -> None:
         """Write a log entry to the log file.
 

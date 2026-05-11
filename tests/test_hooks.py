@@ -223,3 +223,97 @@ def on_test_event(data):
 
         result = runtime._execute_hook(hook, event)
         assert result is None  # No block returned
+
+
+def test_load_hooks_registers_event_handlers():
+    """加载 hooks 后，事件总线有对应的处理器"""
+    from simple_agent.core.runtime import Runtime, HookBlockedException
+    from simple_agent.config.settings import Settings
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        hooks_dir = Path(tmpdir)
+
+        # Create an event directory with a Python hook
+        event_dir = hooks_dir / "custom_event"
+        event_dir.mkdir()
+
+        (event_dir / "hook.py").write_text("""
+def on_custom_event(**data):
+    return None
+""")
+
+        # Create Runtime with hooks directory
+        config = Settings()
+        config.paths.hooks_dir = str(hooks_dir)
+        runtime = Runtime(config, log_file=None)
+
+        # Check that event handler is registered
+        # EventBus._handlers is a private attribute, but we need to access it for testing
+        handlers = runtime._event_bus._handlers
+        assert "custom_event" in handlers
+        assert len(handlers["custom_event"]) == 1
+
+        # Test that the handler works
+        execution_count = []
+
+        # Replace the handler with our own to count executions
+        original_handler = handlers["custom_event"][0]
+        def counting_handler(event):
+            execution_count.append(1)
+            original_handler(event)
+
+        handlers["custom_event"][0] = counting_handler
+
+        # Publish event
+        event = Event(name="custom_event", data={})
+        runtime._event_bus.publish(event)
+
+        # Verify handler was called
+        assert len(execution_count) == 1
+
+
+def test_log_hook_block():
+    """LLMLogger.log_hook_block logs hook block events"""
+    from simple_agent.core.llm_logger import LLMLogger
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        log_dir = Path(tmpdir)
+        logger = LLMLogger(log_dir, enabled=True)
+
+        # Log a hook block
+        logger.log_hook_block(
+            event_name="tool_call_before",
+            hook_name="block_tool",
+            message="Tool blocked by hook"
+        )
+
+        # Read the log file and verify entry
+        log_file = logger.get_log_file_path()
+        import json
+        with open(log_file, "r") as f:
+            entries = [json.loads(line) for line in f if line.strip()]
+
+        assert len(entries) == 1
+        assert entries[0]["type"] == "hook_block"
+        assert entries[0]["event_name"] == "tool_call_before"
+        assert entries[0]["hook_name"] == "block_tool"
+        assert entries[0]["message"] == "Tool blocked by hook"
+        assert "timestamp" in entries[0]
+
+
+def test_log_hook_block_when_disabled():
+    """LLMLogger.log_hook_block does nothing when disabled"""
+    from simple_agent.core.llm_logger import LLMLogger
+
+    logger = LLMLogger(enabled=False)
+
+    # Should not raise any errors
+    logger.log_hook_block(
+        event_name="tool_call_before",
+        hook_name="block_tool",
+        message="Tool blocked by hook"
+    )
+
+    # Verify no log file was created
+    log_file = logger.get_log_file_path()
+    assert not log_file.exists()

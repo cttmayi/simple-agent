@@ -21,6 +21,11 @@ from simple_agent.tools.builtin.load_skill import LoadSkill
 from simple_agent.tools.builtin.load_subagent import LoadSubagent
 
 
+class HookBlockedException(Exception):
+    """Hook blocked execution."""
+    pass
+
+
 class Runtime:
     def __init__(self, config: Settings, log_file: Optional[str] = None):
         self._config = config
@@ -102,10 +107,38 @@ class Runtime:
     def _load_hooks(self):
         """Load and register all hooks."""
         hooks = self._hook_loader.list_hooks()
+
         for hook in hooks:
-            # For now, just log hook discovery
-            # Actual hook script execution will be added later
-            pass
+            event_name = hook["event_name"]
+
+            # For each event, create a handler
+            def make_handler(hook_data, evt_name):
+                def handler(event_obj):
+                    result = self._execute_hook(hook_data, event_obj)
+
+                    # Handle block return value
+                    if result and result.get("action") == "block":
+                        message = result.get("message", "Hook blocked execution")
+
+                        # 1. Terminal display (already shown in _execute_python_hook)
+                        # 2. Log to logger
+                        if self._logger:
+                            self._logger.log_hook_block(
+                                event_name=event_obj.name,
+                                hook_name=hook_data["event_name"],
+                                message=message
+                            )
+                        # 3. Send to AI (via session.add_message)
+                        self._session.add_message("system", f"[BLOCKED] {message}")
+
+                        # Throw exception to interrupt flow (only for tool_call_before)
+                        raise HookBlockedException(message)
+                return handler
+
+            self._event_bus.subscribe(event_name, make_handler(hook, event_name))
+
+            # Publish hook_loaded event
+            self._event_bus.publish(Event("hook_loaded", {"hook_name": hook["event_name"]}))
 
     def _execute_hook(self, hook: Dict[str, Any], event: Event) -> Optional[dict]:
         """Execute hook.
