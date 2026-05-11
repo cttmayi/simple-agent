@@ -29,6 +29,10 @@ def test_resource_loader_scan_directory():
 
 
 def test_resource_loader_with_frontmatter():
+    class TestLoader(ResourceLoader):
+        def _get_markdown_file(self, resource_dir: Path) -> Path:
+            return resource_dir / "TEST.md"
+
     with tempfile.TemporaryDirectory() as tmpdir:
         # Create test resource
         resource_dir = Path(tmpdir) / "test-resource"
@@ -36,7 +40,7 @@ def test_resource_loader_with_frontmatter():
         md_file = resource_dir / "TEST.md"
         md_file.write_text("---\nname: test\ndescription: A test\n---\nContent")
 
-        loader = ResourceLoader(tmpdir)
+        loader = TestLoader(tmpdir)
         resources = loader.scan()
         assert len(resources) == 1
         assert resources[0]["name"] == "test"
@@ -84,7 +88,7 @@ def test_subagent_loader_scan():
         agents = loader.list_subagents()
         assert len(agents) == 1
         assert agents[0]["name"] == "test-agent"
-        assert agents[0]["type"] == "explore"
+        assert agents[0]["metadata"]["type"] == "explore"
 
 
 def test_subagent_get_tools():
@@ -149,7 +153,7 @@ def test_command_loader_scan():
         commands = loader.list_commands()
         assert len(commands) == 1
         assert commands[0]["name"] == "test-cmd"
-        assert commands[0]["usage"] == "/test [args]"
+        assert commands[0]["metadata"]["usage"] == "/test [args]"
 
 
 def test_command_get_usage():
