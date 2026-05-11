@@ -216,11 +216,12 @@ class Runtime:
                 timeout=5,
             )
             if result.stdout:
-                self._renderer.render_message("system", result.stdout.strip())
+                # Don't use render_message to avoid "system:" prefix
+                print(result.stdout.strip())
             if result.stderr:
-                self._renderer.render_message("system", f"Hook stderr: {result.stderr.strip()}")
+                print(f"Hook stderr: {result.stderr.strip()}")
         except subprocess.TimeoutExpired:
-            self._renderer.render_message("system", f"Shell hook timed out")
+            print("Shell hook timed out")
 
     def _execute_prompt_hook(self, filepath: Path, event: Event) -> None:
         """Execute Prompt hook (simplified version, displays content).
@@ -236,7 +237,8 @@ class Runtime:
             prompt_content = prompt_content.replace(f"{{{{{key}}}}}", str(value))
 
         # TODO: Full implementation should send to LLM
-        self._renderer.render_message("system", f"[Prompt Hook] {prompt_content[:100]}...")
+        # Don't use render_message to avoid "system:" prefix
+        print(f"[Prompt Hook] {prompt_content[:100]}...")
 
     def get_agent_context(self) -> Optional[str]:
         """Load AGENT.md from project root."""
