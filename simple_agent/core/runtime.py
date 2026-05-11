@@ -161,7 +161,7 @@ class Runtime:
                 elif ext == ".md":
                     self._execute_prompt_hook(filepath, event)
             except Exception as e:
-                self._renderer.render_message("system", f"Hook {filename} failed: {str(e)}")
+                print(f"Hook {filename} failed: {str(e)}")
 
         return None
 
@@ -296,7 +296,7 @@ class Runtime:
         # Get request_id for tool logging
         request_id = response[0].pop("_request_id", None) if response else None
 
-        self._renderer.render_message("system", f"Executing {len(msg['tool_calls'])} tool(s)...")
+        print(f"Executing {len(msg['tool_calls'])} tool(s)...")
 
         # Add assistant message with tool_calls to session
         self._session.add_message(msg["role"], msg.get("content", ""), tool_calls=msg["tool_calls"])
@@ -371,7 +371,7 @@ class Runtime:
 
                 # Send message to user for load_skill/load_subagent
                 if tool_name in ["load_skill", "load_subagent"]:
-                    self._renderer.render_message("system", tool_result.get("message", ""))
+                    print(tool_result.get("message", ""))
 
         # Send tool results back to API for next response
         messages = self._prepare_messages_with_context()
@@ -479,23 +479,23 @@ class Runtime:
         if self._logger:
             self._logger.log_session_start(self._session_id)
 
-        self._renderer.render_message("system", "Simple Agent started. Type /help for commands.")
+        print("Simple Agent started. Type /help for commands.")
 
         # Debug: Show available skills (metadata only)
         skills = self._skill_loader.list_skills()
         if skills:
-            self._renderer.render_message("system", f"Found {len(skills)} skill(s): {', '.join([s['name'] for s in skills])}")
-            self._renderer.render_message("system", "Skills are loaded on-demand. Use /load-skill <name> to load a skill.")
+            print(f"Found {len(skills)} skill(s): {', '.join([s['name'] for s in skills])}")
+            print("Skills are loaded on-demand. Use /load-skill <name> to load a skill.")
         else:
-            self._renderer.render_message("system", "No skills found in ./skills directory.")
+            print("No skills found in ./skills directory.")
 
         # Debug: Show available subagents (metadata only)
         subagents = self._subagent_loader.list_subagents()
         if subagents:
-            self._renderer.render_message("system", f"Found {len(subagents)} subagent(s): {', '.join([s['name'] for s in subagents])}")
-            self._renderer.render_message("system", "Subagents are loaded on-demand. Use /load-subagent <name> to load a subagent.")
+            print(f"Found {len(subagents)} subagent(s): {', '.join([s['name'] for s in subagents])}")
+            print("Subagents are loaded on-demand. Use /load-subagent <name> to load a subagent.")
         else:
-            self._renderer.render_message("system", "No subagents found in ./subagents directory.")
+            print("No subagents found in ./subagents directory.")
 
         while True:
             try:
@@ -503,7 +503,7 @@ class Runtime:
                 result = self.process_input(user_input)
 
                 if result == "exit":
-                    self._renderer.render_message("system", "Goodbye!")
+                    print("Goodbye!")
                     break
                 elif result == "message_processed":
                     # Process message with API
@@ -528,10 +528,10 @@ class Runtime:
                                 plain_content = content[:500] if content else ""
                                 print(f"\n{msg['role']}: {plain_content}")
                 else:
-                    self._renderer.render_message("system", result)
+                    print(result)
 
             except KeyboardInterrupt:
-                self._renderer.render_message("system", "\nGoodbye!")
+                print("\nGoodbye!")
 
                 # Publish session_end event
                 self._event_bus.publish(Event("session_end", {"session_id": self._session_id}))
