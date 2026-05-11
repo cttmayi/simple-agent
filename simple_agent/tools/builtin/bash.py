@@ -2,7 +2,6 @@
 
 import subprocess
 import os
-import shlex
 from typing import Dict, Any, Optional
 from simple_agent.tools.registry import get_global_registry, ToolDefinition
 
@@ -26,12 +25,11 @@ class BASH:
             Dict with success, stdout, stderr, returncode
         """
         try:
-            # Parse command into args using shlex to handle quotes and escapes
-            # This supports commands like: ls -la, echo "hello world", cat file.txt
-            args = shlex.split(command)
-
+            # Use shell=True to preserve shell syntax like pipes (|), redirects (>), etc.
+            # This is needed for commands like: find ... | head -20
             result = subprocess.run(
-                args,
+                command,
+                shell=True,
                 capture_output=True,
                 text=True,
                 timeout=timeout,

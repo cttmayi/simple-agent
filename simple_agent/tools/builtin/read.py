@@ -107,11 +107,13 @@ class READ:
             # Check if file was truncated
             is_truncated = end_index < len(lines)
             total_lines = len(lines)
+            lines_shown_count = len(selected_lines)
+            end_line_shown = start_line + lines_shown_count - 1
 
             # Build result
             result_lines = selected_lines
             if is_truncated:
-                result_lines.append(f"\n\n[文件已被截断，仅显示前 {MAX_LINES} 行]\n如需查看完整文件，请使用 start_line 参数从指定行开始读取。")
+                result_lines.append(f"\n\n[文件已被截断，仅显示第 {start_line} ~ {end_line_shown} 行 (共 {total_lines} 行)]\n如需查看更多内容，请使用 start_line={end_line_shown + 1} 参数继续读取。")
 
             result_content = "".join(result_lines)
 
