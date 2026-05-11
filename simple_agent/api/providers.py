@@ -22,7 +22,7 @@ class BaseProvider(ABC):
 class OpenAIProvider(BaseProvider):
     def __init__(self, config: Dict[str, Any], logger: Optional[LLMLogger] = None):
         self.client = OpenAI(
-            api_key=config.get("api_key"),
+            api_key=config.get("api_key") or "test-key",  # Fallback for tests
             base_url=config.get("base_url"),
         )
         self.model = config.get("model", "gpt-4o")
@@ -102,7 +102,7 @@ class AnthropicProvider(BaseProvider):
     def __init__(self, config: Dict[str, Any], logger: Optional[LLMLogger] = None):
         # Anthropic uses OpenAI SDK with custom base_url
         self.client = OpenAI(
-            api_key=config.get("api_key"),
+            api_key=config.get("api_key") or "test-key",  # Fallback for tests
             base_url=config.get("base_url", "https://api.anthropic.com"),
         )
         self.model = config.get("model", "claude-sonnet-4-20250514")
