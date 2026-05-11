@@ -14,6 +14,13 @@ class UIRenderer:
 
     def render_message(self, role: str, content: str) -> None:
         """Render a chat message."""
+        # For system role, just print content directly without prefix/suffix formatting
+        # This avoids "system:" prefix in the output
+        if role == "system":
+            if content:
+                self.console.print(content)
+            return
+
         if role == "user":
             style = "bold blue"
             prefix = "You"
@@ -33,6 +40,12 @@ class UIRenderer:
                 self.console.print(Markdown(content))
         except Exception as e:
             # Fallback to plain text if Markdown rendering fails
+            # For system role, just print content
+            if role == "system":
+                if content:
+                    self.console.print(escape(content))
+                return
+
             self.console.print(f"\n[{style}]{prefix}[/{style}]:")
             if content:
                 self.console.print(escape(content))
