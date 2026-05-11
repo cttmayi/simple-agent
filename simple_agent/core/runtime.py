@@ -59,8 +59,8 @@ class Runtime:
         self._loaded_subagents = set()  # Track which subagents have been fully loaded
 
         # Set up load_skill and load_subagent tools
-        LoadSkill.set_runtime(self._skill_loader, self._loaded_skills, self)
-        LoadSubagent.set_runtime(self._subagent_loader, self._loaded_subagents, self)
+        LoadSkill.set_runtime(self._skill_loader, self._loaded_skills, self, self._event_bus)
+        LoadSubagent.set_runtime(self._subagent_loader, self._loaded_subagents, self, self._event_bus)
 
         # Register the tool definitions
         from simple_agent.tools.builtin.load_skill import load_skill_tool_def
