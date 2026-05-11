@@ -107,6 +107,109 @@ class Runtime:
             # Actual hook script execution will be added later
             pass
 
+    def _execute_hook(self, hook: Dict[str, Any], event: Event) -> Optional[dict]:
+        """Execute hook.
+
+        Args:
+            hook: Hook data {"event_name", "path", "files"}
+            event: Event object
+
+        Returns:
+            dict or None: {"action": "block", "message": "..."} indicates block
+        """
+        hook_dir = Path(hook["path"])
+
+        for filename in hook["files"]:
+            filepath = hook_dir / filename
+            ext = filepath.suffix.lower()
+
+            try:
+                if ext == ".py":
+                    result = self._execute_python_hook(filepath, event)
+                    if result and result.get("action") == "block":
+                        return result
+                elif ext in [".sh", ".cmd"]:
+                    self._execute_shell_hook(filepath, event)
+                elif ext == ".md":
+                    self._execute_prompt_hook(filepath, event)
+            except Exception as e:
+                self._renderer.render_message("system", f"Hook {filename} failed: {str(e)}")
+
+        return None
+
+    def _execute_python_hook(self, filepath: Path, event: Event) -> Optional[dict]:
+        """Execute Python hook and return result.
+
+        Args:
+            filepath: Python hook file path
+            event: Event object
+
+        Returns:
+            dict: Hook return value, possibly {"action": "block", "message": "..."}
+        """
+        import importlib.util
+        import sys
+
+        module_name = f"hook_{filepath.stem}"
+        spec = importlib.util.spec_from_file_location(module_name, filepath)
+        if not spec or not spec.loader:
+            return None
+
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[module_name] = module
+        spec.loader.exec_module(module)
+
+        event_name = event.name
+        func_name = f"on_{event_name}"
+
+        if hasattr(module, func_name):
+            func = getattr(module, func_name)
+            result = func(**event.data)
+            return result
+
+        return None
+
+    def _execute_shell_hook(self, filepath: Path, event: Event) -> None:
+        """Execute Shell hook.
+
+        Args:
+            filepath: Shell script file path
+            event: Event object
+        """
+        import subprocess
+
+        try:
+            result = subprocess.run(
+                f"sh {filepath}" if filepath.suffix == ".sh" else filepath,
+                shell=True,
+                cwd=Path.cwd(),
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            if result.stdout:
+                self._renderer.render_message("system", result.stdout.strip())
+            if result.stderr:
+                self._renderer.render_message("system", f"Hook stderr: {result.stderr.strip()}")
+        except subprocess.TimeoutExpired:
+            self._renderer.render_message("system", f"Shell hook timed out")
+
+    def _execute_prompt_hook(self, filepath: Path, event: Event) -> None:
+        """Execute Prompt hook (simplified version, displays content).
+
+        Args:
+            filepath: Markdown file path
+            event: Event object
+        """
+        prompt_content = filepath.read_text()
+
+        variables = event.data or {}
+        for key, value in variables.items():
+            prompt_content = prompt_content.replace(f"{{{{{key}}}}}", str(value))
+
+        # TODO: Full implementation should send to LLM
+        self._renderer.render_message("system", f"[Prompt Hook] {prompt_content[:100]}...")
+
     def get_agent_context(self) -> Optional[str]:
         """Load AGENT.md from project root."""
         agent_md = Path.cwd() / "AGENT.md"

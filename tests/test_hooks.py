@@ -2,6 +2,7 @@ from pathlib import Path
 import tempfile
 import pytest
 from simple_agent.resources.hooks import HookLoader
+from simple_agent.core.events import Event
 
 
 def test_hook_loader_scans_directories():
@@ -104,3 +105,121 @@ def test_hook_loader_recognizes_all_hook_extensions():
 
         assert len(hooks) == 1
         assert set(hooks[0]["files"]) == {"script.py", "script.sh", "script.cmd", "script.md"}
+
+
+def test_execute_python_hook_returns_none():
+    """Python hook without block returns None"""
+    from simple_agent.core.runtime import Runtime
+    from simple_agent.config.settings import Settings
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Create a simple Python hook that doesn't block
+        hook_file = Path(tmpdir) / "test_hook.py"
+        hook_file.write_text("""
+def on_test_event(**data):
+    print("Hook executed")
+    return None
+""")
+
+        runtime = Runtime(Settings(), log_file=None)
+        event = Event(name="test_event", data={"key": "value"})
+
+        result = runtime._execute_python_hook(hook_file, event)
+        assert result is None
+
+
+def test_execute_python_hook_returns_block():
+    """Python hook can return block to prevent execution"""
+    from simple_agent.core.runtime import Runtime
+    from simple_agent.config.settings import Settings
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Create a Python hook that blocks execution
+        hook_file = Path(tmpdir) / "block_hook.py"
+        hook_file.write_text("""
+def on_test_event(**data):
+    if data.get("block"):
+        return {"action": "block", "message": "Blocked by hook"}
+    return None
+""")
+
+        runtime = Runtime(Settings(), log_file=None)
+        event = Event(name="test_event", data={"block": True})
+
+        result = runtime._execute_python_hook(hook_file, event)
+        assert result is not None
+        assert result["action"] == "block"
+        assert "Blocked by hook" in result["message"]
+
+
+def test_execute_python_hook_missing_function():
+    """Python hook with no matching function returns None"""
+    from simple_agent.core.runtime import Runtime
+    from simple_agent.config.settings import Settings
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Create a Python hook without the expected function
+        hook_file = Path(tmpdir) / "no_func_hook.py"
+        hook_file.write_text("""
+def on_other_event(data):
+    return None
+""")
+
+        runtime = Runtime(Settings(), log_file=None)
+        event = Event(name="test_event", data={})
+
+        result = runtime._execute_python_hook(hook_file, event)
+        assert result is None
+
+
+def test_execute_hook_returns_block():
+    """_execute_hook stops early when Python hook returns block"""
+    from simple_agent.core.runtime import Runtime
+    from simple_agent.config.settings import Settings
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        hook_dir = Path(tmpdir) / "test_event"
+        hook_dir.mkdir()
+
+        # Create Python hook that blocks
+        (hook_dir / "block.py").write_text("""
+def on_test_event(**data):
+    return {"action": "block", "message": "Stopped early"}
+""")
+
+        # Create shell hook that should NOT execute
+        (hook_dir / "script.sh").write_text("echo 'This should not run'")
+
+        runtime = Runtime(Settings(), log_file=None)
+        hook = {"event_name": "test_event", "path": str(hook_dir), "files": ["block.py", "script.sh"]}
+        event = Event(name="test_event", data={})
+
+        result = runtime._execute_hook(hook, event)
+        assert result is not None
+        assert result["action"] == "block"
+        assert "Stopped early" in result["message"]
+
+
+def test_execute_hook_runs_all_types():
+    """_execute_hook runs all hook types in order"""
+    from simple_agent.core.runtime import Runtime
+    from simple_agent.config.settings import Settings
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        hook_dir = Path(tmpdir) / "test_event"
+        hook_dir.mkdir()
+
+        # Create all hook types
+        (hook_dir / "hook.py").write_text("""
+def on_test_event(data):
+    return None
+""")
+        (hook_dir / "hook.sh").write_text("echo 'Shell hook executed'")
+        (hook_dir / "hook.md").write_text("{{key}} value is {{key}}")
+
+        runtime = Runtime(Settings(), log_file=None)
+        hook = {"event_name": "test_event", "path": str(hook_dir), "files": ["hook.py", "hook.sh", "hook.md"]}
+        event = Event(name="test_event", data={"key": "test"})
+
+        result = runtime._execute_hook(hook, event)
+        assert result is None  # No block returned
