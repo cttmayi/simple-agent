@@ -156,9 +156,22 @@
 
         .card-summary-header {
             display: flex;
-            justify-content: space-between;
-            align-items: center;
+            justify-content: flex-start;
+            align-items: baseline;
+            gap: 15px;
             margin-bottom: 10px;
+        }
+
+        .card-summary-left {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .card-summary-right {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 4px;
         }
 
         .card-summary-title {
@@ -174,10 +187,40 @@
 
         .card-summary-section {
             display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 8px;
+            padding: 8px 12px;
+            background: #1a1a2e;
+            border-radius: 4px;
+            border: 1px solid #333;
+            font-size: 0.9em;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .card-summary-section .top-row {
+            display: flex;
             align-items: center;
             gap: 10px;
-            margin-bottom: 8px;
-            font-size: 0.9em;
+            flex-shrink: 0;
+        }
+
+        .card-summary-section .top-row > *:not(.content-toggle) {
+            flex-shrink: 0;
+        }
+
+        .card-summary-section .content-toggle {
+            order: -1;
+            flex-shrink: 0;
+            width: 20px;
+            text-align: center;
+        }
+
+        .card-summary-section .content-container {
+            margin-left: 30px;
+            min-width: 0;
+            overflow: hidden;
         }
 
         .card-summary-section:last-child {
@@ -203,15 +246,63 @@
             overflow: hidden;
         }
 
+        /* 内容展开样式 */
+        .content-container {
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+
+        .content-container .preview-content {
+            max-height: 72px; /* 约3行 */
+            overflow: hidden;
+        }
+
+        .content-container.expanded .preview-content {
+            max-height: none;
+            display: none;
+        }
+
+        .content-container .full-content {
+            display: none;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .content-container.expanded .full-content {
+            display: block;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .content-toggle {
+            cursor: pointer;
+            user-select: none;
+            flex-shrink: 0;
+            width: 20px;
+            text-align: center;
+        }
+
+        .content-toggle:hover {
+            color: #667eea;
+        }
+
         .detail-section-header {
             background: #1a2a3a;
             padding: 10px 15px;
             cursor: pointer;
             display: flex;
-            justify-content: space-between;
+            justify-content: flex-start;
             align-items: center;
             font-weight: bold;
             font-size: 0.9em;
+            gap: 10px;
+        }
+
+        .detail-section-header .toggle-arrow {
+            order: -1;
+            flex-shrink: 0;
+            width: 20px;
+            text-align: center;
         }
 
         .detail-section-header:hover {
@@ -229,11 +320,11 @@
 
         /* Usage显示样式 */
         .usage-display {
-            background: #0a0a1a;
-            padding: 8px 12px;
+            background: #1a1a2e;
+            padding: 4px 10px;
             border-radius: 4px;
             font-family: monospace;
-            font-size: 0.85em;
+            font-size: 0.8em;
             color: #667eea;
         }
 
@@ -368,11 +459,28 @@
         }
 
         .badge.response {
-            background: #10b981;
+            background: #8b5cf6;
+        }
+
+        .badge.assistant {
+            background: #8b5cf6;
         }
 
         .badge.tool {
             background: #f59e0b;
+        }
+
+        .badge.success {
+            background: #22c55e;
+        }
+
+        .badge.error {
+            background: #ef4444;
+        }
+
+        .badge-aligned {
+            min-width: 80px;
+            text-align: center;
         }
 
         .empty-state {
@@ -530,7 +638,10 @@
                 updateStats(allConversations);
             } catch (error) {
                 console.error('Failed to load logs:', error);
-                alert('Failed to load logs. Make sure the server is running.');
+                // Don't alert on page load - might be running standalone HTML
+                // Just show empty state
+                allConversations = [];
+                renderConversations([]);
             }
         }
 
@@ -581,15 +692,30 @@
 
     const groups = groupConversationsByLog(conversations);
     let globalIndex = 0;
+    let cardIndex = 0;
 
     container.innerHTML = groups.map((group, groupIndex) => {
         const idx = globalIndex++;
-        const cardsHtml = group.conversations.map((conv, convIndex) => `
+        const cardsHtml = group.conversations.map((conv, convIndex) => {
+            const cardId = `card-${cardIndex++}`;
+            return `
             <div class="api-call-card">
-                ${renderCardSummary(conv)}
+                ${renderCardSummary(conv, cardId)}
                 ${renderCardDetails(conv)}
             </div>
-        `).join('');
+        `;
+        }).join('');
+
+        // 计算 total tokens
+        const totalTokens = group.conversations.reduce((sum, conv) => {
+            return sum + (conv.response?.usage?.total_tokens || 0);
+        }, 0);
+        const totalPromptTokens = group.conversations.reduce((sum, conv) => {
+            return sum + (conv.response?.usage?.prompt_tokens || 0);
+        }, 0);
+        const totalCompletionTokens = group.conversations.reduce((sum, conv) => {
+            return sum + (conv.response?.usage?.completion_tokens || 0);
+        }, 0);
 
         return `
             <div class="session-group">
@@ -599,6 +725,11 @@
                         <div style="margin-top: 5px; color: #888; font-size: 0.9em;">
                             ${group.conversations.length} API call${group.conversations.length > 1 ? 's' : ''}
                         </div>
+                        ${totalTokens > 0 ? `
+                        <div style="margin-top: 3px; color: #667eea; font-size: 0.85em;">
+                            ${totalPromptTokens.toLocaleString()} prompt + ${totalCompletionTokens.toLocaleString()} completion = ${totalTokens.toLocaleString()} tokens
+                        </div>
+                        ` : ''}
                     </div>
                     <div class="conv-count">${group.conversations.length}</div>
                 </div>
@@ -613,179 +744,428 @@
 
 
 
-        function.name)}</div>
-                                <div class="tool-arguments">${renderArguments(tc.function.arguments)}</div>
-                            </div>
-                        `).join('')}
-                    </div>
-                `;
-            }
+    function renderAssistantMessage(msg) {
+        const role = msg.role;
+        const isAssistant = role === 'assistant';
 
-            let contentHtml = '';
-            if (msg.content && msg.content.trim()) {
-                contentHtml = `<div class="message-content">${escapeHtml(msg.content)}</div>`;
-            }
-
-            // Don't show "(no content)" if there are tool calls
-            return `
-                <div class="message ${role}">
-                    <div class="message-header">
-                        <span class="message-role">${role}</span>
-                        ${isAssistant && msg.usage ? `<span style="font-size: 0.85em; color: #888;">${msg.usage.total_tokens} tokens</span>` : ''}
-                    </div>
-                    ${contentHtml}
-                    ${toolCallsHtml}
+        let toolCallsHtml = '';
+        if (msg.tool_calls && msg.tool_calls.length > 0) {
+            toolCallsHtml = `
+                <div style="margin-top: 15px; border-top: 1px solid #333; padding-top: 15px;">
+                    <div style="color: #f59e0b; font-size: 0.85em; margin-bottom: 10px;">Tool Calls:</div>
+                    ${msg.tool_calls.map(tc => `
+                        <div class="tool-call-inline">
+                            <div style="font-weight: bold; color: #f59e0b; margin-bottom: 8px;">${escapeHtml(tc.function.name)}</div>
+                            <div class="tool-arguments">${renderArguments(tc.function.arguments)}</div>
+                        </div>
+                    `).join('')}
                 </div>
             `;
         }
 
-        function renderResultContent(result) {
-            // If there's an explicit error, return it
-            if (result.error) {
-                return `<span style="color: #ef4444;">${escapeHtml(result.error)}</span>`;
-            }
-            // For successful results with content, show it
-            if (result.success) {
-                const content = result.content || result.stdout || result.output;
-                if (content) {
-                    const contentStr = String(content);
-                    if (contentStr.includes('\n')) {
-                        return `<pre style="margin: 0;">${escapeHtml(contentStr)}</pre>`;
-                    }
-                    return escapeHtml(contentStr);
-                }
-            }
-            // Otherwise show the full result as JSON
-            return `<pre>${escapeHtml(JSON.stringify(result, null, 2))}</pre>`;
+        let contentHtml = '';
+        if (msg.content && msg.content.trim()) {
+            contentHtml = `<div class="message-content">${escapeHtml(msg.content)}</div>`;
         }
 
-        function renderArguments(argsStr) {
+        // Don't show "(no content)" if there are tool calls
+        return `
+            <div class="message ${role}">
+                <div class="message-header">
+                    <span class="message-role">${role}</span>
+                    ${isAssistant && msg.usage ? `<span style="font-size: 0.85em; color: #888;">${msg.usage.total_tokens} tokens</span>` : ''}
+                </div>
+                ${contentHtml}
+                ${toolCallsHtml}
+            </div>
+        `;
+    }
+
+    function renderToolMessage(msg) {
+        let argsHtml = '';
+        if (msg.tool_call_args) {
             try {
-                const args = JSON.parse(argsStr);
-                if (Object.keys(args).length === 0) {
-                    return '(no arguments)';
+                const args = JSON.parse(msg.tool_call_args);
+                if (Object.keys(args).length > 0) {
+                    argsHtml = `
+                        <div style="background: #0a0a1a; padding: 10px; border-radius: 4px; margin: 10px 0; font-size: 0.9em;">
+                            <div style="color: #f59e0b; margin-bottom: 5px;">Arguments:</div>
+                            ${renderArguments(msg.tool_call_args)}
+                        </div>
+                    `;
                 }
-                let items = Object.entries(args);
-                return items.map(([key, value], i) => {
-                    const style = i > 0 ? 'margin-top: 10px;' : '';
-                    const valueStr = String(value);
-                    // For command parameter, display it specially
-                    if (key === 'command') {
-                        return `<div style="${style}"><span style="color: #f59e0b; margin-right: 8px;">$</span> <code style="background: #1a1a2e; padding: 2px 6px; border-radius: 3px;">${escapeHtml(valueStr)}</code></div>`;
-                    }
-                    return `<div style="${style}"><span style="color: #f59e0b; margin-right: 8px;">${key}:</span> <span style="color: #eaeaea;">${escapeHtml(valueStr)}</span></div>`;
-                }).join('');
-            } catch (e) {
-                // Parse as string then show as-is for JSON string
-                const displayValue = argsStr.length > 50 ? argsStr.substring(0, 50) + '...' : argsStr;
-                return `<div style="margin-top: 10px;"><span style="color: #f59e0b; margin-right: 8px;">arguments:</span> <span style="color: #666;">${escapeHtml(displayValue)}</span></div>`;
+            } catch (e) {}
+        }
+
+        return `
+            <div class="message tool">
+                <div class="message-header">
+                    <span class="message-role">← Tool Result: ${escapeHtml(msg.tool_name)}</span>
+                    <span class="badge ${msg.result.success ? 'success' : 'error'}">
+                        ${msg.result.success ? 'OK' : 'Error'}
+                    </span>
+                </div>
+                ${argsHtml}
+                <div class="tool-result ${msg.result.success ? 'success' : 'error'}">
+                    ${msg.result.error || renderResultContent(msg.result)}
+                </div>
+            </div>
+        `;
+    }
+
+    function renderResultContent(result) {
+        // If there's an explicit error, return it
+        if (result.error) {
+            return `<span style="color: #ef4444;">${escapeHtml(result.error)}</span>`;
+        }
+        // For successful results with content, show it
+        if (result.success) {
+            const content = result.content || result.stdout || result.output;
+            if (content) {
+                const contentStr = String(content);
+                if (contentStr.includes('\n')) {
+                    return `<pre style="margin: 0;">${escapeHtml(contentStr)}</pre>`;
+                }
+                return escapeHtml(contentStr);
+            }
+        }
+        // Otherwise show the full result as JSON
+        return `<pre>${escapeHtml(JSON.stringify(result, null, 2))}</pre>`;
+    }
+
+    function renderArguments(argsStr) {
+        try {
+            const args = JSON.parse(argsStr);
+            if (Object.keys(args).length === 0) {
+                return '(no arguments)';
+            }
+            let items = Object.entries(args);
+            return items.map(([key, value], i) => {
+                const style = i > 0 ? 'margin-top: 10px;' : '';
+                const valueStr = String(value);
+                // For command parameter, display it specially
+                if (key === 'command') {
+                    return `<div style="${style}"><span style="color: #f59e0b; margin-right: 8px;">$</span> <code style="background: #1a1a2e; padding: 2px 6px; border-radius: 3px;">${escapeHtml(valueStr)}</code></div>`;
+                }
+                return `<div style="${style}"><span style="color: #f59e0b; margin-right: 8px;">${key}:</span> <span style="color: #eaeaea;">${escapeHtml(valueStr)}</span></div>`;
+            }).join('');
+        } catch (e) {
+            // Parse as string then show as-is for JSON string
+            const displayValue = argsStr.length > 50 ? argsStr.substring(0, 50) + '...' : argsStr;
+            return `<div style="margin-top: 10px;"><span style="color: #f59e0b; margin-right: 8px;">arguments:</span> <span style="color: #666;">${escapeHtml(displayValue)}</span></div>`;
+        }
+    }
+
+    function renderToolExecution(te) {
+        const toolName = te.tool_name || 'unknown';
+        const argumentsStr = te.arguments ? JSON.stringify(te.arguments) : '{}';
+        const result = te.result || {};
+        const isSuccess = result.success !== false;
+
+        let commandDisplay = '';
+        let stdoutDisplay = '';
+        let stderrDisplay = '';
+        let errorDisplay = '';
+
+        // Show command for bash tools or show all arguments
+        if (te.arguments) {
+            if (te.arguments.command) {
+                commandDisplay = `
+                    <div style="margin-top: 10px;">
+                        <div style="color: #f59e0b; font-size: 0.85em; margin-bottom: 5px;">Command:</div>
+                        <div style="background: #0a0a1a; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 0.9em;">
+                            <span style="color: #f59e0b; margin-right: 5px;">$</span>${escapeHtml(te.arguments.command)}
+                        </div>
+                    </div>
+                `;
+            } else {
+                // Show all arguments for non-bash tools
+                commandDisplay = `
+                    <div style="margin-top: 10px;">
+                        <div style="color: #f59e0b; font-size: 0.85em; margin-bottom: 5px;">Arguments:</div>
+                        <div class="tool-arguments">${renderArguments(argumentsStr)}</div>
+                    </div>
+                `;
             }
         }
 
-        function toggleConversation(index) {
-            const body = document.getElementById(`conv-${index}`);
-            body.classList.toggle('active');
+        // Show stdout
+        if (result.stdout) {
+            stdoutDisplay = `
+                <div style="margin-top: 10px;">
+                    <div style="color: #4ade80; font-size: 0.85em; margin-bottom: 5px;">Stdout:</div>
+                    <div style="background: #0a1a0a; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 0.85em; max-height: 300px; overflow-y: auto; color: #a8e6cf;">
+                        <pre style="margin: 0; white-space: pre-wrap;">${escapeHtml(result.stdout)}</pre>
+                    </div>
+                </div>
+            `;
         }
 
-        function toggleSession(groupIndex) {
-            const body = document.getElementById(`session-${groupIndex}`);
-            body.classList.toggle('active');
+        // Show stderr
+        if (result.stderr) {
+            stderrDisplay = `
+                <div style="margin-top: 10px;">
+                    <div style="color: #f87171; font-size: 0.85em; margin-bottom: 5px;">Stderr:</div>
+                    <div style="background: #1a0a0a; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 0.85em; max-height: 200px; overflow-y: auto; color: #fecaca;">
+                        <pre style="margin: 0; white-space: pre-wrap;">${escapeHtml(result.stderr)}</pre>
+                    </div>
+                </div>
+            `;
         }
 
-        function updateStats(conversations) {
-            const totalConv = conversations.length;
-            const totalTools = conversations.reduce((sum, c) => sum + c.tool_executions.length, 0);
-            const totalTokens = conversations.reduce((sum, c) => {
-                return sum + (c.response?.usage?.total_tokens || 0);
-            }, 0);
-
-            const successfulTools = conversations.reduce((sum, c) => {
-                return sum + c.tool_executions.filter(t => t.result.success).length;
-            }, 0);
-            const successRate = totalTools > 0 ? Math.round((successfulTools / totalTools) * 100) : 0;
-
-            document.getElementById('stat-conversations').textContent = totalConv;
-            document.getElementById('stat-tools').textContent = totalTools;
-            document.getElementById('stat-tokens').textContent = totalTokens.toLocaleString();
-            document.getElementById('stat-success').textContent = successRate + '%';
+        // Show error
+        if (result.error) {
+            errorDisplay = `
+                <div style="margin-top: 10px;">
+                    <div style="color: #ef4444; font-size: 0.85em; margin-bottom: 5px;">Error:</div>
+                    <div style="background: #1a0a0a; padding: 10px; border-radius: 4px; color: #ef4444;">
+                        ${escapeHtml(result.error)}
+                    </div>
+                </div>
+            `;
         }
 
-        function escapeHtml(text) {
-            if (typeof text !== 'string') return text;
-            return text
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;')
-                .replace(/'/g, '&#039;');
+        // Show full result JSON for other fields (content, matches, etc.)
+        let fullResultDisplay = '';
+        const resultFields = Object.keys(result).filter(k => !['stdout', 'stderr', 'error', 'success'].includes(k));
+        if (resultFields.length > 0) {
+            const filteredResult = {};
+            resultFields.forEach(k => filteredResult[k] = result[k]);
+            fullResultDisplay = `
+                <div style="margin-top: 10px;">
+                    <div style="color: #888; font-size: 0.85em; margin-bottom: 5px;">Result:</div>
+                    <pre style="background: #0a0a1a; padding: 10px; border-radius: 4px; max-height: 300px; overflow-y: auto; margin: 0;">${escapeHtml(JSON.stringify(filteredResult, null, 2))}</pre>
+                </div>
+            `;
         }
+
+        return `
+            <div class="message tool" style="margin-bottom: 15px;">
+                <div class="message-header">
+                    <span class="message-role">← ${escapeHtml(toolName)}</span>
+                    <span class="badge ${isSuccess ? 'success' : 'error'}">
+                        ${isSuccess ? 'OK' : 'Error'}
+                    </span>
+                </div>
+                ${commandDisplay}
+                ${stdoutDisplay}
+                ${stderrDisplay}
+                ${errorDisplay}
+                ${fullResultDisplay}
+                ${!isSuccess && !result.error && !result.stderr ? `
+                    <div style="margin-top: 10px; color: #ef4444;">
+                        Failed (no error details available)
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    }
+
+    function toggleConversation(index) {
+        const body = document.getElementById(`conv-${index}`);
+        body.classList.toggle('active');
+    }
+
+    function toggleSession(groupIndex) {
+        const body = document.getElementById(`session-${groupIndex}`);
+        body.classList.toggle('active');
+    }
+
+    function updateStats(conversations) {
+        const totalConv = conversations.length;
+        const totalTools = conversations.reduce((sum, c) => sum + c.tool_executions.length, 0);
+        const totalTokens = conversations.reduce((sum, c) => {
+            return sum + (c.response?.usage?.total_tokens || 0);
+        }, 0);
+
+        const successfulTools = conversations.reduce((sum, c) => {
+            return sum + c.tool_executions.filter(t => t.result.success).length;
+        }, 0);
+        const successRate = totalTools > 0 ? Math.round((successfulTools / totalTools) * 100) : 0;
+
+        document.getElementById('stat-conversations').textContent = totalConv;
+        document.getElementById('stat-tools').textContent = totalTools;
+        document.getElementById('stat-tokens').textContent = totalTokens.toLocaleString();
+        document.getElementById('stat-success').textContent = successRate + '%';
+    }
+
+    function escapeHtml(text) {
+        if (typeof text !== 'string') return text;
+        return text
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
 // 渲染卡片摘要
-function renderCardSummary(conv) {
+function renderCardSummary(conv, cardId) {
     const request = conv.request;
     const response = conv.response;
     const toolExecutions = conv.tool_executions || [];
 
-    // 获取最后一条user消息
-    let userMessage = '';
-    if (request.messages) {
-        const userMsgs = request.messages.filter(m => m.role === 'user');
-        if (userMsgs.length > 0) {
-            const lastUserMsg = userMsgs[userMsgs.length - 1].content || '';
-            userMessage = lastUserMsg.length > 50 ? lastUserMsg.substring(0, 50) + '...' : lastUserMsg;
+    // 获取最后一条user消息（只在最后一条是user的时候才显示）- 完整内容
+    let userSectionHtml = '';
+    if (request.messages && request.messages.length > 0) {
+        const lastMsg = request.messages[request.messages.length - 1];
+        if (lastMsg.role === 'user') {
+            const content = lastMsg.content || '';
+            const lines = content.split('\n');
+            const previewLines = lines.slice(0, 3).join('\n');
+            const previewHtml = escapeHtml(previewLines) + (lines.length > 3 ? '\n...' : '');
+            const fullHtml = escapeHtml(content);
+            const userId = `${cardId}-user`;
+            userSectionHtml = `
+                <div class="card-summary-section">
+                    <div class="top-row">
+                        <span class="badge request badge-aligned">User</span>
+                        <span class="content-toggle toggle-arrow" onclick="event.stopPropagation(); toggleContent(this)">▶</span>
+                    </div>
+                    <div class="content-container" id="${userId}">
+                        <span class="preview-content" style="color: #aaa; white-space: pre-wrap; font-family: monospace;">${previewHtml}</span>
+                        <span class="full-content" style="display: none; color: #aaa; white-space: pre-wrap; font-family: monospace;">${fullHtml}</span>
+                    </div>
+                </div>
+            `;
         }
     }
 
-    // 获取response内容预览和usage
-    let responsePreview = '';
+    // 获取response内容预览和usage - 完整内容
+    let responseSectionHtml = '';
     let usageDisplay = '';
     let toolCount = 0;
 
     if (response) {
         const content = response.content || '';
-        responsePreview = content.length > 50 ? content.substring(0, 50) + '...' : content;
 
+        // 只有当内容不为空时才显示 Assistant 部分
+        if (content.trim() !== '') {
+            const lines = content.split('\n');
+            const previewLines = lines.slice(0, 3).join('\n');
+            const previewHtml = escapeHtml(previewLines) + (lines.length > 3 ? '\n...' : '');
+            const fullHtml = escapeHtml(content);
+            const responseId = `${cardId}-assistant`;
+
+            responseSectionHtml = `
+                <div class="card-summary-section">
+                    <div class="top-row">
+                        <span class="badge assistant badge-aligned">Assistant</span>
+                        <span class="content-toggle toggle-arrow" onclick="event.stopPropagation(); toggleContent(this)">▶</span>
+                    </div>
+                    <div class="content-container" id="${responseId}">
+                        <span class="preview-content" style="color: #aaa; white-space: pre-wrap; font-family: monospace;">${previewHtml}</span>
+                        <span class="full-content" style="display: none; color: #aaa; white-space: pre-wrap; font-family: monospace;">${fullHtml}</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        // 获取 usage 和 tool_count（即使内容为空也需要这些信息）
         const usage = response.usage || {};
         const totalTokens = usage.total_tokens || 0;
         const promptTokens = usage.prompt_tokens || 0;
         const completionTokens = usage.completion_tokens || 0;
 
         if (totalTokens > 0) {
-            usageDisplay = `<span class="usage-display">| ${totalTokens} tokens (${promptTokens} + ${completionTokens})</span>`;
+            usageDisplay = `<span class="usage-display">${totalTokens} tokens (${promptTokens} + ${completionTokens})</span>`;
         }
 
         toolCount = (response.tool_calls || []).length;
     }
 
-    // Tool摘要
+    // Tool摘要 - 紧凑显示工具信息
     let toolSummary = '';
     if (toolExecutions.length > 0) {
-        const toolBadges = toolExecutions.map(te => {
-            const status = te.result?.success ? 'OK' : 'ERR';
-            return `<span class="badge ${te.result?.success ? 'response' : 'error'}">🔧 ${escapeHtml(te.tool_name)} (${status})</span>`;
-        }).join(' ');
-        toolSummary = `<div class="card-summary-section">${toolBadges}</div>`;
+        const toolBadges = toolExecutions.map((te, toolIndex) => {
+            const toolName = te.tool_name.charAt(0).toUpperCase() + te.tool_name.slice(1);
+            const toolId = `${cardId}-tool-${toolIndex}`;
+
+            // 构建badge - Tool 和工具名分开，工具名显示状态颜色
+            let badgesHtml = `<span class="badge tool badge-aligned">Tool</span> <span class="badge ${te.result?.success ? 'success' : 'error'} badge-aligned">${escapeHtml(toolName)}</span>`;
+            let commandInfo = '';
+
+            if (te.arguments) {
+                if (te.arguments.command) {
+                    // BASH工具 - 显示命令
+                    commandInfo = `<span style="color: #f59e0b; margin-left: 8px;">$ ${escapeHtml(te.arguments.command)}</span>`;
+                } else {
+                    // 其他工具 - 格式化显示参数
+                    const paramPairs = Object.entries(te.arguments).map(([k, v]) => `<span style="color: #667eea;">${k}</span>: <span style="color: #eaeaea;">${escapeHtml(String(v))}</span>`).join(', ');
+                    commandInfo = `<span style="color: #f59e0b; margin-left: 8px;">(${paramPairs})</span>`;
+                }
+            }
+
+            // 结果预览 - 显示stdout或content
+            let resultPreview = '';
+            let fullResultContent = '';
+            if (te.result?.stderr && te.result?.stderr.trim()) {
+                // 工具执行失败 - 显示stderr
+                const stderr = String(te.result.stderr);
+                const lines = stderr.split('\n');
+                const previewLines = lines.slice(0, 3).join('\n');
+                const shortPreview = previewLines.length > 120 ? previewLines.substring(0, 120) + '...' : previewLines;
+                resultPreview = `<span style="color: #f87171;">Error: ${escapeHtml(shortPreview)}${lines.length > 3 ? '...' : ''}</span>`;
+                fullResultContent = `Error:\n${escapeHtml(stderr)}`;
+                // 如果同时有stdout也显示
+                if (te.result?.stdout && te.result.stdout.trim()) {
+                    fullResultContent += `\n\nOutput:\n${escapeHtml(te.result.stdout)}`;
+                }
+            } else if (te.result?.stdout) {
+                // BASH工具 - 显示stdout
+                const stdout = String(te.result.stdout);
+                const lines = stdout.split('\n');
+                const previewLines = lines.slice(0, 3).join('\n');
+                const shortPreview = previewLines.length > 120 ? previewLines.substring(0, 120) + '...' : previewLines;
+                resultPreview = `<span style="color: #aaa;">${escapeHtml(shortPreview)}${lines.length > 3 ? '...' : ''}</span>`;
+                fullResultContent = escapeHtml(stdout);
+            } else if (te.result?.content) {
+                // READ工具 - 显示content预览
+                const content = String(te.result.content);
+                const lines = content.split('\n');
+                const previewLines = lines.slice(0, 3).join('\n');
+                const shortContent = previewLines.length > 100 ? previewLines.substring(0, 100) + '...' : previewLines;
+                resultPreview = `<span style="color: #aaa;">${escapeHtml(shortContent)}${lines.length > 3 ? '...' : ''}</span>`;
+                fullResultContent = escapeHtml(content);
+            } else if (te.result?.error) {
+                // 有错误信息但无stderr
+                const error = String(te.result.error);
+                const lines = error.split('\n');
+                const previewLines = lines.slice(0, 3).join('\n');
+                const shortPreview = previewLines.length > 120 ? previewLines.substring(0, 120) + '...' : previewLines;
+                resultPreview = `<span style="color: #f87171;">Error: ${escapeHtml(shortPreview)}${lines.length > 3 ? '...' : ''}</span>`;
+                fullResultContent = `Error:\n${escapeHtml(error)}`;
+            }
+
+            return `
+                <div class="card-summary-section">
+                    <div class="top-row">
+                        <span class="content-toggle toggle-arrow" onclick="event.stopPropagation(); toggleContent(this)">▶</span>
+                        ${badgesHtml}
+                        ${commandInfo}
+                    </div>
+                    <div class="content-container" id="${toolId}">
+                        <span class="preview-content" style="color: #aaa; white-space: pre-wrap; font-family: monospace;">${resultPreview}</span>
+                        <span class="full-content" style="display: none; color: #aaa; white-space: pre-wrap; font-family: monospace;">${fullResultContent}</span>
+                    </div>
+                </div>
+            `;
+        }).join('');
+        toolSummary = toolBadges;
     }
 
     return `
-        <div class="card-summary" onclick="toggleCard(this)">
+        <div class="card-summary">
             <div class="card-summary-header">
-                <span class="card-summary-title">📄 API Call: ${escapeHtml(request.model || 'unknown')}</span>
-                <span class="card-summary-meta">${new Date(request.timestamp).toLocaleString()}</span>
+                <span class="content-toggle toggle-arrow" onclick="event.stopPropagation(); toggleCardDetails(this)">▶</span>
+                <div class="card-summary-left">
+                    <span class="card-summary-meta">${new Date(request.timestamp).toLocaleString()}</span>
+                </div>
+                <div class="card-summary-right">
+                    ${usageDisplay ? `<span>${usageDisplay}</span>` : ''}
+                </div>
             </div>
-            ${userMessage ? `
-                <div class="card-summary-section">
-                    <span class="badge request">📄 [REQUEST]</span>
-                    <span style="color: #aaa;">${escapeHtml(userMessage)}</span>
-                </div>
-            ` : ''}
-            ${response ? `
-                <div class="card-summary-section">
-                    <span class="badge response">📤 [RESPONSE]</span>
-                    <span style="color: #aaa;">${escapeHtml(responsePreview)}</span>
-                    ${usageDisplay}
-                    ${toolCount > 0 ? `<span class="badge tool">| ${toolCount} tools</span>` : ''}
-                </div>
-            ` : ''}
+            ${userSectionHtml}
+            ${responseSectionHtml}
             ${toolSummary}
         </div>
     `;
@@ -799,13 +1179,13 @@ function renderCardDetails(conv) {
 
     let sections = '';
 
-    // Request区块
-    if (request && request.messages) {
+    // 完整对话区块 - 从System开始
+    if (request && request.messages && request.messages.length > 0) {
         sections += `
             <div class="detail-section">
                 <div class="detail-section-header" onclick="toggleSection(this)">
-                    <span>📄 Request</span>
-                    <span>▼</span>
+                    <span>💬 Complete Conversation</span>
+                    <span class="toggle-arrow">▼</span>
                 </div>
                 <div class="detail-section-content active">
                     ${request.messages.map(msg => `
@@ -821,7 +1201,7 @@ function renderCardDetails(conv) {
         `;
     }
 
-    // Response区块
+    // Assistant区块
     if (response) {
         const toolCalls = response.tool_calls || [];
         const usage = response.usage || {};
@@ -829,8 +1209,8 @@ function renderCardDetails(conv) {
         sections += `
             <div class="detail-section">
                 <div class="detail-section-header" onclick="toggleSection(this)">
-                    <span>📤 Response</span>
-                    <span>▼</span>
+                    <span>📤 Assistant</span>
+                    <span class="toggle-arrow">▼</span>
                 </div>
                 <div class="detail-section-content active">
                     ${response.content ? `
@@ -852,8 +1232,8 @@ function renderCardDetails(conv) {
                             ${toolCalls.map((tc, i) => `
                                 <div class="detail-section" style="margin-top: 10px;">
                                     <div class="detail-section-header" onclick="toggleSection(this)">
-                                        <span>→ ${escapeHtml(tc.function.name)}</span>
-                                        <span>▼</span>
+                                        <span>${escapeHtml(tc.function.name)}</span>
+                                        <span class="toggle-arrow">▼</span>
                                     </div>
                                     <div class="detail-section-content">
                                         <div class="tool-arguments">${renderArguments(tc.function.arguments)}</div>
@@ -873,22 +1253,10 @@ function renderCardDetails(conv) {
             <div class="detail-section">
                 <div class="detail-section-header" onclick="toggleSection(this)">
                     <span>🔧 Tool Executions (${toolExecutions.length})</span>
-                    <span>▼</span>
+                    <span class="toggle-arrow">▼</span>
                 </div>
                 <div class="detail-section-content active">
-                    ${toolExecutions.map(te => `
-                        <div class="message tool">
-                            <div class="message-header">
-                                <span class="message-role">← ${escapeHtml(te.tool_name)}</span>
-                                <span class="badge ${te.result?.success ? 'response' : 'error'}">
-                                    ${te.result?.success ? 'OK' : 'Error'}
-                                </span>
-                            </div>
-                            <div class="tool-result ${te.result?.success ? 'success' : 'error'}">
-                                ${te.result?.error || renderResultContent(te.result || {})}
-                            </div>
-                        </div>
-                    `).join('')}
+                    ${toolExecutions.map(te => renderToolExecution(te)).join('')}
                 </div>
             </div>
         `;
@@ -897,36 +1265,58 @@ function renderCardDetails(conv) {
     return `<div class="card-details">${sections}</div>`;
 }
 
-// 切换卡片展开/收起
-function toggleCard(element) {
-    const card = element.parentElement;
-    const details = card.querySelector('.card-details');
-    details.classList.toggle('active');
-}
+    function toggleCardDetails(arrow) {
+        const cardSummary = arrow.closest('.card-summary');
+        const apiCard = cardSummary.closest('.api-call-card');
+        const details = apiCard.querySelector('.card-details');
+        const isActive = details.classList.toggle('active');
+        arrow.textContent = isActive ? '▼' : '▶';
+    }
 
 // 切换详情区块展开/收起
 function toggleSection(element) {
     const content = element.nextElementSibling;
     content.classList.toggle('active');
-    const arrow = element.querySelector('span:last-child');
+    const arrow = element.querySelector('.toggle-arrow');
     arrow.textContent = content.classList.contains('active') ? '▼' : '▶';
 }
 
+// 切换内容展开/收起
+function toggleContent(element) {
+    // 找到父级 card-summary-section，然后查找 content-container
+    const parentSection = element.closest('.card-summary-section');
+    const container = parentSection.querySelector('.content-container');
+    const previewContent = container.querySelector('.preview-content');
+    const fullContent = container.querySelector('.full-content');
 
-        // Search functionality
-        document.getElementById('search-input').addEventListener('input', (e) => {
-            const query = e.target.value.toLowerCase();
-            const filtered = allConversations.filter(conv => {
-                const content = conv.request.messages.map(m => m.content).join(' ').toLowerCase();
-                return content.includes(query) ||
-                       conv.request.model.toLowerCase().includes(query) ||
-                       conv.tool_executions.some(t => t.tool_name.toLowerCase().includes(query));
-            });
-            renderConversations(filtered);
+    const isExpanded = container.classList.toggle('expanded');
+
+    if (isExpanded) {
+        previewContent.style.display = 'none';
+        fullContent.style.display = 'block';
+    } else {
+        previewContent.style.display = 'inline';
+        fullContent.style.display = 'none';
+    }
+
+    element.textContent = isExpanded ? '▼' : '▶';
+}
+
+
+    // Search functionality
+    document.getElementById('search-input').addEventListener('input', (e) => {
+        const query = e.target.value.toLowerCase();
+        const filtered = allConversations.filter(conv => {
+            const content = conv.request.messages.map(m => m.content).join(' ').toLowerCase();
+            return content.includes(query) ||
+                   conv.request.model.toLowerCase().includes(query) ||
+                   conv.tool_executions.some(t => t.tool_name.toLowerCase().includes(query));
         });
+        renderConversations(filtered);
+    });
 
-        // Load logs on page load
-        window.addEventListener('load', loadLogs);
+    // Load logs on page load
+    window.addEventListener('load', loadLogs);
     </script>
 </body>
 </html>
