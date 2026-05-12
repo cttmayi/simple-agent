@@ -1,124 +1,123 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+本文件为 Claude Code (claude.ai/code) 在处理本仓库代码时提供指导。
 
-## Development Commands
+## 开发命令
 
 ```bash
-# Run the agent
-source .venv/bin/activate
-simple-agent
+# 运行 agent
+source .venv/bin/activate && simple-agent
 
-# Run
+# 运行
 source .venv/bin/activate && python ...
 
-# Run tests
+# 运行测试
 source .venv/bin/activate && pytest
 
-# Run specific test file
+# 运行特定测试文件
 source .venv/bin/activate && pytest tests/test_tools.py
 
-# Run specific test
+# 运行特定测试
 source .venv/bin/activate && pytest tests/test_tools.py::test_register_tool
 ```
 
-## Architecture Overview
+## 架构概览
 
-The codebase uses a plugin-based architecture with these key patterns:
+代码库采用插件式架构，包含以下关键模式：
 
-### Core Components
+### 核心组件
 
-- **simple_agent/core/runtime.py**: Main application loop, orchestrates API calls, tool execution, and UI
-- **simple_agent/core/session.py**: Maintains conversation history with support for tool_calls and tool_call_id
-- **simple_agent/tools/registry.py**: Global singleton registry for tools. Uses `get_global_registry()` to access
-- **simple_agent/tools/dispatcher.py**: Executes tools through the registry with error handling
-- **simple_agent/api/client.py** & **providers.py**: Unified API client for OpenAI and Anthropic
+- **simple_agent/core/runtime.py**: 主应用循环，编排 API 调用、工具执行和 UI
+- **simple_agent/core/session.py**: 维护对话历史，支持 tool_calls 和 tool_call_id
+- **simple_agent/tools/registry.py**: 工具的全局单例注册表。使用 `get_global_registry()` 访问
+- **simple_agent/tools/dispatcher.py**: 通过注册表执行工具，包含错误处理
+- **simple_agent/api/client.py** & **providers.py**: OpenAI 和 Anthropic 的统一 API 客户端
 
-### Tool System
+### 工具系统
 
-Tools are registered in a global registry. Builtin tools auto-register on import:
-- Import `simple_agent.tools.builtin` to load all builtin tools
-- Use `@tool` decorator to register custom functions
-- Tools must return dicts with at least a `success` boolean field
-- The `ToolDispatcher.execute()` wrapper adds error handling, but builtin tools include their own
+工具在全局注册表中注册。内置工具在导入时自动注册：
+- 导入 `simple_agent.tools.builtin` 以加载所有内置工具
+- 使用 `@tool` 装饰器注册自定义函数
+- 工具必须返回至少包含 `success` 布尔字段的字典
+- `ToolDispatcher.execute()` 包装器添加错误处理，但内置工具包含自己的错误处理
 
-Tool result format expected by AI:
+AI 期望的工具结果格式：
 ```python
 {
     "success": True/False,
-    "stdout": "...",      # for BASH
-    "content": "...",     # for READ
-    "matches": [...],     # for GREP
-    "results": [...],     # for WebSearch
-    "error": "...",       # optional, when success=False
+    "stdout": "...",      # 用于 BASH
+    "content": "...",     # 用于 READ
+    "matches": [...],     # 用于 GREP
+    "results": [...],     # 用于 WebSearch
+    "error": "...",       # 可选，当 success=False 时
 }
 ```
 
-When tool execution fails, the error is sent to AI with a `[TOOL_ERROR]` prefix so it can understand and retry.
+当工具执行失败时，错误会以 `[TOOL_ERROR]` 前缀发送给 AI，以便它理解并重试。
 
-### Multi-Step Tool Calling
+### 多步工具调用
 
-The runtime handles recursive tool calling automatically:
-1. AI returns tool_calls → Execute all tools → Send results back to API
-2. AI may return more tool_calls → Execute → Send results back → Repeat
-3. AI returns final content without tool_calls → Display to user
+运行时自动处理递归工具调用：
+1. AI 返回 tool_calls → 执行所有工具 → 将结果发送回 API
+2. AI 可能返回更多 tool_calls → 执行 → 将结果发送回 → 重复
+3. AI 返回不带 tool_calls 的最终内容 → 显示给用户
 
-This flow is handled in `Runtime._handle_tool_calls_in_message()`.
+此流程在 `Runtime._handle_tool_calls_in_message()` 中处理。
 
-### Configuration System
+### 配置系统
 
-Config is loaded with priority: `~/.config/simple-agent/config.yml` → `./.simple-agent/config.yml` → Environment variables
+配置加载优先级：`~/.config/simple-agent/config.yml` → `./.simple-agent/config.yml` → 环境变量
 
-Use environment variables to override:
+使用环境变量覆盖：
 ```bash
 export OPENAI_API_KEY=sk-...
 export OPENAI_BASE_URL=https://api.openai.com/v1
 simple-agent
 ```
 
-### Logging System
+### 日志系统
 
-- LLM requests/responses logged to `logs/llm/llm-YYYY-MM-DD.jsonl` (JSONL format)
-- Use `simple-agent --logs` to view in human-readable format
-- Log entries include: request_id, timestamp, model, messages, tool_calls, usage, tool executions
+- LLM 请求/响应记录到 `logs/llm/llm-YYYY-MM-DD.jsonl`（JSONL 格式）
+- 使用 `simple-agent --logs` 以人类可读格式查看
+- 日志条目包括：request_id、timestamp、model、messages、tool_calls、usage、tool executions
 
-**Tool Execution Logging**: All tool executions are logged to the log file (not just to the session).
-- The log captures: tool_name, tool_call_id, arguments, and the full result dict
-- Check `simple-agent --logs` to review tool execution results
+**工具执行日志**：所有工具执行都记录到日志文件（而不仅仅是会话中）。
+- 日志捕获：tool_name、tool_call_id、arguments 和完整的 result dict
+- 使用 `simple-agent --logs` 查看工具执行结果
 
-### Resource Loading
+### 资源加载
 
-Skills, subagents, hooks, and commands are loaded from frontmatter markdown files using `python-frontmatter`. The loader classes (`SkillLoader`, `SubagentLoader`, etc.) provide `list_*()` and `get_*()` methods.
+Skills、subagents、hooks 和 commands 使用 `python-frontmatter` 从 frontmatter markdown 文件加载。加载器类（`SkillLoader`、`SubagentLoader` 等）提供 `list_*()` 和 `get_*()` 方法。
 
-### Session and Message Format
+### 会话和消息格式
 
-The Session maintains message history with support for tool calling:
+Session 维护消息历史，支持工具调用：
 ```python
 session.add_message(
     role="user",                    # user, assistant, tool, system
-    content="...",                   # message content
-    tool_call_id="...",                # optional, for tool role
-    tool_calls=[...]                  # optional, for assistant role with tool_calls
+    content="...",                   # 消息内容
+    tool_call_id="...",                # 可选，用于 tool 角色
+    tool_calls=[...]                  # 可选，用于带 tool_calls 的 assistant 角色
 )
 ```
 
-Messages are passed directly to the OpenAI API which expects `tool_calls` and `tool_call_id` fields for function calling.
+消息直接传递给 OpenAI API，API 期望函数调用的 `tool_calls` 和 `tool_call_id` 字段。
 
-### UI Rendering
+### UI 渲染
 
-`UIRenderer` uses the `rich` library for terminal output. It has methods for:
-- `render_message(role, content)`: Regular chat messages
-- `render_tool_result(tool_name, result)`: Formatted tool execution output
-- `render_error(message)`: Error messages
+`UIRenderer` 使用 `rich` 库进行终端输出。它有以下方法：
+- `render_message(role, content)`: 常规聊天消息
+- `render_tool_result(tool_name, result)`: 格式化的工具执行输出
+- `render_error(message)`: 错误消息
 
-### Testing
+### 测试
 
-Tests use pytest and are organized by module:
-- `test_config.py`: Configuration loading
-- `test_tools.py`: Tool registry and dispatching
-- `test_runtime.py`: Runtime behavior
-- `test_api.py`: API client and providers
-- `test_ui.py`: UI rendering
-- `test_session.py`: Session management
+测试使用 pytest 并按模块组织：
+- `test_config.py`: 配置加载
+- `test_tools.py`: 工具注册和分发
+- `test_runtime.py`: 运行时行为
+- `test_api.py`: API 客户端和提供者
+- `test_ui.py`: UI 渲染
+- `test_session.py`: 会话管理
 
-When adding new features, add corresponding tests in the appropriate file.
+添加新功能时，在相应的文件中添加对应的测试。
