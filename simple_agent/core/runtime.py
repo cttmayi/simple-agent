@@ -60,15 +60,17 @@ class Runtime:
         # Load and register hooks
         self._load_hooks()
 
-        # Load skills and build skills context (only metadata for lazy loading)
-        self._skills_context = self._build_skills_context()
+        # Initialize content storage BEFORE calling build methods
         self._loaded_skills = set()  # Track which skills have been fully loaded
         self._loaded_skills_content = {}  # Store full content of loaded skills
+        self._loaded_subagents = set()  # Track which subagents have been fully loaded
+        self._loaded_subagents_content = {}  # Store full content of loaded subagents
+
+        # Load skills and build skills context (only metadata for lazy loading)
+        self._skills_context = self._build_skills_context()
 
         # Load subagents and build subagents context (only metadata for lazy loading)
         self._subagents_context = self._build_subagents_context()
-        self._loaded_subagents = set()  # Track which subagents have been fully loaded
-        self._loaded_subagents_content = {}  # Store full content of loaded subagents
 
         # Set up load_skill and load_subagent tools
         LoadSkill.set_runtime(self._skill_loader, self._loaded_skills, self, self._event_bus)
