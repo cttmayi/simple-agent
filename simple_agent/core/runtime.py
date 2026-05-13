@@ -60,16 +60,12 @@ class Runtime:
         # Load and register hooks
         self._load_hooks()
 
-        # Initialize content storage BEFORE calling build methods
-        self._loaded_skills = set()  # Track which skills have been fully loaded
-        self._loaded_skills_content = {}  # Store full content of loaded skills
-        self._loaded_subagents = set()  # Track which subagents have been fully loaded
-        self._loaded_subagents_content = {}  # Store full content of loaded subagents
-
         # Load skills and build skills context (only metadata for lazy loading)
+        self._loaded_skills = set()  # Track which skills have been fully loaded
         self._skills_context = self._build_skills_context()
 
         # Load subagents and build subagents context (only metadata for lazy loading)
+        self._loaded_subagents = set()  # Track which subagents have been fully loaded
         self._subagents_context = self._build_subagents_context()
 
         # Set up load_skill and load_subagent tools
@@ -83,9 +79,13 @@ class Runtime:
         self._tool_registry.register(load_subagent_tool_def)
 
     def _build_skills_context(self) -> str:
-        """Build context string from all available skills and loaded skill content."""
+        """Build context string from all available skills (metadata only).
+
+        First layer: Only show skill directory (summary), not full content.
+        Full content is loaded via trigger layer (load_skill tool) only when needed.
+        """
         skills = self._skill_loader.list_skills()
-        if not skills and not self._loaded_skills_content:
+        if not skills:
             return ""
 
         context_parts = ["# Available Skills\n"]
@@ -94,16 +94,16 @@ class Runtime:
         for skill in skills:
             context_parts.append(f"- **{skill['name']}**: {skill['description']}")
 
-        # Add loaded skills with full content (persistent, maintains cache)
-        for skill_name, content in self._loaded_skills_content.items():
-            context_parts.append(f"\n\n# Loaded Skill: {skill_name}\n{content}")
-
         return "\n".join(context_parts)
 
     def _build_subagents_context(self) -> str:
-        """Build context string from all available subagents and loaded subagent content."""
+        """Build context string from all available subagents (metadata only).
+
+        First layer: Only show subagent directory (summary), not full content.
+        Full content is loaded via trigger layer (load_subagent tool) only when needed.
+        """
         subagents = self._subagent_loader.list_subagents()
-        if not subagents and not self._loaded_subagents_content:
+        if not subagents:
             return ""
 
         context_parts = ["# Available Subagents\n"]
@@ -115,25 +115,7 @@ class Runtime:
             context_parts.append(f"- **{subagent['name']}**: {subagent['description']}")
             context_parts.append(f"  Tools: {tools_str}\n")
 
-        # Add loaded subagents with full content (persistent, maintains cache)
-        for subagent_name, content in self._loaded_subagents_content.items():
-            context_parts.append(f"\n\n# Loaded Subagent: {subagent_name}\n{content}")
-
         return "\n".join(context_parts)
-
-    def _update_loaded_skill(self, skill_name: str, content: str) -> None:
-        """Update loaded skill and rebuild skills context."""
-        self._loaded_skills.add(skill_name)
-        self._loaded_skills_content[skill_name] = content
-        # Rebuild skills context to include full content
-        self._skills_context = self._build_skills_context()
-
-    def _update_loaded_subagent(self, subagent_name: str, content: str) -> None:
-        """Update loaded subagent and rebuild subagents context."""
-        self._loaded_subagents.add(subagent_name)
-        self._loaded_subagents_content[subagent_name] = content
-        # Rebuild subagents context to include full content
-        self._subagents_context = self._build_subagents_context()
 
     def _load_hooks(self):
         """Load and register all hooks."""
@@ -493,14 +475,16 @@ class Runtime:
                     skill_content = result.get("content", "")
 
                     if skill_content:
-                        # Update loaded skills context (persistent, maintains cache)
-                        self._update_loaded_skill(skill_name, skill_content)
+                        # Add as tool message so LLM receives full content
+                        tool_msg = f"# Loaded Skill: {skill_name}\n{skill_content}"
+                        self._session.add_message("tool", tool_msg, tool_call_id=tool_call["id"])
                 elif tool_name == "load_subagent" and result.get("success"):
                     subagent_name = arguments.get("subagent_name")
                     subagent_content = result.get("content", "")
                     if subagent_content:
-                        # Update loaded subagents context (persistent, maintains cache)
-                        self._update_loaded_subagent(subagent_name, subagent_content)
+                        # Add as tool message so LLM receives full content
+                        tool_msg = f"# Loaded Subagent: {subagent_name}\n{subagent_content}"
+                        self._session.add_message("tool", tool_msg, tool_call_id=tool_call["id"])
 
         # Send tool results back to API for next response
         messages = self._prepare_messages_with_context()
