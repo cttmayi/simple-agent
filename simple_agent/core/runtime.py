@@ -233,10 +233,40 @@ class Runtime:
                 func = getattr(module, func_name)
                 # Get function signature and filter arguments
                 sig = inspect.signature(func)
+
                 # Filter event.data to only include parameters the function accepts
-                filtered_args = {k: v for k, v in event.data.items() if k in sig.parameters}
-                result = func(**filtered_args)
-                return result
+                # But handle parameters that might be optional (like hook_context)
+                filtered_args = {}
+                for k, v in event.data.items():
+                    if k in sig.parameters:
+                        filtered_args[k] = v
+                    elif k == "hook_context" and "hook_context" in sig.parameters:
+                        # hook_context is special - always include if function accepts it
+                        # even if not in event.data (use global hook_context if available)
+                        pass  # Will be handled below
+
+                # If function expects hook_context but it's not in event.data,
+                # try to get it from a global reference or make it optional
+                if "hook_context" in sig.parameters and "hook_context" not in event.data:
+                    # Check if we have a global hook_context reference
+                    if hasattr(self, '_hook_context') and self._hook_context:
+                        filtered_args["hook_context"] = self._hook_context
+                    elif sig.parameters["hook_context"].default is inspect.Parameter.empty:
+                        # No default and no global - we have a problem
+                        # Try to skip this parameter (works with **kwargs style)
+                        pass
+                    else:
+                        # Has default, add it from sig
+                        filtered_args["hook_context"] = sig.parameters["hook_context"].default
+
+                # Try to call with filtered_args
+                try:
+                    result = func(**filtered_args)
+                    return result
+                except TypeError as e:
+                    # If still failing, the function signature doesn't match event data
+                    # This is expected for hooks using old signatures
+                    return None
 
         return None
 
@@ -429,6 +459,23 @@ class Runtime:
             else:
                 # Send message to user for load_skill/load_subagent
                 self._renderer.render_message("system", result.get("message", ""))
+
+                # Add skill/subagent content to session as system message
+                # This ensures AI knows the skill/subagent is loaded
+                if tool_name == "load_skill" and result.get("success"):
+                    skill_name = arguments.get("skill_name")
+                    skill_content = result.get("content", "")
+                    if skill_content:
+                        # Add as system message with skill marker for persistence
+                        system_msg = f"# Skill: {skill_name}\n{skill_content}"
+                        self._session.add_message("system", system_msg)
+                elif tool_name == "load_subagent" and result.get("success"):
+                    subagent_name = arguments.get("subagent_name")
+                    subagent_content = result.get("content", "")
+                    if subagent_content:
+                        # Add as system message with subagent marker for persistence
+                        system_msg = f"# Subagent: {subagent_name}\n{subagent_content}"
+                        self._session.add_message("system", system_msg)
 
         # Send tool results back to API for next response
         messages = self._prepare_messages_with_context()
