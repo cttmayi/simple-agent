@@ -465,9 +465,18 @@ class Runtime:
                 if tool_name == "load_skill" and result.get("success"):
                     skill_name = arguments.get("skill_name")
                     skill_content = result.get("content", "")
+                    import sys
+                    print(f"[DEBUG runtime] load_skill: skill_name={skill_name}, content_len={len(skill_content) if skill_content else 0}", file=sys.stderr)
+
                     if skill_content:
                         # Add as system message with skill marker for persistence
                         system_msg = f"# Skill: {skill_name}\n{skill_content}"
+                        print(f"[DEBUG runtime] Adding to session: {system_msg[:80]}...", file=sys.stderr)
+                        self._session.add_message("system", system_msg)
+                    elif "already loaded" in result.get("message", ""):
+                        # Skill already loaded, add minimal marker
+                        system_msg = f"# Skill: {skill_name}\n(Already loaded)"
+                        print(f"[DEBUG runtime] Adding to session (already): {system_msg}", file=sys.stderr)
                         self._session.add_message("system", system_msg)
                 elif tool_name == "load_subagent" and result.get("success"):
                     subagent_name = arguments.get("subagent_name")
@@ -539,6 +548,15 @@ class Runtime:
         # Combine all system parts
         if manually_loaded_context:
             system_parts.extend(manually_loaded_context)
+
+        # Debug: print system_parts
+        import sys
+        print(f"[DEBUG] system_parts count: {len(system_parts)}", file=sys.stderr)
+        for i, part in enumerate(system_parts[:3]):  # Print first 3 parts
+            prefix = part[:50] if len(part) > 50 else part
+            print(f"[DEBUG] system_parts[{i}]: {prefix}...", file=sys.stderr)
+        if manually_loaded_context:
+            print(f"[DEBUG] manually_loaded_context: {len(manually_loaded_context)} items", file=sys.stderr)
 
         # Prepare messages for API
         api_messages = []

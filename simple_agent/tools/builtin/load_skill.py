@@ -45,14 +45,23 @@ class LoadSkill:
         if skill_name in LoadSkill._loaded_skills:
             return {
                 "success": True,
-                "message": f"Skill '{skill_name}' is already loaded."
+                "message": f"Skill '{skill_name}' is already loaded.",
+                "content": f"(Skill '{skill_name}' was previously loaded)"  # Return marker content
             }
 
         content = LoadSkill._skill_loader.get_skill_content(skill_name)
+
+        # Debug: log content retrieval
+        if LoadSkill._runtime:
+            import sys
+            print(f"[DEBUG load_skill] skill_name={skill_name}, content_found={content is not None}, content_len={len(content) if content else 0}", file=sys.stderr)
+
         if content:
             LoadSkill._loaded_skills.add(skill_name)
-            # Log skill loaded
+            # Debug: log state change
             if LoadSkill._runtime:
+                import sys
+                print(f"[DEBUG load_skill] Added to _loaded_skills: {skill_name}, total={len(LoadSkill._loaded_skills)}", file=sys.stderr)
                 LoadSkill._runtime._logger.log_skill_loaded(skill_name)
 
             # Publish skill_loaded event
