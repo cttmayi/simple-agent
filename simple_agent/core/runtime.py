@@ -63,10 +63,12 @@ class Runtime:
         # Load skills and build skills context (only metadata for lazy loading)
         self._skills_context = self._build_skills_context()
         self._loaded_skills = set()  # Track which skills have been fully loaded
+        self._loaded_skills_content = {}  # Store full content of loaded skills
 
         # Load subagents and build subagents context (only metadata for lazy loading)
         self._subagents_context = self._build_subagents_context()
         self._loaded_subagents = set()  # Track which subagents have been fully loaded
+        self._loaded_subagents_content = {}  # Store full content of loaded subagents
 
         # Set up load_skill and load_subagent tools
         LoadSkill.set_runtime(self._skill_loader, self._loaded_skills, self, self._event_bus)
@@ -79,9 +81,9 @@ class Runtime:
         self._tool_registry.register(load_subagent_tool_def)
 
     def _build_skills_context(self) -> str:
-        """Build context string from all available skills (metadata only for lazy loading)."""
+        """Build context string from all available skills and loaded skill content."""
         skills = self._skill_loader.list_skills()
-        if not skills:
+        if not skills and not self._loaded_skills_content:
             return ""
 
         context_parts = ["# Available Skills\n"]
@@ -90,12 +92,16 @@ class Runtime:
         for skill in skills:
             context_parts.append(f"- **{skill['name']}**: {skill['description']}")
 
+        # Add loaded skills with full content (persistent, maintains cache)
+        for skill_name, content in self._loaded_skills_content.items():
+            context_parts.append(f"\n\n# Loaded Skill: {skill_name}\n{content}")
+
         return "\n".join(context_parts)
 
     def _build_subagents_context(self) -> str:
-        """Build context string from all available subagents (metadata only for lazy loading)."""
+        """Build context string from all available subagents and loaded subagent content."""
         subagents = self._subagent_loader.list_subagents()
-        if not subagents:
+        if not subagents and not self._loaded_subagents_content:
             return ""
 
         context_parts = ["# Available Subagents\n"]
@@ -107,7 +113,25 @@ class Runtime:
             context_parts.append(f"- **{subagent['name']}**: {subagent['description']}")
             context_parts.append(f"  Tools: {tools_str}\n")
 
+        # Add loaded subagents with full content (persistent, maintains cache)
+        for subagent_name, content in self._loaded_subagents_content.items():
+            context_parts.append(f"\n\n# Loaded Subagent: {subagent_name}\n{content}")
+
         return "\n".join(context_parts)
+
+    def _update_loaded_skill(self, skill_name: str, content: str) -> None:
+        """Update loaded skill and rebuild skills context."""
+        self._loaded_skills.add(skill_name)
+        self._loaded_skills_content[skill_name] = content
+        # Rebuild skills context to include full content
+        self._skills_context = self._build_skills_context()
+
+    def _update_loaded_subagent(self, subagent_name: str, content: str) -> None:
+        """Update loaded subagent and rebuild subagents context."""
+        self._loaded_subagents.add(subagent_name)
+        self._loaded_subagents_content[subagent_name] = content
+        # Rebuild subagents context to include full content
+        self._subagents_context = self._build_subagents_context()
 
     def _load_hooks(self):
         """Load and register all hooks."""
@@ -469,22 +493,16 @@ class Runtime:
                     print(f"[DEBUG runtime] load_skill: skill_name={skill_name}, content_len={len(skill_content) if skill_content else 0}", file=sys.stderr)
 
                     if skill_content:
-                        # Add as system message with skill marker for persistence
-                        system_msg = f"# Skill: {skill_name}\n{skill_content}"
-                        print(f"[DEBUG runtime] Adding to session: {system_msg[:80]}...", file=sys.stderr)
-                        self._session.add_message("system", system_msg)
-                    elif "already loaded" in result.get("message", ""):
-                        # Skill already loaded, add minimal marker
-                        system_msg = f"# Skill: {skill_name}\n(Already loaded)"
-                        print(f"[DEBUG runtime] Adding to session (already): {system_msg}", file=sys.stderr)
-                        self._session.add_message("system", system_msg)
+                        # Update loaded skills context (persistent, maintains cache)
+                        self._update_loaded_skill(skill_name, skill_content)
+                        print(f"[DEBUG runtime] Updated _skills_context with skill: {skill_name}", file=sys.stderr)
                 elif tool_name == "load_subagent" and result.get("success"):
                     subagent_name = arguments.get("subagent_name")
                     subagent_content = result.get("content", "")
                     if subagent_content:
-                        # Add as system message with subagent marker for persistence
-                        system_msg = f"# Subagent: {subagent_name}\n{subagent_content}"
-                        self._session.add_message("system", system_msg)
+                        # Update loaded subagents context (persistent, maintains cache)
+                        self._update_loaded_subagent(subagent_name, subagent_content)
+                        print(f"[DEBUG runtime] Updated _subagents_context with subagent: {subagent_name}", file=sys.stderr)
 
         # Send tool results back to API for next response
         messages = self._prepare_messages_with_context()
@@ -521,22 +539,7 @@ class Runtime:
         # Build system context with skills, subagents, and AGENT.md
         system_parts = []
 
-        # Add manually loaded skills/subagents from session FIRST
-        # These are added via /load-skill and /load-subagent commands
-        # Put them at the beginning so LLM sees them first
-        manually_loaded_context = []
-        for msg in messages:
-            if msg.get("role") == "system" and msg.get("content"):
-                content = msg.get("content", "")
-                # Check if it's a manually loaded skill or subagent
-                if content.startswith("# Skill:") or content.startswith("# Subagent:"):
-                    manually_loaded_context.append(content)
-
-        # Combine all system parts
-        if manually_loaded_context:
-            system_parts.extend(manually_loaded_context)
-
-        # Add skills context
+        # Add skills context (includes loaded skills with full content)
         if self._skills_context:
             system_parts.append(self._skills_context)
 
@@ -556,8 +559,6 @@ class Runtime:
         for i, part in enumerate(system_parts[:3]):  # Print first 3 parts
             prefix = part[:50] if len(part) > 50 else part
             print(f"[DEBUG] system_parts[{i}]: {prefix}...", file=sys.stderr)
-        if manually_loaded_context:
-            print(f"[DEBUG] manually_loaded_context: {len(manually_loaded_context)} items (at position 0)", file=sys.stderr)
 
         # Prepare messages for API
         api_messages = []

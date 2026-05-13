@@ -43,10 +43,19 @@ class LoadSkill:
             }
 
         if skill_name in LoadSkill._loaded_skills:
+            # Already loaded - check if runtime has stored content
+            if LoadSkill._runtime and hasattr(LoadSkill._runtime, '_loaded_skills_content'):
+                content = LoadSkill._runtime._loaded_skills_content.get(skill_name)
+                if content:
+                    return {
+                        "success": True,
+                        "message": f"Skill '{skill_name}' is already loaded.",
+                        "content": content,  # Return stored content
+                    }
+            # No stored content available
             return {
                 "success": True,
                 "message": f"Skill '{skill_name}' is already loaded.",
-                "content": f"(Skill '{skill_name}' was previously loaded)"  # Return marker content
             }
 
         content = LoadSkill._skill_loader.get_skill_content(skill_name)
