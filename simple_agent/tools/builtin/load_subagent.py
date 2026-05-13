@@ -44,9 +44,19 @@ class LoadSubagent:
             }
 
         if subagent_name in LoadSubagent._loaded_subagents:
+            # Already loaded - check if runtime has stored content
+            if LoadSubagent._runtime and hasattr(LoadSubagent._runtime, '_loaded_subagents_content'):
+                content = LoadSubagent._runtime._loaded_subagents_content.get(subagent_name)
+                if content:
+                    return {
+                        "success": True,
+                        "message": f"Subagent '{subagent_name}' is already loaded.",
+                        "content": content,  # Return stored content
+                    }
+            # No stored content available
             return {
                 "success": True,
-                "message": f"Subagent '{subagent_name}' is already loaded."
+                "message": f"Subagent '{subagent_name}' is already loaded.",
             }
 
         subagents = LoadSubagent._subagent_loader.list_subagents()
