@@ -14,10 +14,10 @@ class ToolDispatcher:
         name = tool_call.get("name")
         arguments = tool_call.get("arguments", {})
 
-        # Publish tool_call_before event
+        # Publish PreToolUse event
         if self._event_bus:
             try:
-                self._event_bus.publish(Event("tool_call_before", {
+                self._event_bus.publish(Event("PreToolUse", {
                     "tool_name": name,
                     "arguments": arguments
                 }))
@@ -41,9 +41,9 @@ class ToolDispatcher:
                 # Custom tool without success field - wrap it
                 result = {"success": True, "result": result}
 
-            # Publish tool_call_after event
+            # Publish PostToolUse event
             if self._event_bus:
-                self._event_bus.publish(Event("tool_call_after", {
+                self._event_bus.publish(Event("PostToolUse", {
                     "tool_name": name,
                     "arguments": arguments,
                     "result": result
@@ -51,18 +51,18 @@ class ToolDispatcher:
 
             return result
         except TypeError as e:
-            # Publish tool_call_failed event
+            # Publish ToolUseFailed event
             if self._event_bus:
-                self._event_bus.publish(Event("tool_call_failed", {
+                self._event_bus.publish(Event("ToolUseFailed", {
                     "tool_name": name,
                     "arguments": arguments,
                     "error": str(e)
                 }))
             return {"success": False, "error": f"Invalid arguments: {e}"}
         except Exception as e:
-            # Publish tool_call_failed event
+            # Publish ToolUseFailed event
             if self._event_bus:
-                self._event_bus.publish(Event("tool_call_failed", {
+                self._event_bus.publish(Event("ToolUseFailed", {
                     "tool_name": name,
                     "arguments": arguments,
                     "error": str(e)

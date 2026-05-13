@@ -222,7 +222,8 @@ def on_test_event(data):
         event = Event(name="test_event", data={"key": "test"})
 
         result = runtime._execute_hook(hook, event)
-        assert result is None  # No block returned
+        # Shell hook output will be returned as append_to_message
+        assert result is not None and result.get("append_to_message") == "Shell hook executed"
 
 
 def test_load_hooks_registers_event_handlers():
@@ -675,7 +676,8 @@ def test_shell_hook_execution():
 
         # Execute hook - should not raise
         result = runtime._execute_hook(hook, event)
-        assert result is None  # No block returned
+        # Shell hook output is returned as append_to_message
+        assert result is not None and result.get("append_to_message") == "SHELL_HOOK_EXECUTED"
 
 
 # ========== 6. Prompt Hook 测试 ==========

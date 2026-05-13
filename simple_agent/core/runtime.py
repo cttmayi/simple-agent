@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 from simple_agent.config.settings import Settings
 from simple_agent.api.client import APIClient
-from simple_agent.core.events import EventBus, Event, HookBlockedException
+from simple_agent.core.events import EventBus, Event, HookBlockedException, HookContext
 from simple_agent.core.session import Session
 from simple_agent.core.llm_logger import LLMLogger
 from simple_agent.tools.registry import get_global_registry
@@ -31,6 +31,8 @@ class Runtime:
         self._session = Session()
         self._renderer = UIRenderer()
         self._session_id: Optional[str] = None
+        # Initialize HookContext singleton
+        self._hook_context = HookContext()
         # Initialize prompt session with history for better input handling (especially for Chinese characters)
         self._prompt_session = PromptSession(
             history=InMemoryHistory()
@@ -185,6 +187,8 @@ class Runtime:
         """
         import importlib.util
         import sys
+        import re
+        import inspect
 
         module_name = f"hook_{filepath.stem}"
         spec = importlib.util.spec_from_file_location(module_name, filepath)
@@ -196,12 +200,43 @@ class Runtime:
         spec.loader.exec_module(module)
 
         event_name = event.name
-        func_name = f"on_{event_name}"
+        # Convert PascalCase to snake_case (e.g., "SessionStart" → "session_start")
+        snake_name = re.sub(r'(?<!^)(?=[A-Z])', '_', event_name).lower()
 
-        if hasattr(module, func_name):
-            func = getattr(module, func_name)
-            result = func(**event.data)
-            return result
+        # Legacy name mapping for backward compatibility
+        legacy_names = {
+            "SessionStart": "session_start",
+            "Stop": "session_end",
+            "UserPromptSubmit": "message_sent",
+            "PostMessage": "message_received",
+            "PreToolUse": "tool_call_before",
+            "PostToolUse": "tool_call_after",
+            "ToolUseFailed": "tool_call_failed",
+            "Error": "error_occurred",
+        }
+        legacy_name = legacy_names.get(event_name)
+
+        # Try multiple function name patterns:
+        func_names = [
+            event_name,                           # "SessionStart"
+            snake_name,                           # "session_start"
+            legacy_name,                          # "session_end" (for Stop)
+            f"on_{event_name}",                   # "on_SessionStart"
+            f"on_{snake_name}",                   # "on_session_start"
+            f"on_{legacy_name}",                  # "on_session_end" (if legacy_name exists)
+        ]
+        # Filter out None values
+        func_names = [f for f in func_names if f is not None]
+
+        for func_name in func_names:
+            if hasattr(module, func_name):
+                func = getattr(module, func_name)
+                # Get function signature and filter arguments
+                sig = inspect.signature(func)
+                # Filter event.data to only include parameters the function accepts
+                filtered_args = {k: v for k, v in event.data.items() if k in sig.parameters}
+                result = func(**filtered_args)
+                return result
 
         return None
 
@@ -411,11 +446,12 @@ class Runtime:
                     content = "(工具执行完成，AI 无额外响应)"
                 self._renderer.render_message(next_msg["role"], content)
 
-                # Publish message_received event
+                # Publish PostMessage event
                 if content:
-                    self._event_bus.publish(Event("message_received", {
+                    self._event_bus.publish(Event("PostMessage", {
                         "role": next_msg["role"],
-                        "content": content
+                        "content": content,
+                        "hook_context": self._hook_context
                     }))
 
     def _prepare_messages_with_context(self) -> List[Dict[str, str]]:
@@ -479,8 +515,12 @@ class Runtime:
 
         # Regular message - add to session (don't render, it's shown in prompt)
         self._session.add_message("user", input)
-        # Publish message_sent event
-        self._event_bus.publish(Event("message_sent", {"role": "user", "content": input}))
+        # Publish UserPromptSubmit event
+        self._event_bus.publish(Event("UserPromptSubmit", {
+            "role": "user",
+            "content": input,
+            "hook_context": self._hook_context
+        }))
         return "message_processed"
 
     def run(self):
@@ -496,11 +536,16 @@ class Runtime:
         # Generate session ID and log session start
         import uuid
         self._session_id = str(uuid.uuid4())
+        # Reset HookContext for new session
+        self._hook_context.reset(self._session_id)
         if self._logger:
             self._logger.log_session_start(self._session_id)
 
-        # Publish session_start event
-        self._event_bus.publish(Event("session_start", {"session_id": self._session_id}))
+        # Publish SessionStart event with hook_context
+        self._event_bus.publish(Event("SessionStart", {
+            "session_id": self._session_id,
+            "hook_context": self._hook_context
+        }))
 
         self._renderer.render_message("system", "Simple Agent started. Type /help for commands.")
 
@@ -561,8 +606,11 @@ class Runtime:
             except KeyboardInterrupt:
                 self._renderer.render_message("system", "Goodbye!")
 
-                # Publish session_end event
-                self._event_bus.publish(Event("session_end", {"session_id": self._session_id}))
+                # Publish Stop event
+                self._event_bus.publish(Event("Stop", {
+                    "session_id": self._session_id,
+                    "hook_context": self._hook_context
+                }))
                 break
             except HookBlockedException:
                 # Hook blocked, continue to next input
@@ -570,8 +618,9 @@ class Runtime:
             except Exception as e:
                 self._renderer.render_error(str(e))
 
-                # Publish error_occurred event
-                self._event_bus.publish(Event("error_occurred", {
+                # Publish Error event
+                self._event_bus.publish(Event("Error", {
                     "error_type": type(e).__name__,
-                    "error_message": str(e)
+                    "error_message": str(e),
+                    "hook_context": self._hook_context
                 }))
