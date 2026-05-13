@@ -60,17 +60,10 @@ class LoadSkill:
 
         content = LoadSkill._skill_loader.get_skill_content(skill_name)
 
-        # Debug: log content retrieval
-        if LoadSkill._runtime:
-            import sys
-            print(f"[DEBUG load_skill] skill_name={skill_name}, content_found={content is not None}, content_len={len(content) if content else 0}", file=sys.stderr)
-
         if content:
             LoadSkill._loaded_skills.add(skill_name)
-            # Debug: log state change
+            # Log skill loaded
             if LoadSkill._runtime:
-                import sys
-                print(f"[DEBUG load_skill] Added to _loaded_skills: {skill_name}, total={len(LoadSkill._loaded_skills)}", file=sys.stderr)
                 LoadSkill._runtime._logger.log_skill_loaded(skill_name)
 
             # Publish skill_loaded event

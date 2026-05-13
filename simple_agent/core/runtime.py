@@ -489,20 +489,16 @@ class Runtime:
                 if tool_name == "load_skill" and result.get("success"):
                     skill_name = arguments.get("skill_name")
                     skill_content = result.get("content", "")
-                    import sys
-                    print(f"[DEBUG runtime] load_skill: skill_name={skill_name}, content_len={len(skill_content) if skill_content else 0}", file=sys.stderr)
 
                     if skill_content:
                         # Update loaded skills context (persistent, maintains cache)
                         self._update_loaded_skill(skill_name, skill_content)
-                        print(f"[DEBUG runtime] Updated _skills_context with skill: {skill_name}", file=sys.stderr)
                 elif tool_name == "load_subagent" and result.get("success"):
                     subagent_name = arguments.get("subagent_name")
                     subagent_content = result.get("content", "")
                     if subagent_content:
                         # Update loaded subagents context (persistent, maintains cache)
                         self._update_loaded_subagent(subagent_name, subagent_content)
-                        print(f"[DEBUG runtime] Updated _subagents_context with subagent: {subagent_name}", file=sys.stderr)
 
         # Send tool results back to API for next response
         messages = self._prepare_messages_with_context()
@@ -552,13 +548,6 @@ class Runtime:
         if agent_context:
             system_parts.append("# Agent Context\n")
             system_parts.append(agent_context)
-
-        # Debug: print system_parts
-        import sys
-        print(f"[DEBUG] system_parts count: {len(system_parts)}", file=sys.stderr)
-        for i, part in enumerate(system_parts[:3]):  # Print first 3 parts
-            prefix = part[:50] if len(part) > 50 else part
-            print(f"[DEBUG] system_parts[{i}]: {prefix}...", file=sys.stderr)
 
         # Prepare messages for API
         api_messages = []
