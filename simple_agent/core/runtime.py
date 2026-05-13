@@ -327,15 +327,19 @@ class Runtime:
             return "exit"
         return f"Unknown command: /{command}"
 
-    def _handle_tool_calls_in_message(self, msg: Dict[str, Any], response: List[Dict[str, Any]]) -> None:
+    def _handle_tool_calls_in_message(
+        self, msg: Dict[str, Any], response: List[Dict[str, Any]], request_id: Optional[str] = None
+    ) -> None:
         """Handle tool calls in a message (recursive for multi-step tool use).
 
         Args:
             msg: The message containing tool_calls
             response: The full response list containing _request_id
+            request_id: Optional request_id from caller (to avoid double-pop)
         """
-        # Get request_id for tool logging
-        request_id = response[0].pop("_request_id", None) if response else None
+        # Get request_id for tool logging (only if not provided by caller)
+        if request_id is None:
+            request_id = response[0].pop("_request_id", None) if response else None
 
         # Add assistant message with tool_calls to session
         self._session.add_message(msg["role"], msg.get("content", ""), tool_calls=msg["tool_calls"])
@@ -436,8 +440,8 @@ class Runtime:
             request_id = next_msg.pop("_request_id", None)
 
             if "tool_calls" in next_msg and next_msg["tool_calls"]:
-                # More tool calls - recurse
-                self._handle_tool_calls_in_message(next_msg, next_response)
+                # More tool calls - recurse, passing request_id
+                self._handle_tool_calls_in_message(next_msg, next_response, request_id)
             else:
                 # Final response with content
                 self._session.add_message(next_msg["role"], next_msg.get("content", ""))

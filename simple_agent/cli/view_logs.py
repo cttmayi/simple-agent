@@ -98,6 +98,8 @@ def format_conversation(entries: List[Dict[str, Any]], request_id: str) -> str:
     request_entry = None
     response_entry = None
     tool_execs = []
+    skills_loaded = set()
+    subagents_loaded = set()
 
     for entry in entries:
         if entry.get("request_id") != request_id:
@@ -109,11 +111,21 @@ def format_conversation(entries: List[Dict[str, Any]], request_id: str) -> str:
             response_entry = entry
         elif entry["type"] == "tool_execution":
             tool_execs.append(entry)
+        elif entry["type"] == "skill_loaded":
+            skills_loaded.add(entry.get("skill_name"))
+        elif entry["type"] == "subagent_loaded":
+            subagents_loaded.add(entry.get("subagent_name"))
 
     if request_entry:
         ts = format_timestamp(request_entry["timestamp"])
         output += f"时间: {ts}\n"
         output += f"模型: {request_entry.get('model', '未知')}\n"
+
+        # Show loaded skills and subagents
+        if skills_loaded:
+            output += f"🎯 技能: {', '.join(sorted(skills_loaded))}\n"
+        if subagents_loaded:
+            output += f"🤖 Subagent: {', '.join(sorted(subagents_loaded))}\n"
 
         # Format messages
         messages = request_entry.get("messages", [])
