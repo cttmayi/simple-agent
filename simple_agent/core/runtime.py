@@ -521,6 +521,21 @@ class Runtime:
         # Build system context with skills, subagents, and AGENT.md
         system_parts = []
 
+        # Add manually loaded skills/subagents from session FIRST
+        # These are added via /load-skill and /load-subagent commands
+        # Put them at the beginning so LLM sees them first
+        manually_loaded_context = []
+        for msg in messages:
+            if msg.get("role") == "system" and msg.get("content"):
+                content = msg.get("content", "")
+                # Check if it's a manually loaded skill or subagent
+                if content.startswith("# Skill:") or content.startswith("# Subagent:"):
+                    manually_loaded_context.append(content)
+
+        # Combine all system parts
+        if manually_loaded_context:
+            system_parts.extend(manually_loaded_context)
+
         # Add skills context
         if self._skills_context:
             system_parts.append(self._skills_context)
@@ -535,20 +550,6 @@ class Runtime:
             system_parts.append("# Agent Context\n")
             system_parts.append(agent_context)
 
-        # Add manually loaded skills/subagents from session
-        # These are added via /load-skill and /load-subagent commands
-        manually_loaded_context = []
-        for msg in messages:
-            if msg.get("role") == "system" and msg.get("content"):
-                content = msg.get("content", "")
-                # Check if it's a manually loaded skill or subagent
-                if content.startswith("# Skill:") or content.startswith("# Subagent:"):
-                    manually_loaded_context.append(content)
-
-        # Combine all system parts
-        if manually_loaded_context:
-            system_parts.extend(manually_loaded_context)
-
         # Debug: print system_parts
         import sys
         print(f"[DEBUG] system_parts count: {len(system_parts)}", file=sys.stderr)
@@ -556,7 +557,7 @@ class Runtime:
             prefix = part[:50] if len(part) > 50 else part
             print(f"[DEBUG] system_parts[{i}]: {prefix}...", file=sys.stderr)
         if manually_loaded_context:
-            print(f"[DEBUG] manually_loaded_context: {len(manually_loaded_context)} items", file=sys.stderr)
+            print(f"[DEBUG] manually_loaded_context: {len(manually_loaded_context)} items (at position 0)", file=sys.stderr)
 
         # Prepare messages for API
         api_messages = []
