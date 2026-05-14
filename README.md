@@ -31,7 +31,9 @@ api:
   model: gpt-4o
 
 paths:
-  skills_dir: ./plugin/skills
+  skills_dirs:
+    - ./plugin/skills
+    - ~/.agents/skills
   agents_dir: ./plugin/agents
   hooks_dir: ./plugin/hooks
   commands_dir: ./plugin/commands

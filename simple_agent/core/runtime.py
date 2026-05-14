@@ -55,7 +55,13 @@ class Runtime:
 
         # Initialize resource loaders (resolve relative paths from current directory)
         base_dir = Path.cwd()
-        self._skill_loader = SkillLoader(base_dir / config.paths.skills_dir)
+        # Skills loader supports multiple directories
+        skills_dirs = config.paths.skills_dirs
+        if isinstance(skills_dirs, str):
+            skills_dirs = [skills_dirs]
+        # Resolve relative paths to base_dir
+        resolved_skills_dirs = [base_dir / d if not d.startswith("~") else d for d in skills_dirs]
+        self._skill_loader = SkillLoader(resolved_skills_dirs)
         self._agent_loader = AgentLoader(base_dir / config.paths.agents_dir)
         self._hook_loader = HookLoader(base_dir / config.paths.hooks_dir)
         self._command_loader = CommandLoader(base_dir / config.paths.commands_dir)

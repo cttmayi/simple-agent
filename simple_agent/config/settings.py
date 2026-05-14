@@ -13,7 +13,7 @@ class APIConfig(BaseModel):
 
 
 class PathsConfig(BaseModel):
-    skills_dir: str = "./plugin/skills"
+    skills_dirs: list[str] = ["./plugin/skills", "~/.agents/skills"]
     agents_dir: str = "./plugin/agents"
     hooks_dir: str = "./plugin/hooks"
     commands_dir: str = "./plugin/commands"

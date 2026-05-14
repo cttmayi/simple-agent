@@ -182,3 +182,56 @@ def test_command_get_usage_default():
         loader = CommandLoader(Path(tmpdir))
         usage = loader.get_command_usage("test-cmd")
         assert usage == "/test-cmd"
+
+
+def test_skill_loader_multiple_dirs():
+    """Test SkillLoader with multiple directories."""
+    with tempfile.TemporaryDirectory() as tmpdir1:
+        with tempfile.TemporaryDirectory() as tmpdir2:
+            # Create skill in first directory
+            skill1_dir = Path(tmpdir1) / "skill1"
+            skill1_dir.mkdir()
+            md_file1 = skill1_dir / "SKILL.md"
+            md_file1.write_text("---\nname: skill1\ndescription: First skill\n---\n# Skill 1")
+
+            # Create skill in second directory
+            skill2_dir = Path(tmpdir2) / "skill2"
+            skill2_dir.mkdir()
+            md_file2 = skill2_dir / "SKILL.md"
+            md_file2.write_text("---\nname: skill2\ndescription: Second skill\n---\n# Skill 2")
+
+            # Create skill with same name in second directory (should be skipped)
+            skill1_dup = Path(tmpdir2) / "skill1"
+            skill1_dup.mkdir()
+            md_file_dup = skill1_dup / "SKILL.md"
+            md_file_dup.write_text("---\nname: skill1\ndescription: Duplicate skill\n---\n# Duplicate")
+
+            # Load from both directories
+            loader = SkillLoader([tmpdir1, tmpdir2])
+            skills = loader.list_skills()
+
+            # Should have 2 skills (skill1 from first dir, skill2 from second dir)
+            # skill1 from second dir should be skipped due to duplicate name
+            assert len(skills) == 2
+            skill_names = [s["name"] for s in skills]
+            assert "skill1" in skill_names
+            assert "skill2" in skill_names
+
+            # skill1 should have description from first directory (not duplicate)
+            skill1_info = next(s for s in skills if s["name"] == "skill1")
+            assert skill1_info["description"] == "First skill"
+
+
+def test_skill_loader_string_paths():
+    """Test SkillLoader with string paths."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        skill_dir = Path(tmpdir) / "test-skill"
+        skill_dir.mkdir()
+        md_file = skill_dir / "SKILL.md"
+        md_file.write_text("---\nname: test-skill\ndescription: A test skill\n---\n# Test Skill")
+
+        # Test with string path
+        loader = SkillLoader(str(tmpdir))
+        skills = loader.list_skills()
+        assert len(skills) == 1
+        assert skills[0]["name"] == "test-skill"
