@@ -21,6 +21,18 @@ source .venv/bin/activate && pytest tests/test_tools.py
 source .venv/bin/activate && pytest tests/test_tools.py::test_register_tool
 ```
 
+## 提交代码
+使用中文撰写提交信息，提交。
+
+```bash
+git add ...
+git commit -m "提交信息"
+git push
+```
+
+## 代码结构
+
+
 ## 架构概览
 
 代码库采用插件式架构，包含以下关键模式：

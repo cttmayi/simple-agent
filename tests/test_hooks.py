@@ -785,11 +785,11 @@ def on_test_event(**kwargs):
         assert result is None
 
 
-# ========== 9. Hook 加载后发布 hook_loaded 事件 ==========
+# ========== 9. Hook 加载测试 ==========
 
 
 def test_hook_loaded_event_published():
-    """Runtime publishes hook_loaded event when loading hooks"""
+    """Test that hooks are loaded from file system"""
     from simple_agent.core.runtime import Runtime
     from simple_agent.config.settings import Settings
     from simple_agent.core.events import EventBus

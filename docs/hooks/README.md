@@ -13,9 +13,8 @@ Hooks 允许您在特定事件发生时执行自定义逻辑，扩展 simple-age
 | `PreToolUse` | 工具调用前 | **是** | 工具执行之前 |
 | `PostToolUse` | 工具调用后 | 否 | 工具执行之后 |
 | `ToolUseFailed` | 工具调用失败 | 否 | 工具执行出错时 |
-| `SkillLoaded` | Skill 加载 | 否 | `/skill` 命令加载 skill 时 |
-| `SubagentLoaded` | Subagent 加载 | 否 | `/agent` 命令加载 subagent 时 |
-| `hook_loaded` | Hook 加载 | 否 | 每个 hook 加载时 |
+| `SkillLoaded` | Skill 加载 | 否 | `load_skill` 工具加载 skill 时 |
+| `SubagentLoaded` | Subagent 加载 | 否 | `load_subagent` 工具加载 subagent 时 |
 | `Error` | 错误发生 | 否 | 运行时出现错误时 |
 
 ## 目录结构
@@ -46,8 +45,6 @@ Hooks 允许您在特定事件发生时执行自定义逻辑，扩展 simple-age
 │   └── notify.py
 ├── SubagentLoaded/          # Subagent 加载时触发
 │   └── notify.py
-└── hook_loaded/             # Hook 加载时触发
-    └── notify.py
 ```
 
 ## Hook 文件类型
@@ -128,7 +125,6 @@ Shell hook 的 stdout 会被拼接到用户消息前。
 | `ToolUseFailed` | `tool_name`, `arguments`, `error`, `hook_context` | `str`, `dict`, `str`, `HookContext` | 工具名、参数、错误信息、共享状态 |
 | `SkillLoaded` | `skill_name`, `hook_context` | `str`, `HookContext` | Skill 名称、共享状态 |
 | `SubagentLoaded` | `subagent_name`, `hook_context` | `str`, `HookContext` | Subagent 名称、共享状态 |
-| `hook_loaded` | `hook_name`, `hook_context` | `str`, `HookContext` | Hook 名称、共享状态 |
 | `Error` | `error_type`, `error_message`, `hook_context` | `str`, `str`, `HookContext` | 错误类型、错误消息、共享状态 |
 
 ## HookContext 共享状态
