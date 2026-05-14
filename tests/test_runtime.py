@@ -29,11 +29,13 @@ def test_runtime_load_agent_md():
     try:
         with tempfile.TemporaryDirectory() as tmpdir:
             os.chdir(tmpdir)
-            agent_md = Path(tmpdir) / "AGENT.md"
+            agent_dir = Path(tmpdir) / ".simple-agent" / "plugin"
+            agent_dir.mkdir(parents=True)
+            agent_md = agent_dir / "AGENT.md"
             agent_md.write_text("# Test Agent\n\nThis is a test.")
 
             config = Settings()
-            runtime = Runtime(config)
+            runtime = Runtime(config, skip_api_init=True)
             context = runtime.get_agent_context()
             assert "Test Agent" in context
     finally:

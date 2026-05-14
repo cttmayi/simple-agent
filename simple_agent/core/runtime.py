@@ -347,8 +347,8 @@ class Runtime:
         self._renderer.render_message("system", f"[Prompt Hook] {prompt_content[:100]}...")
 
     def get_agent_context(self) -> Optional[str]:
-        """Load AGENT.md from project root."""
-        agent_md = Path.cwd() / "AGENT.md"
+        """Load AGENT.md from plugin directory."""
+        agent_md = Path.cwd() / ".simple-agent" / "plugin" / "AGENT.md"
         if agent_md.exists():
             return agent_md.read_text()
         return None
