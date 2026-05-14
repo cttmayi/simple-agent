@@ -433,8 +433,9 @@ class Runtime:
                 if args_parts:
                     args_str = '[' + ', '.join(args_parts) + ']'
 
-            # Show which tool is being executed (plain print, not through renderer)
-            print(f"Running {tool_name} {args_str}", flush=True)
+            # Show which tool is being executed (only for bash)
+            if tool_name == "bash":
+                print(f"Running {tool_name} {args_str}", flush=True)
 
             # Execute the tool
             result = self._tool_dispatcher.execute({
