@@ -78,3 +78,41 @@ def test_tool_dispatcher_invalid_arguments():
     result = dispatcher.execute({"name": "requires_int", "arguments": {"x": "not an int"}})
     assert result["success"] is True
     assert result["result"] == "not an int"
+
+def test_bash_output_limiting():
+    """Test that bash output is limited to 5 lines."""
+    from simple_agent.tools.builtin.bash import BASH
+
+    # Generate output with more than 5 lines
+    result = BASH._execute("for i in {1..10}; do echo \"line $i\"; done")
+
+    assert result["success"] is True
+    stdout = result["stdout"]
+    # Should contain truncation message
+    assert "... output truncated" in stdout
+    # Should show only first 5 lines
+    assert "line 1" in stdout
+    assert "line 2" in stdout
+    assert "line 3" in stdout
+    assert "line 4" in stdout
+    assert "line 5" in stdout
+    assert "line 6" not in stdout
+
+def test_bash_stderr_limiting():
+    """Test that bash stderr is limited to 5 lines."""
+    from simple_agent.tools.builtin.bash import BASH
+
+    # Generate stderr with more than 5 lines
+    result = BASH._execute('for i in {1..10}; do echo "error $i" >&2; done')
+
+    assert result["success"] is True
+    stderr = result["stderr"]
+    # Should contain truncation message
+    assert "... output truncated" in stderr
+    # Should show only first 5 errors
+    assert "error 1" in stderr
+    assert "error 2" in stderr
+    assert "error 3" in stderr
+    assert "error 4" in stderr
+    assert "error 5" in stderr
+    assert "error 6" not in stderr
