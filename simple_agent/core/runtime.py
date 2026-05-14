@@ -512,6 +512,8 @@ class Runtime:
                         # No truncation message, just limit length
                         content = content[:500] + "..."
                     tool_content = f"Content:\n{content}"
+                    # DEBUG: print what's being sent to AI
+                    print(f"DEBUG: tool_content = {repr(tool_content)}", file=sys.stderr, flush=True)
                 elif "matches" in tool_result:
                     # Grep - show match count and samples
                     matches = tool_result.get("matches", [])
@@ -527,6 +529,8 @@ class Runtime:
                     tool_content = str(tool_result)
 
                 # Add tool result to session with tool_call_id
+                # DEBUG: print session content
+                print(f"DEBUG: Adding to session: {repr(tool_content)}", file=sys.stderr, flush=True)
                 self._session.add_message("tool", tool_content, tool_call_id=tool_call["id"])
             else:
                 # Send message to user for load_skill/load_agent
