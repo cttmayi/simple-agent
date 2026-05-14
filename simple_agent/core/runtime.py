@@ -440,6 +440,12 @@ class Runtime:
                 if args_parts:
                     args_str = '[' + ', '.join(args_parts) + ']'
 
+            # Print tool name and args before execution (no newline)
+            if args_str:
+                self._renderer.console.print(f"{tool_name} {escape(args_str)}", end="")
+            else:
+                self._renderer.console.print(f"{tool_name}", end="")
+
             # Execute the tool
             result = self._tool_dispatcher.execute({
                 "name": tool_name,
@@ -456,15 +462,11 @@ class Runtime:
                     result=result,
                 )
 
-            # Show completion status with checkmark
+            # Show completion status with checkmark (on same line, then newline)
             tool_result = result.get("result", result)
             success = tool_result.get("success", True)
             status = "[bold green]✓[/bold green]" if success else "[bold red]✗[/bold red]"
-            # Use Rich to print checkmark with colors (no newline)
-            if args_str:
-                self._renderer.console.print(f"{status} {tool_name} {escape(args_str)}", end="")
-            else:
-                self._renderer.console.print(f"{status} {tool_name}", end="")
+            self._renderer.console.print(f" {status}")  # Add space and status, then newline
 
             # Render tool result to user in CLI
             self._renderer.render_tool_result(tool_name, result, arguments)
