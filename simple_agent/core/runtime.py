@@ -450,6 +450,9 @@ class Runtime:
                     result=result,
                 )
 
+            # Render tool result to user in CLI
+            self._renderer.render_tool_result(tool_name, result, arguments)
+
             # Handle load_skill and load_agent tools specially
             # These tools are handled separately - content is added to session
             # and we don't format/send their result to the API
