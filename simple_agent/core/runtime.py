@@ -25,7 +25,7 @@ from simple_agent.tools.builtin.load_subagent import LoadSubagent
 
 
 class Runtime:
-    def __init__(self, config: Settings, log_file: Optional[str] = None):
+    def __init__(self, config: Settings, log_file: Optional[str] = None, skip_api_init: bool = False):
         self._config = config
         self._event_bus = EventBus()
         self._session = Session()
@@ -43,8 +43,11 @@ class Runtime:
         log_dir = Path(config.logging.log_dir) if config.logging.log_dir else Path.cwd() / ".simple-agent" / "logs"
         self._logger = LLMLogger(log_dir, enabled=config.logging.enabled, log_file=log_file)
 
-        # Initialize API client with logger
-        self._api_client = APIClient(config.api, self._logger)
+        # Initialize API client with logger (can be skipped for testing)
+        if not skip_api_init:
+            self._api_client = APIClient(config.api, self._logger)
+        else:
+            self._api_client = None
 
         # Use global registry (includes builtin tools)
         self._tool_registry = get_global_registry()
@@ -158,9 +161,12 @@ class Runtime:
             event: Event object
 
         Returns:
-            dict or None: {"action": "block", "message": "..."} indicates block
+            dict or None:
+            - {"action": "block", "message": "..."} indicates block
+            - {"append_to_message": "..."} indicates message to append
         """
         hook_dir = Path(hook["path"])
+        append_messages = []
 
         for filename in hook["files"]:
             filepath = hook_dir / filename
@@ -169,14 +175,24 @@ class Runtime:
             try:
                 if ext == ".py":
                     result = self._execute_python_hook(filepath, event)
-                    if result and result.get("action") == "block":
-                        return result
+                    if result:
+                        if result.get("action") == "block":
+                            return result
+                        elif result.get("append_to_message"):
+                            append_messages.append(result.get("append_to_message"))
                 elif ext in [".sh", ".cmd"]:
-                    self._execute_shell_hook(filepath, event)
+                    result = self._execute_shell_hook(filepath, event)
+                    if result and result.get("append_to_message"):
+                        append_messages.append(result.get("append_to_message"))
                 elif ext == ".md":
                     self._execute_prompt_hook(filepath, event)
             except Exception as e:
                 self._renderer.render_message("system", f"Hook {filename} failed: {str(e)}")
+
+        # Concatenate all append_to_message values
+        if append_messages:
+            return {"append_to_message": "\n".join(append_messages)}
+        return None
 
         return None
 
@@ -236,33 +252,42 @@ class Runtime:
         for func_name in func_names:
             if hasattr(module, func_name):
                 func = getattr(module, func_name)
-                # Get function signature and filter arguments
+                # Get function signature
                 sig = inspect.signature(func)
 
-                # Filter event.data to only include parameters the function accepts
-                # But handle parameters that might be optional (like hook_context)
-                filtered_args = {}
-                for k, v in event.data.items():
-                    if k in sig.parameters:
-                        filtered_args[k] = v
-                    elif k == "hook_context" and "hook_context" in sig.parameters:
-                        # hook_context is special - always include if function accepts it
-                        # even if not in event.data (use global hook_context if available)
-                        pass  # Will be handled below
+                # Check if function accepts **kwargs (VAR_KEYWORD parameter)
+                accepts_var_keyword = any(
+                    p.kind == inspect.Parameter.VAR_KEYWORD
+                    for p in sig.parameters.values()
+                )
 
-                # If function expects hook_context but it's not in event.data,
-                # try to get it from a global reference or make it optional
-                if "hook_context" in sig.parameters and "hook_context" not in event.data:
-                    # Check if we have a global hook_context reference
-                    if hasattr(self, '_hook_context') and self._hook_context:
-                        filtered_args["hook_context"] = self._hook_context
-                    elif sig.parameters["hook_context"].default is inspect.Parameter.empty:
-                        # No default and no global - we have a problem
-                        # Try to skip this parameter (works with **kwargs style)
-                        pass
-                    else:
-                        # Has default, add it from sig
-                        filtered_args["hook_context"] = sig.parameters["hook_context"].default
+                if accepts_var_keyword:
+                    # Function accepts **kwargs or **data, pass all event data directly
+                    filtered_args = dict(event.data) if event.data else {}
+                else:
+                    # Filter event.data to only include parameters the function accepts
+                    filtered_args = {}
+                    for k, v in event.data.items():
+                        if k in sig.parameters:
+                            filtered_args[k] = v
+                        elif k == "hook_context" and "hook_context" in sig.parameters:
+                            # hook_context is special - always include if function accepts it
+                            # even if not in event.data (use global hook_context if available)
+                            pass  # Will be handled below
+
+                    # If function expects hook_context but it's not in event.data,
+                    # try to get it from a global reference or make it optional
+                    if "hook_context" in sig.parameters and "hook_context" not in filtered_args:
+                        # Check if we have a global hook_context reference
+                        if hasattr(self, '_hook_context') and self._hook_context:
+                            filtered_args["hook_context"] = self._hook_context
+                        elif sig.parameters["hook_context"].default is inspect.Parameter.empty:
+                            # No default and no global - we have a problem
+                            # Try to skip this parameter (works with **kwargs style)
+                            pass
+                        else:
+                            # Has default, add it from sig
+                            filtered_args["hook_context"] = sig.parameters["hook_context"].default
 
                 # Try to call with filtered_args
                 try:
@@ -275,12 +300,15 @@ class Runtime:
 
         return None
 
-    def _execute_shell_hook(self, filepath: Path, event: Event) -> None:
+    def _execute_shell_hook(self, filepath: Path, event: Event) -> Optional[dict]:
         """Execute Shell hook.
 
         Args:
             filepath: Shell script file path
             event: Event object
+
+        Returns:
+            dict with append_to_message if stdout exists, None otherwise
         """
         import subprocess
 
@@ -294,7 +322,9 @@ class Runtime:
                 timeout=5,
             )
             if result.stdout:
-                self._renderer.render_message("system", result.stdout.strip())
+                output = result.stdout.strip()
+                self._renderer.render_message("system", output)
+                return {"append_to_message": output}
             if result.stderr:
                 self._renderer.render_message("system", f"Hook stderr: {result.stderr.strip()}")
         except subprocess.TimeoutExpired:

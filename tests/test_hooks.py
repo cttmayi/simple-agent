@@ -121,7 +121,7 @@ def on_test_event(**data):
     return None
 """)
 
-        runtime = Runtime(Settings(), log_file=None)
+        runtime = Runtime(Settings(), log_file=None, skip_api_init=True)
         event = Event(name="test_event", data={"key": "value"})
 
         result = runtime._execute_python_hook(hook_file, event)
@@ -143,7 +143,7 @@ def on_test_event(**data):
     return None
 """)
 
-        runtime = Runtime(Settings(), log_file=None)
+        runtime = Runtime(Settings(), log_file=None, skip_api_init=True)
         event = Event(name="test_event", data={"block": True})
 
         result = runtime._execute_python_hook(hook_file, event)
@@ -165,7 +165,7 @@ def on_other_event(data):
     return None
 """)
 
-        runtime = Runtime(Settings(), log_file=None)
+        runtime = Runtime(Settings(), log_file=None, skip_api_init=True)
         event = Event(name="test_event", data={})
 
         result = runtime._execute_python_hook(hook_file, event)
@@ -190,7 +190,7 @@ def on_test_event(**data):
         # Create shell hook that should NOT execute
         (hook_dir / "script.sh").write_text("echo 'This should not run'")
 
-        runtime = Runtime(Settings(), log_file=None)
+        runtime = Runtime(Settings(), log_file=None, skip_api_init=True)
         hook = {"event_name": "test_event", "path": str(hook_dir), "files": ["block.py", "script.sh"]}
         event = Event(name="test_event", data={})
 
@@ -217,7 +217,7 @@ def on_test_event(data):
         (hook_dir / "hook.sh").write_text("echo 'Shell hook executed'")
         (hook_dir / "hook.md").write_text("{{key}} value is {{key}}")
 
-        runtime = Runtime(Settings(), log_file=None)
+        runtime = Runtime(Settings(), log_file=None, skip_api_init=True)
         hook = {"event_name": "test_event", "path": str(hook_dir), "files": ["hook.py", "hook.sh", "hook.md"]}
         event = Event(name="test_event", data={"key": "test"})
 
@@ -246,7 +246,7 @@ def on_custom_event(**data):
         # Create Runtime with hooks directory
         config = Settings()
         config.paths.hooks_dir = str(hooks_dir)
-        runtime = Runtime(config, log_file=None)
+        runtime = Runtime(config, log_file=None, skip_api_init=True)
 
         # Check that event handler is registered
         # EventBus._handlers is a private attribute, but we need to access it for testing
@@ -348,7 +348,7 @@ def SessionStart(session_id: str, **kwargs):
             # Runtime.__init__ loads hooks
             config = Settings()
             config.paths.hooks_dir = "."
-            runtime = Runtime(config, log_file=None)
+            runtime = Runtime(config, log_file=None, skip_api_init=True)
 
             # Verify hook handler is registered
             assert "SessionStart" in runtime._event_bus._handlers
@@ -378,7 +378,7 @@ def Stop(session_id: str, **kwargs):
 
             config = Settings()
             config.paths.hooks_dir = "."
-            runtime = Runtime(config, log_file=None)
+            runtime = Runtime(config, log_file=None, skip_api_init=True)
 
             # Verify handler is registered
             assert "Stop" in runtime._event_bus._handlers
@@ -408,7 +408,7 @@ def UserPromptSubmit(role: str, content: str, **kwargs):
 
             config = Settings()
             config.paths.hooks_dir = "."
-            runtime = Runtime(config, log_file=None)
+            runtime = Runtime(config, log_file=None, skip_api_init=True)
 
             # Verify handler is registered
             assert "UserPromptSubmit" in runtime._event_bus._handlers
@@ -438,7 +438,7 @@ def PostMessage(role: str, content: str, **kwargs):
 
             config = Settings()
             config.paths.hooks_dir = "."
-            runtime = Runtime(config, log_file=None)
+            runtime = Runtime(config, log_file=None, skip_api_init=True)
 
             # Verify handler is registered
             assert "PostMessage" in runtime._event_bus._handlers
@@ -670,7 +670,7 @@ def test_shell_hook_execution():
         hook_file.write_text("#!/bin/bash\necho 'SHELL_HOOK_EXECUTED'")
         hook_file.chmod(0o755)
 
-        runtime = Runtime(Settings(), log_file=None)
+        runtime = Runtime(Settings(), log_file=None, skip_api_init=True)
         hook = {"event_name": "test_event", "path": str(hook_dir), "files": ["test.sh"]}
         event = Event(name="test_event", data={})
 
@@ -695,7 +695,7 @@ def test_prompt_hook_variable_replacement():
         # Create prompt hook with variables
         (hook_dir / "prompt.md").write_text("{{name}} did {{action}}")
 
-        runtime = Runtime(Settings(), log_file=None)
+        runtime = Runtime(Settings(), log_file=None, skip_api_init=True)
         hook = {"event_name": "test_event", "path": str(hook_dir), "files": ["prompt.md"]}
         event = Event(name="test_event", data={"name": "Alice", "action": "jumped"})
 
@@ -733,7 +733,7 @@ def Error(error_type: str, error_message: str, **kwargs):
 
             config = Settings()
             config.paths.hooks_dir = "."
-            runtime = Runtime(config, log_file=None)
+            runtime = Runtime(config, log_file=None, skip_api_init=True)
 
             # Verify handler is registered
             assert "Error" in runtime._event_bus._handlers
@@ -767,7 +767,7 @@ def on_test_event(**kwargs):
     return None
 """)
 
-        runtime = Runtime(Settings(), log_file=None)
+        runtime = Runtime(Settings(), log_file=None, skip_api_init=True)
 
         # Execute each hook individually
         for filename in ["a.py", "b.py", "c.py"]:
@@ -829,7 +829,7 @@ def test_hook(**kwargs):
             # We can't easily replace the event bus after initialization,
             # so we'll test by checking the hook is loaded
 
-            runtime = Runtime(config, log_file=None)
+            runtime = Runtime(config, log_file=None, skip_api_init=True)
 
             # Verify hook is loaded
             assert "test_hook" in [h["event_name"] for h in runtime._hook_loader.list_hooks()]

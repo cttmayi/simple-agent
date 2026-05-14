@@ -22,12 +22,15 @@ source .venv/bin/activate && pytest tests/test_tools.py::test_register_tool
 ```
 
 ## 提交代码
+- 提交代码前, 请考虑编写测试用例, 确保测试用例通过。
+- 提交代码前, 请考虑修正文档, 确保文档与代码保持一致。
+- 提交代码前,确认 pytest 执行是否通过。
+    - 如不能通过, 请修复测试用例或者修复代码中的问题
 使用中文撰写提交信息，提交。
 
 ```bash
 git add ...
 git commit -m "提交信息"
-git push
 ```
 
 ## 代码结构
