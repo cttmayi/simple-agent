@@ -152,10 +152,20 @@ class BASH:
                 cwd=cwd
             )
 
+            stdout = result.stdout
+            stderr = result.stderr
+
+            # If both stdout and stderr are empty, add a message
+            if not stdout and not stderr:
+                if result.returncode == 0:
+                    stdout = "(Command completed with no output)"
+                else:
+                    stderr = f"(Command exited with code {result.returncode} and no output)"
+
             return {
                 "success": result.returncode == 0,
-                "stdout": result.stdout,
-                "stderr": result.stderr,
+                "stdout": stdout,
+                "stderr": stderr,
                 "returncode": result.returncode,
             }
         except subprocess.TimeoutExpired:
