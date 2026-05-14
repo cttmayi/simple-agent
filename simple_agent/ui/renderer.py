@@ -69,35 +69,13 @@ class UIRenderer:
         Args:
             tool_name: Name of the tool
             result: Result dict from tool execution
-            arguments: Optional arguments dict for display
+            arguments: Optional arguments dict for display (not used - status shown by caller)
         """
         try:
             # Handle both direct result and wrapped result formats
             tool_result = result.get("result", result)
 
-            success = tool_result.get("success", False)
-            status = "[bold green]✓[/bold green]" if success else "[bold red]✗[/bold red]"
-
-            # Show full command/parameters on same line with status
-            if arguments:
-                args_display = []
-                for key, value in arguments.items():
-                    # Only show user-relevant args
-                    if key not in ["cwd", "timeout", "case_sensitive"]:
-                        # Truncate long values for display
-                        value_str = str(value)
-                        if len(value_str) > 20:
-                            value_str = value_str[:20] + "..."
-                        args_display.append(f"{key}={value_str}")
-                if args_display:
-                    # Build args string and escape it
-                    args_str = '[' + ', '.join(args_display) + ']'
-                    # Print status with markup, tool name, and escaped args
-                    self.console.print(f"  {status} {tool_name} {escape(args_str)}")
-                else:
-                    self.console.print(f"  {status} {tool_name}")
-            else:
-                self.console.print(f"  {status} {tool_name}")
+            # Skip status line - it's now shown by caller (runtime.py)
 
             # Show detailed output (not truncated for user feedback)
             if "error" in tool_result:
