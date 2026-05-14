@@ -426,7 +426,6 @@ class Runtime:
                 arguments = arg_data
 
             # DEBUG: print arguments info
-            import sys
             print(f"DEBUG: tool_name={tool_name}, arg_data type={type(arg_data)}, arg_data={arg_data}", file=sys.stderr, flush=True)
             print(f"DEBUG: arguments={arguments}, type={type(arguments)}", file=sys.stderr, flush=True)
 
@@ -441,8 +440,11 @@ class Runtime:
                         if len(v_str) > 20:
                             v_str = v_str[:20] + "..."
                         args_parts.append(f"{k}={v_str}")
+                # DEBUG: print args_parts
+                print(f"DEBUG: args_parts={args_parts}", file=sys.stderr, flush=True)
                 if args_parts:
                     args_str = '[' + ', '.join(args_parts) + ']'
+                print(f"DEBUG: final args_str={args_str}", file=sys.stderr, flush=True)
 
             # Execute the tool
             result = self._tool_dispatcher.execute({
