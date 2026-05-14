@@ -462,9 +462,9 @@ class Runtime:
             status = "[bold green]✓[/bold green]" if success else "[bold red]✗[/bold red]"
             # Use Rich to print checkmark with colors
             if args_str:
-                self._renderer.console.print(f"  {status} {tool_name} {escape(args_str)}")
+                self._renderer.console.print(f"{status} {tool_name} {escape(args_str)}")
             else:
-                self._renderer.console.print(f"  {status} {tool_name}")
+                self._renderer.console.print(f"{status} {tool_name}")
 
             # Render tool result to user in CLI
             self._renderer.render_tool_result(tool_name, result, arguments)
