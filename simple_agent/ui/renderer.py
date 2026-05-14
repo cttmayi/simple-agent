@@ -16,7 +16,13 @@ class UIRenderer:
 
     def render_message(self, role: str, content: str) -> None:
         """Render a chat message."""
-        # Skip empty content (but not for system to allow empty lines if needed)
+        # Handle empty content for assistant role - show a placeholder
+        if not content and role == "assistant":
+            content = "(AI returned empty response)"
+            self.console.print(f"\n[dim yellow]⚠ {content}[/dim yellow]")
+            return
+
+        # Skip empty content for other roles (but not for system to allow empty lines if needed)
         if not content and role != "system":
             return
 
