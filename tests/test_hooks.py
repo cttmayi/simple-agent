@@ -283,7 +283,7 @@ def test_log_hook_block():
 
         # Log a hook block
         logger.log_hook_block(
-            event_name="tool_call_before",
+            event_name="PreToolUse",
             hook_name="block_tool",
             message="Tool blocked by hook"
         )
@@ -296,7 +296,7 @@ def test_log_hook_block():
 
         assert len(entries) == 1
         assert entries[0]["type"] == "hook_block"
-        assert entries[0]["event_name"] == "tool_call_before"
+        assert entries[0]["event_name"] == "PreToolUse"
         assert entries[0]["hook_name"] == "block_tool"
         assert entries[0]["message"] == "Tool blocked by hook"
         assert "timestamp" in entries[0]
@@ -310,7 +310,7 @@ def test_log_hook_block_when_disabled():
 
     # Should not raise any errors
     logger.log_hook_block(
-        event_name="tool_call_before",
+        event_name="PreToolUse",
         hook_name="block_tool",
         message="Tool blocked by hook"
     )
@@ -324,18 +324,18 @@ def test_log_hook_block_when_disabled():
 
 
 def test_runtime_publishes_session_start():
-    """Runtime publishes session_start event when loaded"""
+    """Runtime publishes SessionStart event when loaded"""
     from simple_agent.core.runtime import Runtime
     from simple_agent.config.settings import Settings
 
     with tempfile.TemporaryDirectory() as tmpdir:
         hooks_dir = Path(tmpdir)
-        event_dir = hooks_dir / "session_start"
+        event_dir = hooks_dir / "SessionStart"
         event_dir.mkdir()
 
         # Create a simple hook file
         (event_dir / "hook.py").write_text("""
-def on_session_start(session_id: str, **kwargs):
+def SessionStart(session_id: str, **kwargs):
     return None
 """)
 
@@ -351,23 +351,23 @@ def on_session_start(session_id: str, **kwargs):
             runtime = Runtime(config, log_file=None)
 
             # Verify hook handler is registered
-            assert "session_start" in runtime._event_bus._handlers
+            assert "SessionStart" in runtime._event_bus._handlers
         finally:
             os.chdir(old_cwd)
 
 
 def test_runtime_publishes_session_end():
-    """Runtime publishes session_end event"""
+    """Runtime publishes Stop event"""
     from simple_agent.core.runtime import Runtime
     from simple_agent.config.settings import Settings
 
     with tempfile.TemporaryDirectory() as tmpdir:
         hooks_dir = Path(tmpdir)
-        event_dir = hooks_dir / "session_end"
+        event_dir = hooks_dir / "Stop"
         event_dir.mkdir()
 
         (event_dir / "hook.py").write_text("""
-def on_session_end(session_id: str, **kwargs):
+def Stop(session_id: str, **kwargs):
     return None
 """)
 
@@ -381,23 +381,23 @@ def on_session_end(session_id: str, **kwargs):
             runtime = Runtime(config, log_file=None)
 
             # Verify handler is registered
-            assert "session_end" in runtime._event_bus._handlers
+            assert "Stop" in runtime._event_bus._handlers
         finally:
             os.chdir(old_cwd)
 
 
 def test_runtime_publishes_message_sent():
-    """Runtime publishes message_sent event"""
+    """Runtime publishes UserPromptSubmit event"""
     from simple_agent.core.runtime import Runtime
     from simple_agent.config.settings import Settings
 
     with tempfile.TemporaryDirectory() as tmpdir:
         hooks_dir = Path(tmpdir)
-        event_dir = hooks_dir / "message_sent"
+        event_dir = hooks_dir / "UserPromptSubmit"
         event_dir.mkdir()
 
         (event_dir / "hook.py").write_text("""
-def on_message_sent(role: str, content: str, **kwargs):
+def UserPromptSubmit(role: str, content: str, **kwargs):
     return None
 """)
 
@@ -411,23 +411,23 @@ def on_message_sent(role: str, content: str, **kwargs):
             runtime = Runtime(config, log_file=None)
 
             # Verify handler is registered
-            assert "message_sent" in runtime._event_bus._handlers
+            assert "UserPromptSubmit" in runtime._event_bus._handlers
         finally:
             os.chdir(old_cwd)
 
 
 def test_runtime_publishes_message_received():
-    """Runtime publishes message_received event"""
+    """Runtime publishes PostMessage event"""
     from simple_agent.core.runtime import Runtime
     from simple_agent.config.settings import Settings
 
     with tempfile.TemporaryDirectory() as tmpdir:
         hooks_dir = Path(tmpdir)
-        event_dir = hooks_dir / "message_received"
+        event_dir = hooks_dir / "PostMessage"
         event_dir.mkdir()
 
         (event_dir / "hook.py").write_text("""
-def on_message_received(role: str, content: str, **kwargs):
+def PostMessage(role: str, content: str, **kwargs):
     return None
 """)
 
@@ -441,7 +441,7 @@ def on_message_received(role: str, content: str, **kwargs):
             runtime = Runtime(config, log_file=None)
 
             # Verify handler is registered
-            assert "message_received" in runtime._event_bus._handlers
+            assert "PostMessage" in runtime._event_bus._handlers
         finally:
             os.chdir(old_cwd)
 
@@ -450,7 +450,7 @@ def on_message_received(role: str, content: str, **kwargs):
 
 
 def test_tool_dispatcher_publishes_tool_call_before():
-    """ToolDispatcher publishes tool_call_before event"""
+    """ToolDispatcher publishes PreToolUse event"""
     from simple_agent.tools.dispatcher import ToolDispatcher
     from simple_agent.tools.registry import ToolRegistry, ToolDefinition
 
@@ -476,14 +476,14 @@ def test_tool_dispatcher_publishes_tool_call_before():
     # Execute a tool call
     dispatcher.execute({"name": "test_tool", "arguments": {}})
 
-    # Verify tool_call_before was published
+    # Verify PreToolUse was published
     assert len(published_events) >= 1
-    assert published_events[0].name == "tool_call_before"
+    assert published_events[0].name == "PreToolUse"
     assert published_events[0].data["tool_name"] == "test_tool"
 
 
 def test_tool_dispatcher_publishes_tool_call_after():
-    """ToolDispatcher publishes tool_call_after event on success"""
+    """ToolDispatcher publishes PostToolUse event on success"""
     from simple_agent.tools.dispatcher import ToolDispatcher
     from simple_agent.tools.registry import ToolRegistry, ToolDefinition
 
@@ -506,13 +506,13 @@ def test_tool_dispatcher_publishes_tool_call_after():
 
     # Verify both before and after events
     assert len(published_events) == 2
-    assert published_events[1].name == "tool_call_after"
+    assert published_events[1].name == "PostToolUse"
     assert published_events[1].data["tool_name"] == "test_tool"
     assert published_events[1].data["result"]["success"] is True
 
 
 def test_tool_dispatcher_publishes_tool_call_failed():
-    """ToolDispatcher publishes tool_call_failed event on error"""
+    """ToolDispatcher publishes ToolUseFailed event on error"""
     from simple_agent.tools.dispatcher import ToolDispatcher
     from simple_agent.tools.registry import ToolRegistry, ToolDefinition
 
@@ -538,10 +538,10 @@ def test_tool_dispatcher_publishes_tool_call_failed():
     dispatcher = ToolDispatcher(registry, MockEventBus())
     result = dispatcher.execute({"name": "failing_tool", "arguments": {}})
 
-    # Verify tool_call_before and tool_call_failed events
+    # Verify PreToolUse and ToolUseFailed events
     assert len(published_events) >= 2
-    assert published_events[0].name == "tool_call_before"
-    assert published_events[1].name == "tool_call_failed"
+    assert published_events[0].name == "PreToolUse"
+    assert published_events[1].name == "ToolUseFailed"
     assert result["success"] is False
 
 
@@ -562,7 +562,7 @@ def test_hook_blocks_tool_execution():
 
         def publish(self, event):
             published_events.append(event)
-            if self.should_block and event.name == "tool_call_before":
+            if self.should_block and event.name == "PreToolUse":
                 raise HookBlockedException("Tool blocked by hook")
 
     registry = ToolRegistry()
@@ -583,16 +583,16 @@ def test_hook_blocks_tool_execution():
     assert result["success"] is False
     assert "blocked" in result["error"].lower()
 
-    # Verify tool_call_before was published
+    # Verify PreToolUse was published
     assert len(published_events) == 1
-    assert published_events[0].name == "tool_call_before"
+    assert published_events[0].name == "PreToolUse"
 
 
 # ========== 4. LoadSkill/LoadSubagent 事件测试 ==========
 
 
 def test_load_skill_publishes_event():
-    """LoadSkill publishes skill_loaded event"""
+    """LoadSkill publishes SkillLoaded event"""
     from simple_agent.tools.builtin.load_skill import LoadSkill
     from simple_agent.resources.skills import SkillLoader
 
@@ -615,15 +615,15 @@ def test_load_skill_publishes_event():
 
         result = LoadSkill.execute("test_skill")
 
-        # Verify skill_loaded event was published
+        # Verify SkillLoaded event was published
         assert result["success"] is True
         assert len(published_events) == 1
-        assert published_events[0].name == "skill_loaded"
+        assert published_events[0].name == "SkillLoaded"
         assert published_events[0].data["skill_name"] == "test_skill"
 
 
 def test_load_subagent_publishes_event():
-    """LoadSubagent publishes subagent_loaded event"""
+    """LoadSubagent publishes SubagentLoaded event"""
     from simple_agent.tools.builtin.load_subagent import LoadSubagent
     from simple_agent.resources.subagents import SubagentLoader
 
@@ -646,10 +646,10 @@ def test_load_subagent_publishes_event():
 
         result = LoadSubagent.execute("test_subagent")
 
-        # Verify subagent_loaded event was published
+        # Verify SubagentLoaded event was published
         assert result["success"] is True
         assert len(published_events) == 1
-        assert published_events[0].name == "subagent_loaded"
+        assert published_events[0].name == "SubagentLoaded"
         assert published_events[0].data["subagent_name"] == "test_subagent"
 
 
@@ -711,18 +711,18 @@ def test_prompt_hook_variable_replacement():
 
 
 def test_error_occurred_event_published():
-    """Runtime publishes error_occurred event when exception occurs"""
+    """Runtime publishes Error event when exception occurs"""
     from simple_agent.core.runtime import Runtime
     from simple_agent.config.settings import Settings
 
     with tempfile.TemporaryDirectory() as tmpdir:
         hooks_dir = Path(tmpdir)
-        event_dir = hooks_dir / "error_occurred"
+        event_dir = hooks_dir / "Error"
         event_dir.mkdir()
 
         # Create hook that tracks errors
         (event_dir / "hook.py").write_text("""
-def on_error_occurred(error_type: str, error_message: str, **kwargs):
+def Error(error_type: str, error_message: str, **kwargs):
     return None
 """)
 
@@ -736,7 +736,7 @@ def on_error_occurred(error_type: str, error_message: str, **kwargs):
             runtime = Runtime(config, log_file=None)
 
             # Verify handler is registered
-            assert "error_occurred" in runtime._event_bus._handlers
+            assert "Error" in runtime._event_bus._handlers
         finally:
             os.chdir(old_cwd)
 
@@ -801,7 +801,7 @@ def test_hook_loaded_event_published():
 
         # Create a hook
         (event_dir / "hook.py").write_text("""
-def on_test_hook(**kwargs):
+def test_hook(**kwargs):
     return None
 """)
 
