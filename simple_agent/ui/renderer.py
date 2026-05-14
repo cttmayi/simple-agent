@@ -111,7 +111,7 @@ class UIRenderer:
                     # Limit to first 5 lines
                     lines = content.split('\n')
                     if len(lines) > 5:
-                        content = '\n'.join(lines[:5]) + '\n[... content truncated, showing first 5 lines ...]'
+                        content = '\n'.join(lines[:5])
                     # Escape rich markup and indent each line
                     escaped = escape(content)
                     indented = '\n'.join(f'  {line}' for line in escaped.split('\n'))

@@ -159,14 +159,12 @@ class BASH:
             if stdout:
                 stdout_lines = stdout.split('\n')
                 if len(stdout_lines) > 5:
-                    shown_lines = stdout_lines[:5]
-                    stdout = '\n'.join(shown_lines) + '\n[... output truncated, showing first 5 lines ...]'
+                    stdout = '\n'.join(stdout_lines[:5])
 
             if stderr:
                 stderr_lines = stderr.split('\n')
                 if len(stderr_lines) > 5:
-                    shown_lines = stderr_lines[:5]
-                    stderr = '\n'.join(shown_lines) + '\n[... output truncated, showing first 5 lines ...]'
+                    stderr = '\n'.join(stderr_lines[:5])
 
             # If both stdout and stderr are empty, add a message
             if not stdout and not stderr:

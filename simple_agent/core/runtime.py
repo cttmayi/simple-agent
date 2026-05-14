@@ -420,19 +420,21 @@ class Runtime:
             tool_name = tool_call["function"]["name"]
             arguments = json.loads(tool_call["function"]["arguments"])
 
-            # Show which tool is being executed with details
+            # Build args string for display
             args_str = ""
             if arguments:
                 args_parts = []
                 for k, v in arguments.items():
                     if k not in ["cwd", "timeout", "case_sensitive"]:  # Skip internal params
                         v_str = str(v)
-                        if len(v_str) > 50:
-                            v_str = v_str[:50] + "..."
+                        if len(v_str) > 20:
+                            v_str = v_str[:20] + "..."
                         args_parts.append(f"{k}={v_str}")
                 if args_parts:
-                    args_str = " " + " ".join(args_parts)
-            self._renderer.render_message("system", f"Running {tool_name}{args_str}")
+                    args_str = '[' + ', '.join(args_parts) + ']'
+
+            # Show which tool is being executed (plain print, not through renderer)
+            print(f"Running {tool_name} {args_str}", flush=True)
 
             # Execute the tool
             result = self._tool_dispatcher.execute({
@@ -449,6 +451,13 @@ class Runtime:
                     arguments=arguments,
                     result=result,
                 )
+
+            # Show completion status with checkmark (overwrite the "Running" line)
+            tool_result = result.get("result", result)
+            success = tool_result.get("success", True)
+            status = "[bold green]✓[/bold green]" if success else "[bold red]✗[/bold red]"
+            # Use Rich to print checkmark with colors
+            self._renderer._console.print(f"  {status} {tool_name} {args_str}")
 
             # Render tool result to user in CLI
             self._renderer.render_tool_result(tool_name, result, arguments)

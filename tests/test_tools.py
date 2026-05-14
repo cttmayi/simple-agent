@@ -88,15 +88,15 @@ def test_bash_output_limiting():
 
     assert result["success"] is True
     stdout = result["stdout"]
-    # Should contain truncation message
-    assert "... output truncated" in stdout
-    # Should show only first 5 lines
+    # Should show only first 5 lines (no truncation message)
     assert "line 1" in stdout
     assert "line 2" in stdout
     assert "line 3" in stdout
     assert "line 4" in stdout
     assert "line 5" in stdout
     assert "line 6" not in stdout
+    # Should have exactly 5 lines
+    assert len(stdout.strip().split('\n')) == 5
 
 def test_bash_stderr_limiting():
     """Test that bash stderr is limited to 5 lines."""
@@ -107,12 +107,12 @@ def test_bash_stderr_limiting():
 
     assert result["success"] is True
     stderr = result["stderr"]
-    # Should contain truncation message
-    assert "... output truncated" in stderr
-    # Should show only first 5 errors
+    # Should show only first 5 errors (no truncation message)
     assert "error 1" in stderr
     assert "error 2" in stderr
     assert "error 3" in stderr
     assert "error 4" in stderr
     assert "error 5" in stderr
     assert "error 6" not in stderr
+    # Should have exactly 5 lines
+    assert len(stderr.strip().split('\n')) == 5
