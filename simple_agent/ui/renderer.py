@@ -86,9 +86,15 @@ class UIRenderer:
                 # Show file content with indentation and line limiting
                 content = tool_result["content"]
                 if content:
-                    # Limit to first 5 lines
+                    # Limit to first 5 lines, but always show truncation message if present
                     lines = content.split('\n')
-                    if len(lines) > 5:
+                    has_truncation_msg = any('[文件已被截断' in line for line in lines)
+                    if has_truncation_msg:
+                        # Find and keep truncation message
+                        truncation_start = next(i for i, line in enumerate(lines) if '[文件已被截断' in line)
+                        content_lines = lines[:5] + lines[truncation_start:]
+                        content = '\n'.join(content_lines)
+                    elif len(lines) > 5:
                         content = '\n'.join(lines[:5])
                     # Escape rich markup and print with visual separator
                     escaped = escape(content)
