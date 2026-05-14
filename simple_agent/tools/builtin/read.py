@@ -20,6 +20,32 @@ class READ:
     description = "Read the contents of a file"
 
     @staticmethod
+    def _is_safe_path(file_path: Path, base_dir: Path) -> bool:
+        """Check if a path is safe (doesn't escape base_dir).
+
+        Args:
+            file_path: Resolved absolute path to check
+            base_dir: The base directory that the path should be within
+
+        Returns:
+            True if path is safe, False otherwise
+        """
+        try:
+            # Resolve both paths to absolute canonical paths
+            file_path = file_path.resolve()
+            base_dir = base_dir.resolve()
+
+            # Check if file_path is within base_dir or its subdirectories
+            try:
+                file_path.relative_to(base_dir)
+                return True
+            except ValueError:
+                # file_path is not relative to base_dir
+                return False
+        except (OSError, RuntimeError):
+            return False
+
+    @staticmethod
     def _read(path: str, cwd: Optional[str] = None, start_line: Optional[int] = None) -> Dict[str, Any]:
         """Read file contents with security checks.
 
@@ -43,11 +69,32 @@ class READ:
             # Normalize to prevent path traversal
             try:
                 file_path = file_path.resolve()
+                base_dir = base_dir.resolve()
             except (OSError, RuntimeError):
                 return {
                     "success": False,
                     "content": "",
                     "error": "Invalid path"
+                }
+
+            # Path traversal check: ensure file is within base_dir
+            if not READ._is_safe_path(file_path, base_dir):
+                return {
+                    "success": False,
+                    "content": "",
+                    "error": "Path traversal detected: cannot access files outside the working directory"
+                }
+
+            # Additional check: prevent accessing sensitive system files
+            # Check if path contains sensitive patterns
+            path_str = str(file_path).lower()
+            sensitive_patterns = ['/etc/passwd', '/etc/shadow', '/etc/hosts',
+                               '/proc/', '/sys/', '/dev/', '~/.ssh/', '~/.aws/']
+            if any(pattern in path_str for pattern in sensitive_patterns):
+                return {
+                    "success": False,
+                    "content": "",
+                    "error": "Access to sensitive system files is not allowed"
                 }
 
             # Check if file exists

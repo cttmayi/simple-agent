@@ -86,6 +86,8 @@ class OpenAIProvider(BaseProvider):
     def stream_message(
         self, messages: List[Dict[str, str]], tools: List[Dict[str, Any]]
     ) -> Generator[str, None]:
+        """Stream messages from the API with proper resource cleanup."""
+        # Use context manager to ensure stream is properly closed
         stream: Stream[ChatCompletionChunk] = self.client.chat.completions.create(
             model=self.model,
             messages=messages,
@@ -93,9 +95,15 @@ class OpenAIProvider(BaseProvider):
             stream=True,
         )
 
-        for chunk in stream:
-            if chunk.choices[0].delta.content:
-                yield chunk.choices[0].delta.content
+        try:
+            for chunk in stream:
+                if chunk.choices and chunk.choices[0].delta.content:
+                    yield chunk.choices[0].delta.content
+        finally:
+            # Ensure stream is closed properly
+            # The OpenAI Stream object has a close() method
+            if hasattr(stream, 'close'):
+                stream.close()
 
 
 class AnthropicProvider(BaseProvider):
@@ -168,6 +176,8 @@ class AnthropicProvider(BaseProvider):
     def stream_message(
         self, messages: List[Dict[str, str]], tools: List[Dict[str, Any]]
     ) -> Generator[str, None]:
+        """Stream messages from the API with proper resource cleanup."""
+        # Use context manager to ensure stream is properly closed
         stream = self.client.chat.completions.create(
             model=self.model,
             messages=messages,
@@ -176,6 +186,11 @@ class AnthropicProvider(BaseProvider):
             extra_headers={"anthropic-version": "2023-06-01"},
         )
 
-        for chunk in stream:
-            if chunk.choices[0].delta.content:
-                yield chunk.choices[0].delta.content
+        try:
+            for chunk in stream:
+                if chunk.choices and chunk.choices[0].delta.content:
+                    yield chunk.choices[0].delta.content
+        finally:
+            # Ensure stream is closed properly
+            if hasattr(stream, 'close'):
+                stream.close()

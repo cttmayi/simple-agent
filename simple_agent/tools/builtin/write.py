@@ -17,6 +17,32 @@ class WRITE:
     description = "Write content to a file"
 
     @staticmethod
+    def _is_safe_path(file_path: Path, base_dir: Path) -> bool:
+        """Check if a path is safe (doesn't escape base_dir).
+
+        Args:
+            file_path: Resolved absolute path to check
+            base_dir: The base directory that the path should be within
+
+        Returns:
+            True if path is safe, False otherwise
+        """
+        try:
+            # Resolve both paths to absolute canonical paths
+            file_path = file_path.resolve()
+            base_dir = base_dir.resolve()
+
+            # Check if file_path is within base_dir or its subdirectories
+            try:
+                file_path.relative_to(base_dir)
+                return True
+            except ValueError:
+                # file_path is not relative to base_dir
+                return False
+        except (OSError, RuntimeError):
+            return False
+
+    @staticmethod
     def _write(path: str, content: str, cwd: Optional[str] = None) -> Dict[str, Any]:
         """Write content to a file with security checks.
 
@@ -40,11 +66,32 @@ class WRITE:
             # Normalize to prevent path traversal
             try:
                 file_path = file_path.resolve()
+                base_dir = base_dir.resolve()
             except (OSError, RuntimeError):
                 return {
                     "success": False,
                     "path": str(path),
                     "error": "Invalid path"
+                }
+
+            # Path traversal check: ensure file is within base_dir
+            if not WRITE._is_safe_path(file_path, base_dir):
+                return {
+                    "success": False,
+                    "path": str(path),
+                    "error": "Path traversal detected: cannot write files outside the working directory"
+                }
+
+            # Additional check: prevent writing to sensitive system files
+            # Check if path contains sensitive patterns
+            path_str = str(file_path).lower()
+            sensitive_patterns = ['/etc/passwd', '/etc/shadow', '/etc/hosts',
+                               '/proc/', '/sys/', '/dev/', '~/.ssh/', '~/.aws/']
+            if any(pattern in path_str for pattern in sensitive_patterns):
+                return {
+                    "success": False,
+                    "path": str(path),
+                    "error": "Writing to sensitive system files is not allowed"
                 }
 
             # Check content size
@@ -57,7 +104,16 @@ class WRITE:
                 }
 
             # Create parent directories if they don't exist
-            file_path.parent.mkdir(parents=True, exist_ok=True)
+            # Check that parent directories are also within base_dir
+            parent_dir = file_path.parent
+            if not WRITE._is_safe_path(parent_dir, base_dir):
+                return {
+                    "success": False,
+                    "path": str(path),
+                    "error": "Cannot create directories outside the working directory"
+                }
+
+            parent_dir.mkdir(parents=True, exist_ok=True)
 
             # Write content
             file_path.write_text(content, encoding="utf-8")

@@ -622,10 +622,10 @@ def test_load_skill_publishes_event():
         assert published_events[0].data["skill_name"] == "test_skill"
 
 
-def test_load_subagent_publishes_event():
-    """LoadSubagent publishes SubagentLoaded event"""
-    from simple_agent.tools.builtin.load_subagent import LoadSubagent
-    from simple_agent.resources.subagents import SubagentLoader
+def test_load_agent_publishes_event():
+    """LoadAgent publishes AgentLoaded event"""
+    from simple_agent.tools.builtin.load_agent import LoadAgent
+    from simple_agent.resources.agents import AgentLoader
 
     published_events = []
 
@@ -634,23 +634,23 @@ def test_load_subagent_publishes_event():
             published_events.append(event)
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        subagents_dir = Path(tmpdir)
-        subagent_dir = subagents_dir / "test_subagent"
-        subagent_dir.mkdir()
-        subagent_file = subagent_dir / "AGENT.md"
-        subagent_file.write_text("---\nname: test_subagent\ndescription: Test\n---\nTest subagent")
+        agents_dir = Path(tmpdir)
+        agent_dir = agents_dir / "test_agent"
+        agent_dir.mkdir()
+        agent_file = agent_dir / "AGENT.md"
+        agent_file.write_text("---\nname: test_agent\ndescription: Test\n---\nTest agent")
 
-        loader = SubagentLoader(subagents_dir)
-        loaded_subagents = set()
-        LoadSubagent.set_runtime(loader, loaded_subagents, None, MockEventBus())
+        loader = AgentLoader(agents_dir)
+        loaded_agents = set()
+        LoadAgent.set_runtime(loader, loaded_agents, None, MockEventBus())
 
-        result = LoadSubagent.execute("test_subagent")
+        result = LoadAgent.execute("test_agent")
 
-        # Verify SubagentLoaded event was published
+        # Verify AgentLoaded event was published
         assert result["success"] is True
         assert len(published_events) == 1
-        assert published_events[0].name == "SubagentLoaded"
-        assert published_events[0].data["subagent_name"] == "test_subagent"
+        assert published_events[0].name == "AgentLoaded"
+        assert published_events[0].data["agent_name"] == "test_agent"
 
 
 # ========== 5. Shell Hook 测试 ==========
