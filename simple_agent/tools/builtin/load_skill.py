@@ -56,9 +56,9 @@ class LoadSkill:
             if LoadSkill._runtime:
                 LoadSkill._runtime._logger.log_skill_loaded(skill_name)
 
-            # Publish skill_loaded event
+            # Publish SkillLoaded event
             if LoadSkill._event_bus:
-                LoadSkill._event_bus.publish(Event("skill_loaded", {
+                LoadSkill._event_bus.publish(Event("SkillLoaded", {
                     "skill_name": skill_name
                 }))
 

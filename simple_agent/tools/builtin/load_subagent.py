@@ -57,9 +57,9 @@ class LoadSubagent:
                 if LoadSubagent._runtime:
                     LoadSubagent._runtime._logger.log_subagent_loaded(subagent_name)
 
-                # Publish subagent_loaded event
+                # Publish SubagentLoaded event
                 if LoadSubagent._event_bus:
-                    LoadSubagent._event_bus.publish(Event("subagent_loaded", {
+                    LoadSubagent._event_bus.publish(Event("SubagentLoaded", {
                         "subagent_name": subagent_name
                     }))
 
