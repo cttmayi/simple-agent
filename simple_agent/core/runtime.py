@@ -508,9 +508,8 @@ class Runtime:
                         # Show first part of content + truncation message
                         content_lines = lines[:5] + lines[truncation_start:]
                         content = '\n'.join(content_lines)
-                    elif len(content) > 500:
-                        # No truncation message, just limit length
-                        content = content[:500] + "..."
+                    # No length limit - send full content for read tool
+                    # The read.py already limits to 200 lines, so content is reasonably sized
                     tool_content = f"Content:\n{content}"
                 elif "matches" in tool_result:
                     # Grep - show match count and samples
