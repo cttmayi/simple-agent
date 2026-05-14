@@ -542,11 +542,17 @@ class Runtime:
                     }))
 
     def _prepare_messages_with_context(self) -> List[Dict[str, str]]:
-        """Prepare messages with skills, agents, and agent context."""
+        """Prepare messages with agent context, skills, and agents."""
         messages = self._session.get_messages()
 
-        # Build system context with skills, agents, and AGENT.md
+        # Build system context with AGENT.md, skills, and agents
         system_parts = []
+
+        # Add AGENT.md context first (base agent instructions)
+        agent_context = self.get_agent_context()
+        if agent_context:
+            system_parts.append("# Agent Context\n")
+            system_parts.append(agent_context)
 
         # Add skills context (includes loaded skills with full content)
         if self._skills_context:
@@ -555,12 +561,6 @@ class Runtime:
         # Add agents context
         if self._agents_context:
             system_parts.append(self._agents_context)
-
-        # Add AGENT.md context
-        agent_context = self.get_agent_context()
-        if agent_context:
-            system_parts.append("# Agent Context\n")
-            system_parts.append(agent_context)
 
         # Prepare messages for API
         api_messages = []
