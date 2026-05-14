@@ -102,22 +102,33 @@ class UIRenderer:
             # Show detailed output (not truncated for user feedback)
             if "error" in tool_result:
                 # Show full error message
-                self.console.print(f"  [red]Error:[/red] {escape(tool_result['error'])}")
+                error_msg = tool_result['error']
+                self.console.print(f"  [red]Error:[/red] {escape(error_msg)}")
             elif "content" in tool_result:
-                # Show full file content (no truncation for user feedback)
+                # Show file content with indentation and line limiting
                 content = tool_result["content"]
                 if content:
-                    # Escape rich markup to prevent MarkupError
-                    self.console.print(f"  {escape(content)}")
+                    # Limit to first 5 lines
+                    lines = content.split('\n')
+                    if len(lines) > 5:
+                        content = '\n'.join(lines[:5]) + '\n[... content truncated, showing first 5 lines ...]'
+                    # Escape rich markup and indent each line
+                    escaped = escape(content)
+                    indented = '\n'.join(f'  {line}' for line in escaped.split('\n'))
+                    self.console.print(indented, overflow="ignore")
             elif "stdout" in tool_result:
-                # Show stdout (no truncation)
+                # Show stdout with indentation
                 stdout = tool_result.get("stdout", "").strip()
                 if stdout:
-                    self.console.print(f"  {stdout}")
+                    # Indent each line of stdout
+                    indented = '\n'.join(f'  {line}' for line in stdout.split('\n'))
+                    self.console.print(indented, overflow="ignore")
                 # Show stderr if present
                 stderr = tool_result.get("stderr", "").strip()
                 if stderr:
-                    self.console.print(f"  [red]{escape(stderr)}[/red]")
+                    # Indent each line of stderr
+                    indented = '\n'.join(f'  {line}' for line in stderr.split('\n'))
+                    self.console.print(f"[red]{escape(indented)}[/red]", overflow="ignore")
                 # Show return code if non-zero
                 returncode = tool_result.get("returncode")
                 if returncode and returncode != 0:
