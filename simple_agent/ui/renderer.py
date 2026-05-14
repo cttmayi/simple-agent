@@ -77,14 +77,11 @@ class UIRenderer:
 
             # Skip status line - it's now shown by caller (runtime.py)
 
-            # Add visual separator for output
-            self.console.print("  ⎿")
-
             # Show detailed output (not truncated for user feedback)
             if "error" in tool_result:
                 # Show full error message
                 error_msg = tool_result['error']
-                self.console.print(f"  ⎿  [red]Error:[/red] {escape(error_msg)}")
+                self.console.print(f"  │  [red]Error:[/red] {escape(error_msg)}")
             elif "content" in tool_result:
                 # Show file content with indentation and line limiting
                 content = tool_result["content"]
@@ -96,49 +93,51 @@ class UIRenderer:
                     # Escape rich markup and print with visual separator
                     escaped = escape(content)
                     for line in escaped.split('\n'):
-                        self.console.print(f"  ⎿  {line}", overflow="ignore")
+                        if line.strip():  # Skip empty lines
+                            self.console.print(f"  │  {line}", overflow="ignore")
             elif "stdout" in tool_result:
                 # Show stdout with visual separator
                 stdout = tool_result.get("stdout", "").strip()
                 if stdout:
                     for line in stdout.split('\n'):
-                        self.console.print(f"  ⎿  {line}", overflow="ignore")
+                        if line.strip():  # Skip empty lines
+                            self.console.print(f"  │  {line}", overflow="ignore")
                 # Show stderr if present
                 stderr = tool_result.get("stderr", "").strip()
                 if stderr:
                     for line in stderr.split('\n'):
-                        self.console.print(f"  ⎿  [red]{escape(line)}[/red]", overflow="ignore")
+                        self.console.print(f"  │  [red]{escape(line)}[/red]", overflow="ignore")
                 # Show return code if non-zero
                 returncode = tool_result.get("returncode")
                 if returncode and returncode != 0:
-                    self.console.print(f"  ⎿  [dim]Exit code: {returncode}[/dim]")
+                    self.console.print(f"  │  [dim]Exit code: {returncode}[/dim]")
             elif "matches" in tool_result:
                 # Show match details
                 matches = tool_result["matches"]
                 if matches:
-                    self.console.print(f"  ⎿  [dim]Found {len(matches)} matches:[/dim]")
+                    self.console.print(f"  │  [dim]Found {len(matches)} matches:[/dim]")
                     for m in matches:
-                        self.console.print(f"  ⎿      [cyan]Line {m['line']}:[/cyan] {escape(m['content'])}")
+                        self.console.print(f"  │      [cyan]Line {m['line']}:[/cyan] {escape(m['content'])}")
                 else:
-                    self.console.print(f"  ⎿  [dim]No matches found[/dim]")
+                    self.console.print(f"  │  [dim]No matches found[/dim]")
             elif "results" in tool_result:
                 # Show web search results
                 results = tool_result.get("results", [])
                 if results:
-                    self.console.print(f"  ⎿  [dim]Found {len(results)} results:[/dim]")
+                    self.console.print(f"  │  [dim]Found {len(results)} results:[/dim]")
                     for i, r in enumerate(results[:5], start=1):
                         title = r.get("title", "")
                         url = r.get("url", "")
                         snippet = r.get("snippet", "")
-                        self.console.print(f"  ⎿  [{i}] [link]{escape(title)}[/link]")
+                        self.console.print(f"  │  [{i}] [link]{escape(title)}[/link]")
                         if url:
-                            self.console.print(f"  ⎿      URL: {url}")
+                            self.console.print(f"  │      URL: {url}")
                         if snippet and len(snippet) < 150:
-                            self.console.print(f"  ⎿      {escape(snippet)}")
+                            self.console.print(f"  │      {escape(snippet)}")
                     if len(results) > 5:
-                        self.console.print(f"  ⎿  ... and {len(results) - 5} more results")
+                        self.console.print(f"  │  ... and {len(results) - 5} more results")
                 else:
-                    self.console.print(f"  ⎿  [dim]No results found[/dim]")
+                    self.console.print(f"  │  [dim]No results found[/dim]")
         except Exception as e:
             # Fallback to simple output if rendering fails
             self.console.print(f"  Error rendering tool result: {escape(str(e))}")
