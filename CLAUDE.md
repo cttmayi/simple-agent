@@ -102,7 +102,7 @@ simple-agent
 
 ### 资源加载
 
-Skills、subagents、hooks 和 commands 使用 `python-frontmatter` 从 frontmatter markdown 文件加载。加载器类（`SkillLoader`、`SubagentLoader` 等）提供 `list_*()` 和 `get_*()` 方法。
+Skills、agents、hooks 和 commands 使用 `python-frontmatter` 从 frontmatter markdown 文件加载。加载器类（`SkillLoader`、`AgentLoader` 等）提供 `list_*()` 和 `get_*()` 方法。
 
 ### 会话和消息格式
 

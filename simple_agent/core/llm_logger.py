@@ -164,18 +164,18 @@ class LLMLogger:
 
         self._write_entry(entry)
 
-    def log_subagent_loaded(self, subagent_name: str) -> None:
-        """Log a subagent being loaded.
+    def log_agent_loaded(self, agent_name: str) -> None:
+        """Log an agent being loaded.
 
         Args:
-            subagent_name: Name of the loaded subagent
+            agent_name: Name of the loaded agent
         """
         if not self._enabled:
             return
 
         entry = {
-            "type": "SubagentLoaded",
-            "subagent_name": subagent_name,
+            "type": "AgentLoaded",
+            "agent_name": agent_name,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
@@ -310,8 +310,8 @@ def get_conversation(log_entries: List[Dict[str, Any]], request_id: str) -> Opti
             conversation["session_id"] = entry.get("session_id")
         elif entry["type"] == "SkillLoaded":
             conversation.setdefault("skills_loaded", set()).add(entry.get("skill_name"))
-        elif entry["type"] == "SubagentLoaded":
-            conversation.setdefault("subagents_loaded", set()).add(entry.get("subagent_name"))
+        elif entry["type"] == "AgentLoaded":
+            conversation.setdefault("agents_loaded", set()).add(entry.get("agent_name"))
 
     if conversation["request"] is None:
         return None
@@ -361,7 +361,7 @@ def get_all_conversations(log_dir: Optional[Path] = None) -> List[Dict[str, Any]
                                         "messages": [],
                                         "session_id": None,
                                         "skills_loaded": set(),
-                                        "subagents_loaded": set(),
+                                        "agents_loaded": set(),
                                         "log_file": log_file_name,  # Add log file name
                                     }
                                 else:
@@ -400,7 +400,7 @@ def get_all_conversations(log_dir: Optional[Path] = None) -> List[Dict[str, Any]
                                         "messages": [],
                                         "session_id": session_id,
                                         "skills_loaded": set(),
-                                        "subagents_loaded": set(),
+                                        "agents_loaded": set(),
                                     }
 
                             elif entry["type"] == "SkillLoaded":
@@ -408,10 +408,10 @@ def get_all_conversations(log_dir: Optional[Path] = None) -> List[Dict[str, Any]
                                 if request_id and request_id in conversations:
                                     conversations[request_id].setdefault("skills_loaded", set()).add(entry.get("skill_name"))
 
-                            elif entry["type"] == "SubagentLoaded":
+                            elif entry["type"] == "AgentLoaded":
                                 request_id = entry.get("request_id")
                                 if request_id and request_id in conversations:
-                                    conversations[request_id].setdefault("subagents_loaded", set()).add(entry.get("subagent_name"))
+                                    conversations[request_id].setdefault("agents_loaded", set()).add(entry.get("agent_name"))
 
                         except (json.JSONDecodeError, KeyError):
                             continue
@@ -426,8 +426,8 @@ def get_all_conversations(log_dir: Optional[Path] = None) -> List[Dict[str, Any]
     for conv in result:
         if "skills_loaded" in conv:
             conv["skills_loaded"] = list(conv["skills_loaded"])
-        if "subagents_loaded" in conv:
-            conv["subagents_loaded"] = list(conv["subagents_loaded"])
+        if "agents_loaded" in conv:
+            conv["agents_loaded"] = list(conv["agents_loaded"])
 
     # Sort by timestamp descending (use empty string if timestamp is None)
     result.sort(key=lambda x: x.get("timestamp", "") or "", reverse=True)

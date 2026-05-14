@@ -11,7 +11,7 @@ from simple_agent.core.llm_logger import LLMLogger
 from simple_agent.tools.registry import get_global_registry
 from simple_agent.tools.dispatcher import ToolDispatcher
 from simple_agent.resources.skills import SkillLoader
-from simple_agent.resources.subagents import SubagentLoader
+from simple_agent.resources.agents import AgentLoader
 from simple_agent.resources.hooks import HookLoader
 from simple_agent.resources.commands import CommandLoader
 from simple_agent.ui.renderer import UIRenderer
@@ -21,7 +21,7 @@ from prompt_toolkit.history import InMemoryHistory
 # Import builtin tools to auto-register them
 from simple_agent.tools import builtin  # noqa: F401
 from simple_agent.tools.builtin.load_skill import LoadSkill
-from simple_agent.tools.builtin.load_subagent import LoadSubagent
+from simple_agent.tools.builtin.load_agent import LoadAgent
 
 
 class Runtime:
@@ -56,7 +56,7 @@ class Runtime:
         # Initialize resource loaders (resolve relative paths from current directory)
         base_dir = Path.cwd()
         self._skill_loader = SkillLoader(base_dir / config.paths.skills_dir)
-        self._subagent_loader = SubagentLoader(base_dir / config.paths.subagents_dir)
+        self._agent_loader = AgentLoader(base_dir / config.paths.agents_dir)
         self._hook_loader = HookLoader(base_dir / config.paths.hooks_dir)
         self._command_loader = CommandLoader(base_dir / config.paths.commands_dir)
 
@@ -67,19 +67,19 @@ class Runtime:
         self._loaded_skills = set()  # Track which skills have been fully loaded
         self._skills_context = self._build_skills_context()
 
-        # Load subagents and build subagents context (only metadata for lazy loading)
-        self._loaded_subagents = set()  # Track which subagents have been fully loaded
-        self._subagents_context = self._build_subagents_context()
+        # Load agents and build agents context (only metadata for lazy loading)
+        self._loaded_agents = set()  # Track which agents have been fully loaded
+        self._agents_context = self._build_agents_context()
 
-        # Set up load_skill and load_subagent tools
+        # Set up load_skill and load_agent tools
         LoadSkill.set_runtime(self._skill_loader, self._loaded_skills, self, self._event_bus)
-        LoadSubagent.set_runtime(self._subagent_loader, self._loaded_subagents, self, self._event_bus)
+        LoadAgent.set_runtime(self._agent_loader, self._loaded_agents, self, self._event_bus)
 
         # Register the tool definitions
         from simple_agent.tools.builtin.load_skill import load_skill_tool_def
-        from simple_agent.tools.builtin.load_subagent import load_subagent_tool_def
+        from simple_agent.tools.builtin.load_agent import load_agent_tool_def
         self._tool_registry.register(load_skill_tool_def)
-        self._tool_registry.register(load_subagent_tool_def)
+        self._tool_registry.register(load_agent_tool_def)
 
     def _build_skills_context(self) -> str:
         """Build context string from all available skills (metadata only).
@@ -99,23 +99,23 @@ class Runtime:
 
         return "\n".join(context_parts)
 
-    def _build_subagents_context(self) -> str:
-        """Build context string from all available subagents (metadata only).
+    def _build_agents_context(self) -> str:
+        """Build context string from all available agents (metadata only).
 
-        First layer: Only show subagent directory (summary), not full content.
-        Full content is loaded via trigger layer (load_subagent tool) only when needed.
+        First layer: Only show agent directory (summary), not full content.
+        Full content is loaded via trigger layer (load_agent tool) only when needed.
         """
-        subagents = self._subagent_loader.list_subagents()
-        if not subagents:
+        agents = self._agent_loader.list_agents()
+        if not agents:
             return ""
 
-        context_parts = ["# Available Subagents\n"]
-        context_parts.append("The following subagents are available. Mention them in your request to auto-load.\n\n")
+        context_parts = ["# Available Agents\n"]
+        context_parts.append("The following agents are available. Mention them in your request to auto-load.\n\n")
 
-        for subagent in subagents:
-            tools = subagent['metadata'].get('tools', [])
+        for agent in agents:
+            tools = agent['metadata'].get('tools', [])
             tools_str = ', '.join(tools) if tools else 'all tools'
-            context_parts.append(f"- **{subagent['name']}**: {subagent['description']}")
+            context_parts.append(f"- **{agent['name']}**: {agent['description']}")
             context_parts.append(f"  Tools: {tools_str}\n")
 
         return "\n".join(context_parts)
@@ -370,21 +370,21 @@ class Runtime:
         """Handle a slash command."""
         if command == "help":
             skills = self._skill_loader.list_skills()
-            subagents = self._subagent_loader.list_subagents()
+            agents = self._agent_loader.list_agents()
             help_text = "# Available Commands\n\n- `/help` - Show this help message\n- `/exit` - Exit the agent\n\n"
-            help_text += "AI can automatically load skills and subagents by mentioning them in your request.\n"
+            help_text += "AI can automatically load skills and agents by mentioning them in your request.\n"
 
             if skills:
                 help_text += "\n# Available Skills\n\n"
                 for skill in skills:
                     help_text += f"- **{skill['name']}**: {skill['description']}\n"
 
-            if subagents:
-                help_text += "\n# Available Subagents\n\n"
-                for subagent in subagents:
-                    tools = subagent['metadata'].get('tools', [])
+            if agents:
+                help_text += "\n# Available Agents\n\n"
+                for agent in agents:
+                    tools = agent['metadata'].get('tools', [])
                     tools_str = ', '.join(tools) if tools else 'all tools'
-                    help_text += f"- **{subagent['name']}**: {subagent['description']}\n"
+                    help_text += f"- **{agent['name']}**: {agent['description']}\n"
                     help_text += f"  Tools: {tools_str}\n"
 
             return help_text
@@ -444,10 +444,10 @@ class Runtime:
                     result=result,
                 )
 
-            # Handle load_skill and load_subagent tools specially
+            # Handle load_skill and load_agent tools specially
             # These tools are handled separately - content is added to session
             # and we don't format/send their result to the API
-            if tool_name not in ["load_skill", "load_subagent"]:
+            if tool_name not in ["load_skill", "load_agent"]:
                 # Regular tool - normal processing
                 tool_result = result.get("result", result)
 
@@ -492,11 +492,11 @@ class Runtime:
                 # Add tool result to session with tool_call_id
                 self._session.add_message("tool", tool_content, tool_call_id=tool_call["id"])
             else:
-                # Send message to user for load_skill/load_subagent
+                # Send message to user for load_skill/load_agent
                 self._renderer.render_message("system", result.get("message", ""))
 
-                # Add skill/subagent content to session as system message
-                # This ensures AI knows the skill/subagent is loaded
+                # Add skill/agent content to session as system message
+                # This ensures AI knows the skill/agent is loaded
                 if tool_name == "load_skill" and result.get("success"):
                     skill_name = arguments.get("skill_name")
                     skill_content = result.get("content", "")
@@ -505,12 +505,12 @@ class Runtime:
                         # Add as tool message so LLM receives full content
                         tool_msg = f"# Loaded Skill: {skill_name}\n{skill_content}"
                         self._session.add_message("tool", tool_msg, tool_call_id=tool_call["id"])
-                elif tool_name == "load_subagent" and result.get("success"):
-                    subagent_name = arguments.get("subagent_name")
-                    subagent_content = result.get("content", "")
-                    if subagent_content:
+                elif tool_name == "load_agent" and result.get("success"):
+                    agent_name = arguments.get("agent_name")
+                    agent_content = result.get("content", "")
+                    if agent_content:
                         # Add as tool message so LLM receives full content
-                        tool_msg = f"# Loaded Subagent: {subagent_name}\n{subagent_content}"
+                        tool_msg = f"# Loaded Agent: {agent_name}\n{agent_content}"
                         self._session.add_message("tool", tool_msg, tool_call_id=tool_call["id"])
 
         # Send tool results back to API for next response
@@ -542,19 +542,19 @@ class Runtime:
                     }))
 
     def _prepare_messages_with_context(self) -> List[Dict[str, str]]:
-        """Prepare messages with skills, subagents, and agent context."""
+        """Prepare messages with skills, agents, and agent context."""
         messages = self._session.get_messages()
 
-        # Build system context with skills, subagents, and AGENT.md
+        # Build system context with skills, agents, and AGENT.md
         system_parts = []
 
         # Add skills context (includes loaded skills with full content)
         if self._skills_context:
             system_parts.append(self._skills_context)
 
-        # Add subagents context
-        if self._subagents_context:
-            system_parts.append(self._subagents_context)
+        # Add agents context
+        if self._agents_context:
+            system_parts.append(self._agents_context)
 
         # Add AGENT.md context
         agent_context = self.get_agent_context()
@@ -598,13 +598,13 @@ class Runtime:
 
     def run(self):
         """Main run loop."""
-        # Restore loaded skills/subagents from session (if resuming)
+        # Restore loaded skills/agents from session (if resuming)
         loaded_skills = self._session.get_loaded_skills()
-        loaded_subagents = self._session.get_loaded_subagents()
+        loaded_agents = self._session.get_loaded_agents()
         if loaded_skills:
             self._loaded_skills.update(loaded_skills)
-        if loaded_subagents:
-            self._loaded_subagents.update(loaded_subagents)
+        if loaded_agents:
+            self._loaded_agents.update(loaded_agents)
 
         # Generate session ID and log session start
         import uuid
@@ -630,13 +630,13 @@ class Runtime:
         else:
             self._renderer.render_message("system", "No skills found in ./skills directory.")
 
-        # Debug: Show available subagents (metadata only)
-        subagents = self._subagent_loader.list_subagents()
-        if subagents:
-            self._renderer.render_message("system", f"Found {len(subagents)} subagent(s): {', '.join([s['name'] for s in subagents])}")
-            self._renderer.render_message("system", "Subagents are loaded on-demand. Use /load-subagent <name> to load a subagent.")
+        # Debug: Show available agents (metadata only)
+        agents = self._agent_loader.list_agents()
+        if agents:
+            self._renderer.render_message("system", f"Found {len(agents)} agent(s): {', '.join([s['name'] for s in agents])}")
+            self._renderer.render_message("system", "Agents are loaded on-demand. Use /load-agent <name> to load an agent.")
         else:
-            self._renderer.render_message("system", "No subagents found in ./subagents directory.")
+            self._renderer.render_message("system", "No agents found in ./agents directory.")
 
         while True:
             try:

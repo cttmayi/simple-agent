@@ -31,10 +31,10 @@ api:
   model: gpt-4o
 
 paths:
-  skills_dir: ./skills
-  subagents_dir: ./subagents
-  hooks_dir: ./hooks
-  commands_dir: ./commands
+  skills_dir: ./plugin/skills
+  agents_dir: ./plugin/agents
+  hooks_dir: ./plugin/hooks
+  commands_dir: ./plugin/commands
   tools_dir: ./tools
   memory_dir: ./memory
 
@@ -95,13 +95,16 @@ simple-agent
 ```
 simple-agent/
 ├── simple_agent/          # Core package
-├── skills/                 # Skill definitions
-├── subagents/              # Subagent definitions
-├── hooks/                  # Hook definitions
-├── commands/               # Command definitions
-├── tools/                  # Tool implementations
-├── memory/                 # Auto-generated memory
-└── AGENT.md                # Project-specific instructions
+├── .simple-agent/          # Configuration and runtime data
+│   ├── plugin/            # Plugins (skills, agents, hooks, commands)
+│   │   ├── skills/        # Skill definitions
+│   │   ├── agents/        # Agent definitions
+│   │   ├── hooks/         # Hook definitions
+│   │   └── commands/      # Command definitions
+│   ├── tools/             # Tool implementations
+│   ├── memory/            # Auto-generated memory
+│   └── logs/              # LLM request/response logs
+└── AGENT.md               # Project-specific instructions
 ```
 
 ## Development

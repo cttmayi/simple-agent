@@ -13,10 +13,10 @@ class APIConfig(BaseModel):
 
 
 class PathsConfig(BaseModel):
-    skills_dir: str = "./.simple-agent/skills"
-    subagents_dir: str = "./.simple-agent/subagents"
-    hooks_dir: str = "./.simple-agent/hooks"
-    commands_dir: str = "./.simple-agent/commands"
+    skills_dir: str = "./.simple-agent/plugin/skills"
+    agents_dir: str = "./.simple-agent/plugin/agents"
+    hooks_dir: str = "./.simple-agent/plugin/hooks"
+    commands_dir: str = "./.simple-agent/plugin/commands"
     tools_dir: str = "./.simple-agent/tools"
     memory_dir: str = "./.simple-agent/memory"
     logs_dir: str = "./.simple-agent/logs"

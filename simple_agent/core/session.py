@@ -8,7 +8,7 @@ class Session:
         self._messages: List[Dict[str, Any]] = []
         self._session_id: Optional[str] = None
         self._skills_loaded: set = set()
-        self._subagents_loaded: set = set()
+        self._agents_loaded: set = set()
 
     def load_from_log(self, log_file: Path) -> None:
         """Load conversation history from a log file.
@@ -18,7 +18,7 @@ class Session:
         """
         self._messages = []
         self._skills_loaded = set()
-        self._subagents_loaded = set()
+        self._agents_loaded = set()
         self._session_id = None
 
         if not log_file or not log_file.exists():
@@ -44,8 +44,8 @@ class Session:
                         })
                     elif entry.get("type") == "skill_loaded":
                         self._skills_loaded.add(entry.get("skill_name"))
-                    elif entry.get("type") == "subagent_loaded":
-                        self._subagents_loaded.add(entry.get("subagent_name"))
+                    elif entry.get("type") == "agent_loaded":
+                        self._agents_loaded.add(entry.get("agent_name"))
 
                 except (json.JSONDecodeError, KeyError):
                     continue
@@ -77,17 +77,17 @@ class Session:
         """Get set of loaded skill names."""
         return self._skills_loaded.copy()
 
-    def get_loaded_subagents(self) -> set:
-        """Get set of loaded subagent names."""
-        return self._subagents_loaded.copy()
+    def get_loaded_agents(self) -> set:
+        """Get set of loaded agent names."""
+        return self._agents_loaded.copy()
 
     def set_loaded_skills(self, skills: set) -> None:
         """Set loaded skills."""
         self._skills_loaded = skills.copy()
 
-    def set_loaded_subagents(self, subagents: set) -> None:
-        """Set loaded subagents."""
-        self._subagents_loaded = subagents.copy()
+    def set_loaded_agents(self, agents: set) -> None:
+        """Set loaded agents."""
+        self._agents_loaded = agents.copy()
 
     def get_context(self) -> str:
         """Get formatted context string."""

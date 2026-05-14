@@ -6,6 +6,6 @@ from simple_agent.tools.builtin.write import WRITE
 from simple_agent.tools.builtin.grep import GREP
 from simple_agent.tools.builtin.websearch import WebSearch
 from simple_agent.tools.builtin.load_skill import LoadSkill
-from simple_agent.tools.builtin.load_subagent import LoadSubagent
+from simple_agent.tools.builtin.load_agent import LoadAgent
 
-__all__ = ["BASH", "READ", "WRITE", "GREP", "WebSearch", "LoadSkill", "LoadSubagent"]
+__all__ = ["BASH", "READ", "WRITE", "GREP", "WebSearch", "LoadSkill", "LoadAgent"]

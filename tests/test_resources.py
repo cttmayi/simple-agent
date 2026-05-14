@@ -75,33 +75,33 @@ def test_skill_loader_get_content():
         assert "This is content." in content
 
 
-def test_subagent_loader_scan():
-    from simple_agent.resources.subagents import SubagentLoader
+def test_agent_loader_scan():
+    from simple_agent.resources.agents import AgentLoader
     with tempfile.TemporaryDirectory() as tmpdir:
-        # Create test subagent
+        # Create test agent
         agent_dir = Path(tmpdir) / "test-agent"
         agent_dir.mkdir()
         md_file = agent_dir / "AGENT.md"
         md_file.write_text("---\nname: test-agent\ndescription: A test agent\ntools: [Read, Glob]\ntype: explore\n---\n# Test Agent")
 
-        loader = SubagentLoader(Path(tmpdir))
-        agents = loader.list_subagents()
+        loader = AgentLoader(Path(tmpdir))
+        agents = loader.list_agents()
         assert len(agents) == 1
         assert agents[0]["name"] == "test-agent"
         assert agents[0]["metadata"]["type"] == "explore"
 
 
-def test_subagent_get_tools():
-    from simple_agent.resources.subagents import SubagentLoader
+def test_agent_get_tools():
+    from simple_agent.resources.agents import AgentLoader
     with tempfile.TemporaryDirectory() as tmpdir:
-        # Create test subagent
+        # Create test agent
         agent_dir = Path(tmpdir) / "test-agent"
         agent_dir.mkdir()
         md_file = agent_dir / "AGENT.md"
         md_file.write_text("---\nname: test-agent\ntools: [Read, Glob, Grep]\n---\n# Test Agent")
 
-        loader = SubagentLoader(Path(tmpdir))
-        tools = loader.get_subagent_tools("test-agent")
+        loader = AgentLoader(Path(tmpdir))
+        tools = loader.get_agent_tools("test-agent")
         assert tools == ["Read", "Glob", "Grep"]
 
 
