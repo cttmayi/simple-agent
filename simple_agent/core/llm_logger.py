@@ -157,7 +157,7 @@ class LLMLogger:
             return
 
         entry = {
-            "type": "skill_loaded",
+            "type": "SkillLoaded",
             "skill_name": skill_name,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
@@ -174,7 +174,7 @@ class LLMLogger:
             return
 
         entry = {
-            "type": "subagent_loaded",
+            "type": "SubagentLoaded",
             "subagent_name": subagent_name,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
@@ -306,11 +306,11 @@ def get_conversation(log_entries: List[Dict[str, Any]], request_id: str) -> Opti
                 "tool_call_id": entry.get("tool_call_id"),
                 "tool_calls": entry.get("tool_calls"),
             })
-        elif entry["type"] == "session_start":
+        elif entry["type"] == "SessionStart":
             conversation["session_id"] = entry.get("session_id")
-        elif entry["type"] == "skill_loaded":
+        elif entry["type"] == "SkillLoaded":
             conversation.setdefault("skills_loaded", set()).add(entry.get("skill_name"))
-        elif entry["type"] == "subagent_loaded":
+        elif entry["type"] == "SubagentLoaded":
             conversation.setdefault("subagents_loaded", set()).add(entry.get("subagent_name"))
 
     if conversation["request"] is None:
@@ -403,12 +403,12 @@ def get_all_conversations(log_dir: Optional[Path] = None) -> List[Dict[str, Any]
                                         "subagents_loaded": set(),
                                     }
 
-                            elif entry["type"] == "skill_loaded":
+                            elif entry["type"] == "SkillLoaded":
                                 request_id = entry.get("request_id")
                                 if request_id and request_id in conversations:
                                     conversations[request_id].setdefault("skills_loaded", set()).add(entry.get("skill_name"))
 
-                            elif entry["type"] == "subagent_loaded":
+                            elif entry["type"] == "SubagentLoaded":
                                 request_id = entry.get("request_id")
                                 if request_id and request_id in conversations:
                                     conversations[request_id].setdefault("subagents_loaded", set()).add(entry.get("subagent_name"))
