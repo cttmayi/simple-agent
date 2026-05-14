@@ -150,9 +150,6 @@ class Runtime:
 
             self._event_bus.subscribe(event_name, make_handler(hook, event_name))
 
-            # Publish hook_loaded event
-            self._event_bus.publish(Event("hook_loaded", {"hook_name": hook["event_name"]}))
-
     def _execute_hook(self, hook: Dict[str, Any], event: Event) -> Optional[dict]:
         """Execute hook.
 
