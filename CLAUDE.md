@@ -81,7 +81,9 @@ AI 期望的工具结果格式：
 
 ### 配置系统
 
-配置加载优先级：`~/.config/simple-agent/config.yml` → `./.simple-agent/config.yml` → 环境变量
+配置加载优先级：`环境变量` → `./.simple-agent/config.yml` → `plugin/config.yml` → `~/.config/simple-agent/config.yml` → 内置默认值
+
+Skills 路径默认在 `plugin/config.yml` 中配置，包含 `./plugin/skills` 和 `~/.agents/skills`。用户可以在项目配置中覆盖这些路径。
 
 使用环境变量覆盖：
 ```bash

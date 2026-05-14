@@ -31,7 +31,16 @@ Configuration can be set at multiple levels, with the following priority (highes
 
 ### Example Configuration
 
-Create a `.simple-agent/config.yml` file in your project:
+By default, the plugin configuration in `plugin/config.yml` includes:
+
+```yaml
+paths:
+  skills_dirs:
+    - ./plugin/skills      # Project-local skills
+    - ~/.agents/skills    # User's global skills directory
+```
+
+You can create a `.simple-agent/config.yml` file in your project to override these settings:
 
 ```yaml
 api:
