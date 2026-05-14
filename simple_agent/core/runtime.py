@@ -3,6 +3,7 @@ import sys
 import json
 from pathlib import Path
 from typing import Dict, List, Optional
+from rich.markup import escape
 from simple_agent.config.settings import Settings
 from simple_agent.api.client import APIClient
 from simple_agent.core.events import EventBus, Event, HookBlockedException, HookContext
@@ -425,10 +426,6 @@ class Runtime:
             else:
                 arguments = arg_data
 
-            # DEBUG: print arguments info
-            print(f"DEBUG: tool_name={tool_name}, arg_data type={type(arg_data)}, arg_data={arg_data}", file=sys.stderr, flush=True)
-            print(f"DEBUG: arguments={arguments}, type={type(arguments)}", file=sys.stderr, flush=True)
-
             # Build args string for display
             args_str = ""
             if arguments and isinstance(arguments, dict):
@@ -440,11 +437,8 @@ class Runtime:
                         if len(v_str) > 20:
                             v_str = v_str[:20] + "..."
                         args_parts.append(f"{k}={v_str}")
-                # DEBUG: print args_parts
-                print(f"DEBUG: args_parts={args_parts}", file=sys.stderr, flush=True)
                 if args_parts:
                     args_str = '[' + ', '.join(args_parts) + ']'
-                print(f"DEBUG: final args_str={args_str}", file=sys.stderr, flush=True)
 
             # Execute the tool
             result = self._tool_dispatcher.execute({
@@ -468,7 +462,7 @@ class Runtime:
             status = "[bold green]✓[/bold green]" if success else "[bold red]✗[/bold red]"
             # Use Rich to print checkmark with colors
             if args_str:
-                self._renderer.console.print(f"  {status} {tool_name} {args_str}")
+                self._renderer.console.print(f"  {status} {tool_name} {escape(args_str)}")
             else:
                 self._renderer.console.print(f"  {status} {tool_name}")
 
