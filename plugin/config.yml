@@ -2,12 +2,6 @@
 # This configuration applies to all projects using this plugin.
 # Project-specific configuration in .simple-agent/config.yml overrides these settings.
 
-api:
-  provider: openai  # or anthropic
-  base_url: https://api.openai.com/v1
-  # api_key: ${OPENAI_API_KEY}  # Set via environment variable
-  model: gpt-4o
-
 paths:
   skills_dirs:
     - ./plugin/skills
