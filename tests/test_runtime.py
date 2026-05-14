@@ -29,7 +29,7 @@ def test_runtime_load_agent_md():
     try:
         with tempfile.TemporaryDirectory() as tmpdir:
             os.chdir(tmpdir)
-            agent_dir = Path(tmpdir) / ".simple-agent" / "plugin"
+            agent_dir = Path(tmpdir) / "plugin"
             agent_dir.mkdir(parents=True)
             agent_md = agent_dir / "AGENT.md"
             agent_md.write_text("# Test Agent\n\nThis is a test.")

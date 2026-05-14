@@ -35,8 +35,8 @@ paths:
   agents_dir: ./plugin/agents
   hooks_dir: ./plugin/hooks
   commands_dir: ./plugin/commands
-  tools_dir: ./tools
-  memory_dir: ./memory
+  tools_dir: ./.simple-agent/tools
+  memory_dir: ./.simple-agent/memory
 
 ui:
   theme: dark
@@ -95,16 +95,17 @@ simple-agent
 ```
 simple-agent/
 ├── simple_agent/          # Core package
-├── .simple-agent/          # Configuration and runtime data
-│   ├── plugin/            # Plugins (skills, agents, hooks, commands)
-│   │   ├── skills/        # Skill definitions
-│   │   ├── agents/        # Agent definitions
-│   │   ├── hooks/         # Hook definitions
-│   │   └── commands/      # Command definitions
+├── plugin/                # Plugins (skills, agents, hooks, commands)
+│   ├── skills/            # Skill definitions
+│   ├── agents/            # Agent definitions
+│   ├── hooks/             # Hook definitions
+│   ├── commands/          # Command definitions
+│   └── AGENT.md           # Project-specific instructions
+├── .simple-agent/         # Configuration and runtime data
 │   ├── tools/             # Tool implementations
 │   ├── memory/            # Auto-generated memory
 │   └── logs/              # LLM request/response logs
-└── AGENT.md               # Project-specific instructions
+└── AGENT.md               # Project-specific instructions (optional, deprecated)
 ```
 
 ## Development

@@ -348,7 +348,7 @@ class Runtime:
 
     def get_agent_context(self) -> Optional[str]:
         """Load AGENT.md from plugin directory."""
-        agent_md = Path.cwd() / ".simple-agent" / "plugin" / "AGENT.md"
+        agent_md = Path.cwd() / "plugin" / "AGENT.md"
         if agent_md.exists():
             return agent_md.read_text()
         return None
@@ -628,7 +628,7 @@ class Runtime:
             self._renderer.render_message("system", f"Found {len(skills)} skill(s): {', '.join([s['name'] for s in skills])}")
             self._renderer.render_message("system", "Skills are loaded on-demand. Use /load-skill <name> to load a skill.")
         else:
-            self._renderer.render_message("system", "No skills found in ./.simple-agent/plugin/skills directory.")
+            self._renderer.render_message("system", "No skills found in ./plugin/skills directory.")
 
         # Debug: Show available agents (metadata only)
         agents = self._agent_loader.list_agents()
@@ -636,7 +636,7 @@ class Runtime:
             self._renderer.render_message("system", f"Found {len(agents)} agent(s): {', '.join([s['name'] for s in agents])}")
             self._renderer.render_message("system", "Agents are loaded on-demand. Use /load-agent <name> to load an agent.")
         else:
-            self._renderer.render_message("system", "No agents found in ./.simple-agent/plugin/agents directory.")
+            self._renderer.render_message("system", "No agents found in ./plugin/agents directory.")
 
         while True:
             try:

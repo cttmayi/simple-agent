@@ -14,7 +14,7 @@ def test_load_default_config():
             config = load_config()
             assert config.api.provider == "openai"
             assert config.api.model == "gpt-4o"
-            assert config.paths.skills_dir == "./.simple-agent/plugin/skills"
+            assert config.paths.skills_dir == "./plugin/skills"
             assert config.paths.memory_dir == "./.simple-agent/memory"
         finally:
             os.chdir(old_cwd)
