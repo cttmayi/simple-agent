@@ -422,20 +422,17 @@ class Runtime:
 
             # Build args string for display
             args_str = ""
-            if arguments:
+            if arguments and isinstance(arguments, dict):
                 args_parts = []
                 for k, v in arguments.items():
-                    if k not in ["cwd", "timeout", "case_sensitive"]:  # Skip internal params
+                    # Skip internal params
+                    if k not in ["cwd", "timeout", "case_sensitive"]:
                         v_str = str(v)
                         if len(v_str) > 20:
                             v_str = v_str[:20] + "..."
                         args_parts.append(f"{k}={v_str}")
                 if args_parts:
                     args_str = '[' + ', '.join(args_parts) + ']'
-
-            # Show which tool is being executed (only for bash)
-            if tool_name == "bash":
-                print(f"Running {tool_name} {args_str}", flush=True)
 
             # Execute the tool
             result = self._tool_dispatcher.execute({
@@ -453,12 +450,15 @@ class Runtime:
                     result=result,
                 )
 
-            # Show completion status with checkmark (overwrite the "Running" line)
+            # Show completion status with checkmark
             tool_result = result.get("result", result)
             success = tool_result.get("success", True)
             status = "[bold green]✓[/bold green]" if success else "[bold red]✗[/bold red]"
             # Use Rich to print checkmark with colors
-            self._renderer.console.print(f"  {status} {tool_name} {args_str}")
+            if args_str:
+                self._renderer.console.print(f"  {status} {tool_name} {args_str}")
+            else:
+                self._renderer.console.print(f"  {status} {tool_name}")
 
             # Render tool result to user in CLI
             self._renderer.render_tool_result(tool_name, result, arguments)
