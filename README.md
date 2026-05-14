@@ -21,13 +21,23 @@ pip install -e .
 
 ## Configuration
 
-Create a `.simple-agent/config.yml` file:
+Configuration can be set at multiple levels, with the following priority (highest to lowest):
+
+1. **Environment variables** - Override all other settings
+2. **Local config** - `.simple-agent/config.yml` (project-specific, highest priority)
+3. **Plugin config** - `plugin/config.yml` (plugin-level defaults)
+4. **User config** - `~/.config/simple-agent/config.yml` (user-level settings)
+5. **Defaults** - Built-in default values
+
+### Example Configuration
+
+Create a `.simple-agent/config.yml` file in your project:
 
 ```yaml
 api:
   provider: openai  # or anthropic
   base_url: https://api.openai.com/v1
-  api_key: ${OPENAI_API_KEY}
+  api_key: ${OPENAI_API_KEY}  # Can reference environment variables
   model: gpt-4o
 
 paths:
@@ -46,7 +56,7 @@ ui:
 
 logging:
   enabled: true
-  log_dir: ./logs/llm  # Optional, defaults to ./logs/llm
+  log_dir: ./logs/llm  # Optional, defaults to ./.simple-agent/logs
 ```
 
 ### Log Analysis

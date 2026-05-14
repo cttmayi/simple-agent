@@ -56,21 +56,26 @@ def _load_yaml_config(path: Path) -> dict:
 
 
 def load_config() -> Settings:
-    """Load configuration with priority: CLI args > ENV > file > defaults."""
+    """Load configuration with priority: CLI args > ENV > local > plugin > user > defaults."""
     config_data = {}
 
-    # Check local config
-    local_config = Path.cwd() / ".simple-agent" / "config.yml"
-    if local_config.exists():
-        config_data.update(_load_yaml_config(local_config))
-
-    # Check user config
+    # Start with user config as base
     user_config = Path.home() / ".config" / "simple-agent" / "config.yml"
     if user_config.exists():
-        # User config should be loaded before local, but local takes priority
-        user_data = _load_yaml_config(user_config)
-        # Merge with user as base, local overrides
-        merged = {**user_data, **config_data}
+        config_data.update(_load_yaml_config(user_config))
+
+    # Then plugin config (overrides user)
+    plugin_config = Path.cwd() / "plugin" / "config.yml"
+    if plugin_config.exists():
+        # Merge with plugin as base
+        merged = {**config_data, **_load_yaml_config(plugin_config)}
+        config_data = merged
+
+    # Then local config (highest priority, overrides everything)
+    local_config = Path.cwd() / ".simple-agent" / "config.yml"
+    if local_config.exists():
+        # Merge with local as base
+        merged = {**config_data, **_load_yaml_config(local_config)}
         config_data = merged
 
     # Apply environment variable overrides

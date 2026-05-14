@@ -1,0 +1,28 @@
+# Simple Agent Configuration (Plugin Level)
+# This configuration applies to all projects using this plugin.
+# Project-specific configuration in .simple-agent/config.yml overrides these settings.
+
+api:
+  provider: openai  # or anthropic
+  base_url: https://api.openai.com/v1
+  # api_key: ${OPENAI_API_KEY}  # Set via environment variable
+  model: gpt-4o
+
+paths:
+  skills_dirs:
+    - ./plugin/skills
+    - ~/.agents/skills
+  agents_dir: ./plugin/agents
+  hooks_dir: ./plugin/hooks
+  commands_dir: ./plugin/commands
+  tools_dir: ./.simple-agent/tools
+  memory_dir: ./.simple-agent/memory
+  logs_dir: ./.simple-agent/logs
+
+ui:
+  theme: dark
+  show_thinking: true
+
+logging:
+  enabled: true
+  # log_dir: ./.simple-agent/logs  # Optional, defaults to ./.simple-agent/logs
