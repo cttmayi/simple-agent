@@ -418,7 +418,17 @@ class Runtime:
         # Execute each tool call and show details
         for tool_call in msg["tool_calls"]:
             tool_name = tool_call["function"]["name"]
-            arguments = json.loads(tool_call["function"]["arguments"])
+            # Handle both JSON string and already-parsed dict
+            arg_data = tool_call["function"]["arguments"]
+            if isinstance(arg_data, str):
+                arguments = json.loads(arg_data)
+            else:
+                arguments = arg_data
+
+            # DEBUG: print arguments info
+            import sys
+            print(f"DEBUG: tool_name={tool_name}, arg_data type={type(arg_data)}, arg_data={arg_data}", file=sys.stderr, flush=True)
+            print(f"DEBUG: arguments={arguments}, type={type(arguments)}", file=sys.stderr, flush=True)
 
             # Build args string for display
             args_str = ""
