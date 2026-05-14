@@ -499,7 +499,17 @@ class Runtime:
                 elif "content" in tool_result:
                     # File read - show content
                     content = tool_result.get("content", "")
-                    if len(content) > 500:
+                    # Always include truncation message if present
+                    has_truncation_msg = '[文件已被截断' in content
+                    if has_truncation_msg:
+                        # Find truncation message and ensure it's included
+                        lines = content.split('\n')
+                        truncation_start = next((i for i, line in enumerate(lines) if '[文件已被截断' in line), len(lines))
+                        # Show first part of content + truncation message
+                        content_lines = lines[:5] + lines[truncation_start:]
+                        content = '\n'.join(content_lines)
+                    elif len(content) > 500:
+                        # No truncation message, just limit length
                         content = content[:500] + "..."
                     tool_content = f"Content:\n{content}"
                 elif "matches" in tool_result:
