@@ -143,10 +143,8 @@ def test_hook_get_events():
 def test_command_loader_scan():
     from simple_agent.resources.commands import CommandLoader
     with tempfile.TemporaryDirectory() as tmpdir:
-        # Create test command
-        cmd_dir = Path(tmpdir) / "test-cmd"
-        cmd_dir.mkdir()
-        md_file = cmd_dir / "COMMAND.md"
+        # Create test command as flat .md file
+        md_file = Path(tmpdir) / "test-cmd.md"
         md_file.write_text("---\nname: test-cmd\nusage: /test [args]\n---\n# Test Command")
 
         loader = CommandLoader(Path(tmpdir))
@@ -159,10 +157,8 @@ def test_command_loader_scan():
 def test_command_get_usage():
     from simple_agent.resources.commands import CommandLoader
     with tempfile.TemporaryDirectory() as tmpdir:
-        # Create test command
-        cmd_dir = Path(tmpdir) / "test-cmd"
-        cmd_dir.mkdir()
-        md_file = cmd_dir / "COMMAND.md"
+        # Create test command as flat .md file
+        md_file = Path(tmpdir) / "test-cmd.md"
         md_file.write_text("---\nname: test-cmd\nusage: /test <arg1> [arg2]\n---\n# Test Command")
 
         loader = CommandLoader(Path(tmpdir))
@@ -173,10 +169,8 @@ def test_command_get_usage():
 def test_command_get_usage_default():
     from simple_agent.resources.commands import CommandLoader
     with tempfile.TemporaryDirectory() as tmpdir:
-        # Create test command without usage in metadata
-        cmd_dir = Path(tmpdir) / "test-cmd"
-        cmd_dir.mkdir()
-        md_file = cmd_dir / "COMMAND.md"
+        # Create test command without usage in metadata as flat .md file
+        md_file = Path(tmpdir) / "test-cmd.md"
         md_file.write_text("---\nname: test-cmd\ndescription: A test command\n---\n# Test Command")
 
         loader = CommandLoader(Path(tmpdir))
