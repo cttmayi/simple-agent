@@ -375,29 +375,186 @@ class Runtime:
 
     def _handle_slash_command(self, command: str, args: List[str]) -> str:
         """Handle a slash command."""
+        # Handle builtin commands first
         if command == "help":
-            skills = self._skill_loader.list_skills()
-            agents = self._agent_loader.list_agents()
-            help_text = "# Available Commands\n\n- `/help` - Show this help message\n- `/exit` - Exit the agent\n\n"
-            help_text += "AI can automatically load skills and agents by mentioning them in your request.\n"
-
-            if skills:
-                help_text += "\n# Available Skills\n\n"
-                for skill in skills:
-                    help_text += f"- **{skill['name']}**: {skill['description']}\n"
-
-            if agents:
-                help_text += "\n# Available Agents\n\n"
-                for agent in agents:
-                    tools = agent['metadata'].get('tools', [])
-                    tools_str = ', '.join(tools) if tools else 'all tools'
-                    help_text += f"- **{agent['name']}**: {agent['description']}\n"
-                    help_text += f"  Tools: {tools_str}\n"
-
-            return help_text
+            return self._cmd_help()
         elif command == "exit" or command == "quit":
             return "exit"
+
+        # Handle special commands with actions
+        if command == "clear":
+            self._session.clear()
+            self._loaded_skills.clear()
+            self._loaded_agents.clear()
+            return self._load_command("clear", args)
+        elif command == "reset":
+            self._session.clear()
+            self._loaded_skills.clear()
+            self._loaded_agents.clear()
+            return self._load_command("reset", args)
+
+        # Handle custom commands
+        command_result = self._load_command(command, args)
+        if command_result:
+            return command_result
+
         return f"Unknown command: /{command}"
+
+    def _cmd_help(self) -> str:
+        """Generate help text."""
+        skills = self._skill_loader.list_skills()
+        agents = self._agent_loader.list_agents()
+        commands = self._command_loader.list_commands()
+
+        help_text = "# Available Commands\n\n"
+        help_text += "## Builtin Commands\n"
+        help_text += "- `/help` - Show this help message\n"
+        help_text += "- `/exit` - Exit the agent\n"
+        help_text += "- `/clear` - Clear conversation history\n"
+        help_text += "- `/reset` - Reset session (clear history and unload skills/agents)\n\n"
+
+        if commands:
+            help_text += "## Custom Commands\n"
+            for cmd in commands:
+                usage = cmd["metadata"].get("usage", f"/{cmd['name']}")
+                desc = cmd["metadata"].get("description", "")
+                help_text += f"- `{usage}` - {desc}\n"
+            help_text += "\n"
+
+        help_text += "AI can automatically load skills and agents by mentioning them in your request.\n"
+
+        if skills:
+            help_text += "\n# Available Skills\n\n"
+            for skill in skills:
+                help_text += f"- **{skill['name']}**: {skill['description']}\n"
+
+        if agents:
+            help_text += "\n# Available Agents\n\n"
+            for agent in agents:
+                tools = agent['metadata'].get('tools', [])
+                tools_str = ', '.join(tools) if tools else 'all tools'
+                help_text += f"- **{agent['name']}**: {agent['description']}\n"
+                help_text += f"  Tools: {tools_str}\n"
+
+        return help_text
+
+    def _load_command(self, command_name: str, args: List[str]) -> Optional[str]:
+        """Load and execute a custom command.
+
+        Args:
+            command_name: Name of the command
+            args: Command arguments
+
+        Returns:
+            Command result or None if command not found
+        """
+        try:
+            commands = self._command_loader.list_commands()
+            for cmd in commands:
+                if cmd["name"] == command_name:
+                    # Get the content (markdown without frontmatter)
+                    content = cmd.get("content", "")
+
+                    # Replace template variables
+                    content = self._replace_command_variables(content)
+
+                    return content
+            return None
+        except Exception as e:
+            return f"Error loading command: {str(e)}"
+
+    def _replace_command_variables(self, content: str) -> str:
+        """Replace template variables in command content.
+
+        Args:
+            content: Content with template variables
+
+        Returns:
+            Content with variables replaced
+        """
+        import re
+
+        # Session info
+        session_id = self._session_id or "N/A"
+        message_count = len(self._session.get_messages())
+
+        # Configuration
+        api_provider = self._config.api.provider
+        model = self._config.api.model
+        base_url = self._config.api.base_url or "default"
+
+        # Paths
+        skills_dirs = ", ".join(self._config.paths.skills_dirs)
+        agents_dir = self._config.paths.agents_dir
+        hooks_dir = self._config.paths.hooks_dir
+        commands_dir = self._config.paths.commands_dir
+
+        # UI
+        theme = self._config.ui.theme
+        show_thinking = self._config.ui.show_thinking
+
+        # Logging
+        logging_enabled = self._config.logging.enabled
+        log_dir = self._config.logging.log_dir or "default"
+
+        # Resources
+        skills = self._skill_loader.list_skills()
+        agents = self._agent_loader.list_agents()
+        total_skills = len(skills)
+        total_agents = len(agents)
+        loaded_skills = self._loaded_skills
+        loaded_agents = self._loaded_agents
+
+        # Skills list
+        skills_list = "\n".join([f"- **{s['name']}**: {s['description']}" for s in skills])
+        loaded_skills_list = "\n".join([f"- **{s}**" for s in sorted(loaded_skills)]) if loaded_skills else "None"
+
+        # Agents list
+        agents_list = "\n".join([f"- **{a['name']}**: {a['description']}" for a in agents])
+        loaded_agents_list = "\n".join([f"- **{a}**" for a in sorted(loaded_agents)]) if loaded_agents else "None"
+
+        # Replace variables
+        replacements = {
+            # Session
+            '{session_id}': session_id,
+            '{message_count}': message_count,
+
+            # Configuration
+            '{api_provider}': api_provider,
+            '{model}': model,
+            '{base_url}': base_url,
+
+            # Paths
+            '{skills_dirs}': skills_dirs,
+            '{agents_dir}': agents_dir,
+            '{hooks_dir}': hooks_dir,
+            '{commands_dir}': commands_dir,
+
+            # UI
+            '{theme}': theme,
+            '{show_thinking}': str(show_thinking),
+
+            # Logging
+            '{logging_enabled}': str(logging_enabled),
+            '{log_dir}': log_dir,
+
+            # Resources
+            '{skills_count}': str(len(loaded_skills)),
+            '{agents_count}': str(len(loaded_agents)),
+            '{total_skills}': str(total_skills),
+            '{total_agents}': str(total_agents),
+
+            # Lists
+            '{skills_list}': skills_list,
+            '{loaded_skills}': loaded_skills_list,
+            '{agents_list}': agents_list,
+            '{loaded_agents}': loaded_agents_list,
+        }
+
+        for var, value in replacements.items():
+            content = content.replace(var, value)
+
+        return content
 
     def _handle_tool_calls_in_message(
         self, msg: Dict[str, Any], response: List[Dict[str, Any]], request_id: Optional[str] = None
