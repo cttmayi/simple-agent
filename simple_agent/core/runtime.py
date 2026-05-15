@@ -517,7 +517,7 @@ class Runtime:
         replacements = {
             # Session
             '{session_id}': session_id,
-            '{message_count}': message_count,
+            '{message_count}': str(message_count),
 
             # Configuration
             '{api_provider}': api_provider,
