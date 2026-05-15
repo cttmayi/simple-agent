@@ -42,3 +42,21 @@ def test_command_usage():
         usage = cmd['metadata'].get('usage')
         assert usage is not None
         assert usage.startswith('/')  # usage should start with /
+
+def test_get_command():
+    """Test that we can get a specific command."""
+    loader = CommandLoader('plugin/commands')
+    version_cmd = loader.get_command('version')
+
+    assert version_cmd is not None
+    assert version_cmd['name'] == 'version'
+    assert 'content' in version_cmd
+
+def test_command_usage_method():
+    """Test that get_command_usage works."""
+    loader = CommandLoader('plugin/commands')
+    usage = loader.get_command_usage('status')
+
+    assert usage is not None
+    assert usage.startswith('/')
+    assert 'status' in usage

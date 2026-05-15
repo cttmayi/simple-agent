@@ -1,10 +1,10 @@
 # Commands
 
-This directory contains custom slash commands for simple-agent.
+This directory contains custom slash commands for simple-agent as flat `.md` files.
 
 ## Command Format
 
-Each command is a subdirectory containing a `COMMAND.md` file with frontmatter:
+Each command is a `.md` file with frontmatter:
 
 ```markdown
 ---
@@ -53,8 +53,8 @@ You can use template variables:
 
 ## Creating a New Command
 
-1. Create a new directory in `plugin/commands/`
-2. Create a `COMMAND.md` file with frontmatter and content
+1. Create a new `.md` file in `plugin/commands/`
+2. Add frontmatter and content
 3. Restart simple-agent
 4. Use `/help` to see your new command
 
@@ -67,6 +67,8 @@ These commands are handled by the runtime and cannot be overridden:
 - `/quit` - Alias for `/exit`
 
 ## Example
+
+Create `plugin/commands/greet.md`:
 
 ```markdown
 ---
