@@ -129,6 +129,36 @@ simple-agent/
 └── AGENT.md               # Project-specific instructions (optional, deprecated)
 ```
 
+## Usage
+
+```bash
+simple-agent
+```
+
+### Slash Commands
+
+Simple Agent supports slash commands for quick operations. See [Commands Documentation](docs/commands.md) for details.
+
+```bash
+> /help          # Show all available commands
+> /version       # Show version information
+> /status        # Show session status
+> /clear         # Clear conversation history
+> /reset         # Reset session (clear history + unload skills/agents)
+```
+
+### Plugin System
+
+The `plugin/` directory houses all custom extensions:
+
+- **skills/** - Markdown-based knowledge documents
+- **agents/** - Specialized AI agents
+- **hooks/** - Event-driven plugins
+- **commands/** - Custom slash commands
+- **AGENT.md** - Project-specific instructions
+
+See [Commands Documentation](docs/commands.md) for creating custom commands.
+
 ## Development
 
 Run tests:
@@ -136,3 +166,7 @@ Run tests:
 ```bash
 pytest
 ```
+
+## Documentation
+
+- [Commands Documentation](docs/commands.md) - Creating and using custom slash commands
