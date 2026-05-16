@@ -235,3 +235,50 @@ class TodoManager:
 
         self._save()
         return True, "Task updated", task
+
+    def get_task_tree(self) -> List[Dict[str, Any]]:
+        """获取任务的树形结构表示。
+
+        Returns:
+            根任务列表（每个根任务包含其子任务树）
+        """
+        # 找出所有根任务（没有 parent_id 的任务）
+        root_tasks = [
+            task for task in self._tasks.values()
+            if task.parent_id is None and task.status != "deleted"
+        ]
+
+        def build_tree(task: Task) -> Dict[str, Any]:
+            """递归构建任务树。"""
+            result = task.to_dict()
+            children = []
+            for child_id in task.subtasks:
+                child = self._tasks.get(child_id)
+                if child and child.status != "deleted":
+                    children.append(build_tree(child))
+            result["children"] = children
+            return result
+
+        return [build_tree(task) for task in root_tasks]
+
+    def get_task_with_subtasks(self, task_id: str) -> Optional[Dict[str, Any]]:
+        """获取任务及其子任务树。
+
+        Args:
+            task_id: 任务 ID
+
+        Returns:
+            包含子任务的任务字典，如果任务不存在返回 None
+        """
+        task = self._tasks.get(task_id)
+        if not task or task.status == "deleted":
+            return None
+
+        result = task.to_dict()
+        children = []
+        for child_id in task.subtasks:
+            child_data = self.get_task_with_subtasks(child_id)
+            if child_data:
+                children.append(child_data)
+        result["children"] = children
+        return result

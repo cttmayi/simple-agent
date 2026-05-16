@@ -156,3 +156,68 @@ class TestUpdateTask:
         assert success is True
         assert updated.parent_id is None
         assert child.id not in parent.subtasks
+
+
+class TestTaskTree:
+    """测试任务树结构。"""
+
+    def test_get_task_tree_basic(self, temp_manager):
+        """测试获取基本任务树。"""
+        _, _, task1 = temp_manager.create_task(subject="任务1")
+        _, _, task2 = temp_manager.create_task(subject="任务2")
+
+        tree = temp_manager.get_task_tree()
+        assert len(tree) == 2
+        assert tree[0]["subject"] == "任务1"
+        assert tree[1]["subject"] == "任务2"
+
+    def test_get_task_tree_with_subtasks(self, temp_manager):
+        """测试获取带子任务的任务树。"""
+        _, _, parent = temp_manager.create_task(subject="父任务")
+        _, _, child1 = temp_manager.create_task(subject="子任务1", parent_id=parent.id)
+        _, _, child2 = temp_manager.create_task(subject="子任务2", parent_id=parent.id)
+
+        tree = temp_manager.get_task_tree()
+        assert len(tree) == 1
+        assert tree[0]["subject"] == "父任务"
+        assert "children" in tree[0]
+        assert len(tree[0]["children"]) == 2
+        assert tree[0]["children"][0]["subject"] == "子任务1"
+        assert tree[0]["children"][1]["subject"] == "子任务2"
+
+    def test_get_task_with_subtasks(self, temp_manager):
+        """测试获取带子任务的任务。"""
+        _, _, parent = temp_manager.create_task(subject="父任务")
+        _, _, child = temp_manager.create_task(subject="子任务", parent_id=parent.id)
+
+        result = temp_manager.get_task_with_subtasks(parent.id)
+        assert result is not None
+        assert result["subject"] == "父任务"
+        assert "children" in result
+        assert len(result["children"]) == 1
+        assert result["children"][0]["subject"] == "子任务"
+
+
+class TestPersistence:
+    """测试持久化。"""
+
+    def test_tasks_saved_to_file(self, temp_manager):
+        """测试任务保存到文件。"""
+        temp_manager.create_task(subject="持久化测试")
+
+        # 创建新管理器，应该能加载之前保存的任务
+        new_manager = TodoManager(todos_path=str(temp_manager._todos_path))
+        tasks = new_manager.get_all_tasks()
+        assert len(tasks) == 1
+        assert tasks[0]["subject"] == "持久化测试"
+
+    def test_deleted_tasks_not_in_tree(self, temp_manager):
+        """测试已删除任务不出现在树中。"""
+        _, _, parent = temp_manager.create_task(subject="父任务")
+        _, _, child = temp_manager.create_task(subject="子任务", parent_id=parent.id)
+
+        # 删除子任务
+        temp_manager.update_task(child.id, status="deleted")
+
+        tree = temp_manager.get_task_tree()
+        assert len(tree[0]["children"]) == 0
