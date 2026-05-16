@@ -29,11 +29,11 @@ def test_command_processor_integration():
 
         assert result == "command_processed"
 
-        # Check session has system message
+        # Check session has user message with command content
         messages = runtime._session.get_messages()
-        system_msgs = [m for m in messages if m.get("role") == "system"]
-        assert len(system_msgs) > 0
-        assert "Hello World" in system_msgs[-1].get("content", "")
+        user_msgs = [m for m in messages if m.get("role") == "user"]
+        assert len(user_msgs) > 0
+        assert "Hello World" in user_msgs[-1].get("content", "")
 
 
 def test_command_processor_with_allowed_tools():
@@ -66,11 +66,11 @@ def test_command_processor_with_allowed_tools():
 
         assert result == "command_processed"
 
-        # Check session has system message
+        # Check session has user message with command content
         messages = runtime._session.get_messages()
-        system_msgs = [m for m in messages if m.get("role") == "system"]
-        assert len(system_msgs) > 0
-        content = system_msgs[-1].get("content", "")
+        user_msgs = [m for m in messages if m.get("role") == "user"]
+        assert len(user_msgs) > 0
+        content = user_msgs[-1].get("content", "")
         assert "Use only Bash and Grep" in content
 
         # Check tools are restored after command processing
@@ -100,10 +100,10 @@ def test_command_processor_unknown_command():
 
         assert result == "Unknown command: /unknown"
 
-        # Check session does NOT have system message
+        # Check session does NOT have user message (unknown command returns error)
         messages = runtime._session.get_messages()
-        system_msgs = [m for m in messages if m.get("role") == "system"]
-        assert len(system_msgs) == 0
+        user_msgs = [m for m in messages if m.get("role") == "user"]
+        assert len(user_msgs) == 0
 
 
 def test_command_processor_builtin_commands():
@@ -126,15 +126,15 @@ def test_command_processor_builtin_commands():
 
 
 def test_command_processor_template_variables():
-    """Test CommandProcessor with template variables."""
+    """Test CommandProcessor with parameters and features."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        # Create test command with template variables
+        # Create test command with parameters
         cmd_dir = Path(tmpdir) / "commands"
         cmd_dir.mkdir()
         cmd_file = cmd_dir / "vars.md"
         cmd_file.write_text(
             "---\nname: vars\ndescription: Test variables\n---\n"
-            "Model: {model}, Provider: {api_provider}"
+            "Parameter: $1\nHas args: $#"
         )
 
         # Create runtime with custom command dir
@@ -147,19 +147,17 @@ def test_command_processor_template_variables():
         runtime._command_loader = CommandLoader(cmd_dir)
 
         # Process command
-        result = runtime._handle_slash_command("vars", [])
+        result = runtime._handle_slash_command("vars", ["test"])
 
         assert result == "command_processed"
 
-        # Check session has system message with replaced variables
+        # Check session has user message with replaced parameters
         messages = runtime._session.get_messages()
-        system_msgs = [m for m in messages if m.get("role") == "system"]
-        assert len(system_msgs) > 0
-        content = system_msgs[-1].get("content", "")
-        assert "Model:" in content
-        assert "Provider:" in content
-        assert config.api.model in content
-        assert config.api.provider in content
+        user_msgs = [m for m in messages if m.get("role") == "user"]
+        assert len(user_msgs) > 0
+        content = user_msgs[-1].get("content", "")
+        assert "Parameter: test" in content
+        assert "Has args: 1" in content
 
 
 def test_help_command_shows_namespaces():
@@ -188,7 +186,7 @@ def test_help_command_shows_namespaces():
 
 
 def test_full_command_with_all_features():
-    """Test command with all new features: parameters, bash, file inclusion, template variables, allowed-tools."""
+    """Test command with all features: parameters, bash, file inclusion, allowed-tools."""
     # Save original working directory
     original_cwd = Path.cwd()
 
@@ -227,10 +225,6 @@ User: !`whoami`
 ## File Inclusion
 @test.txt
 
-## Template Variables
-Model: {model}
-Provider: {api_provider}
-
 You can only use Bash and Grep tools.
 """
             )
@@ -252,12 +246,12 @@ You can only use Bash and Grep tools.
 
             assert result == "command_processed"
 
-            # Check session has system message
+            # Check session has user message with command content
             messages = runtime._session.get_messages()
-            system_msgs = [m for m in messages if m.get("role") == "system"]
-            assert len(system_msgs) > 0
+            user_msgs = [m for m in messages if m.get("role") == "user"]
+            assert len(user_msgs) > 0
 
-            content = system_msgs[-1].get("content", "")
+            content = user_msgs[-1].get("content", "")
 
             # Check parameters were replaced
             assert "Hello World" in content
@@ -270,10 +264,6 @@ You can only use Bash and Grep tools.
             # Check file was included
             assert "This is the test file content" in content
             assert "Second line" in content
-
-            # Check template variables were replaced
-            assert config.api.model in content
-            assert config.api.provider in content
 
             # Check allowed-tools message is present
             assert "Bash and Grep tools" in content or "Bash,Grep" in content

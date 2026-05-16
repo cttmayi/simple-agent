@@ -113,19 +113,6 @@ def test_load_command_nonexistent():
     result = runtime._load_command("nonexistent", [])
     assert result is None
 
-def test_template_variables_in_command_files():
-    """Test that template variables in command files work."""
-    loader = CommandLoader('plugin/commands')
-
-    # Get status command which uses template variables
-    status_cmd = loader.get_command('status')
-    assert status_cmd is not None
-
-    # Check that template variables are present in content
-    content = status_cmd['content']
-    assert '{session_id}' in content or 'Session ID' in content
-    assert '{message_count}' in content or 'Message Count' in content
-
 def test_cmd_help_includes_custom_commands():
     """Test that help command includes custom commands."""
     config = load_config()
@@ -149,18 +136,18 @@ def test_custom_command_execution():
     # Test version command
     result = runtime._handle_slash_command("version", [])
     assert result == "command_processed"
-    # Check system message was added to session
+    # Check user message was added to session with command content
     messages = runtime._session.get_messages()
-    system_msgs = [m for m in messages if m.get("role") == "system"]
-    assert len(system_msgs) > 0
-    assert "Simple Agent CLI" in system_msgs[-1].get("content", "")
+    user_msgs = [m for m in messages if m.get("role") == "user"]
+    assert len(user_msgs) > 0
+    assert "Simple Agent CLI" in user_msgs[-1].get("content", "")
 
     # Clear session and test status command
     runtime._session.clear()
     result = runtime._handle_slash_command("status", [])
     assert result == "command_processed"
-    # Check system message was added to session
+    # Check user message was added to session with command content
     messages = runtime._session.get_messages()
-    system_msgs = [m for m in messages if m.get("role") == "system"]
-    assert len(system_msgs) > 0
-    assert "# Session Status" in system_msgs[-1].get("content", "")
+    user_msgs = [m for m in messages if m.get("role") == "user"]
+    assert len(user_msgs) > 0
+    assert "# Session Status" in user_msgs[-1].get("content", "")

@@ -411,8 +411,8 @@ class Runtime:
         else:
             saved_tools = None
 
-        # Add to session as system message
-        self._session.add_message("system", processed.content)
+        # Add command content as user message (no prefix)
+        self._session.add_message("user", processed.content)
 
         # Restore tools
         if saved_tools:
@@ -782,6 +782,11 @@ class Runtime:
         if self._agents_context:
             system_parts.append(self._agents_context)
 
+        # Add command system messages (from slash commands)
+        for msg in messages:
+            if msg.get("role") == "system" and msg.get("content"):
+                system_parts.append(msg["content"])
+
         # Prepare messages for API
         api_messages = []
 
@@ -792,7 +797,7 @@ class Runtime:
                 "content": "\n\n".join(system_parts)
             })
 
-        # Add session messages (skip system messages since they're already in system_parts)
+        # Add non-system session messages (user, assistant, tool)
         for msg in messages:
             if msg.get("role") != "system":
                 api_messages.append(msg)

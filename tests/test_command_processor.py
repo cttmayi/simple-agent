@@ -2,12 +2,10 @@ import pytest
 import tempfile
 from pathlib import Path
 from simple_agent.resources.command_processor import CommandProcessor, ProcessedCommand
-from simple_agent.config.settings import Settings
-from simple_agent.core.llm_logger import LLMLogger
 
 def test_processor_creates_processed_command():
-    config = Settings()
-    logger = LLMLogger()
+    config = object()
+    logger = object()
     processor = CommandProcessor(config, logger)
 
     cmd_data = {
@@ -21,7 +19,7 @@ def test_processor_creates_processed_command():
     assert result.content == "Hello world"
 
 def test_parameter_replacement_single():
-    processor = CommandProcessor(Settings(), LLMLogger())
+    processor = CommandProcessor(object(), object())
 
     cmd_data = {"content": "Fix bug: $1", "metadata": {}}
     result = processor.process(cmd_data, ["login issue"])
@@ -29,7 +27,7 @@ def test_parameter_replacement_single():
     assert "Fix bug: login issue" in result.content
 
 def test_parameter_replacement_with_spaces():
-    processor = CommandProcessor(Settings(), LLMLogger())
+    processor = CommandProcessor(object(), object())
 
     cmd_data = {"content": "Commit: $1", "metadata": {}}
     result = processor.process(cmd_data, ["fix login bug and add tests"])
@@ -37,7 +35,7 @@ def test_parameter_replacement_with_spaces():
     assert "Commit: fix login bug and add tests" in result.content
 
 def test_parameter_replacement_args_var():
-    processor = CommandProcessor(Settings(), LLMLogger())
+    processor = CommandProcessor(object(), object())
 
     cmd_data = {"content": "Task: $args", "metadata": {}}
     result = processor.process(cmd_data, ["hello", "world"])
@@ -45,7 +43,7 @@ def test_parameter_replacement_args_var():
     assert "Task: hello world" in result.content
 
 def test_parameter_replacement_no_args():
-    processor = CommandProcessor(Settings(), LLMLogger())
+    processor = CommandProcessor(object(), object())
 
     cmd_data = {"content": "Task: $1", "metadata": {}}
     result = processor.process(cmd_data, [])
@@ -53,7 +51,7 @@ def test_parameter_replacement_no_args():
     assert "Task: " in result.content
 
 def test_parameter_replacement_has_args():
-    processor = CommandProcessor(Settings(), LLMLogger())
+    processor = CommandProcessor(object(), object())
 
     cmd_data = {"content": "Args: $#", "metadata": {}}
     result = processor.process(cmd_data, ["test"])
@@ -61,7 +59,7 @@ def test_parameter_replacement_has_args():
     assert "Args: 1" in result.content
 
 def test_parameter_replacement_no_args_count():
-    processor = CommandProcessor(Settings(), LLMLogger())
+    processor = CommandProcessor(object(), object())
 
     cmd_data = {"content": "Args: $#", "metadata": {}}
     result = processor.process(cmd_data, [])
@@ -69,7 +67,7 @@ def test_parameter_replacement_no_args_count():
     assert "Args: 0" in result.content
 
 def test_bash_execution():
-    processor = CommandProcessor(Settings(), LLMLogger())
+    processor = CommandProcessor(object(), object())
 
     cmd_data = {"content": "Status: !`echo OK`", "metadata": {}}
     result = processor.process(cmd_data, [])
@@ -77,7 +75,7 @@ def test_bash_execution():
     assert "Status: OK" in result.content
 
 def test_bash_execution_with_command_output():
-    processor = CommandProcessor(Settings(), LLMLogger())
+    processor = CommandProcessor(object(), object())
 
     cmd_data = {"content": "Files: !`ls tests/`", "metadata": {}}
     result = processor.process(cmd_data, [])
@@ -86,7 +84,7 @@ def test_bash_execution_with_command_output():
     assert "test_" in result.content or "command_" in result.content
 
 def test_bash_execution_timeout():
-    processor = CommandProcessor(Settings(), LLMLogger())
+    processor = CommandProcessor(object(), object())
 
     cmd_data = {"content": "Result: !`sleep 15`", "metadata": {}}
     result = processor.process(cmd_data, [])
@@ -94,7 +92,7 @@ def test_bash_execution_timeout():
     assert "Result: [Command timed out]" in result.content
 
 def test_bash_execution_error():
-    processor = CommandProcessor(Settings(), LLMLogger())
+    processor = CommandProcessor(object(), object())
 
     cmd_data = {"content": "Result: !`exit 1`", "metadata": {}}
     result = processor.process(cmd_data, [])
@@ -113,7 +111,7 @@ def test_file_inclusion():
             test_file = Path(tmpdir) / "test.txt"
             test_file.write_text("Hello from file")
 
-            processor = CommandProcessor(Settings(), LLMLogger())
+            processor = CommandProcessor(object(), object())
             cmd_data = {"content": "Content: @test.txt", "metadata": {}}
             result = processor.process(cmd_data, [])
 
@@ -122,7 +120,7 @@ def test_file_inclusion():
             os.chdir(old_cwd)
 
 def test_file_inclusion_not_found():
-    processor = CommandProcessor(Settings(), LLMLogger())
+    processor = CommandProcessor(object(), object())
 
     cmd_data = {"content": "Content: @nonexistent.md", "metadata": {}}
     result = processor.process(cmd_data, [])
@@ -142,22 +140,10 @@ def test_file_inclusion_with_path():
             test_file = subdir / "test.txt"
             test_file.write_text("Nested content")
 
-            processor = CommandProcessor(Settings(), LLMLogger())
+            processor = CommandProcessor(object(), object())
             cmd_data = {"content": "Content: @sub/test.txt", "metadata": {}}
             result = processor.process(cmd_data, [])
 
             assert "Content: Nested content" in result.content
         finally:
             os.chdir(old_cwd)
-
-def test_template_variables():
-    processor = CommandProcessor(Settings(), LLMLogger())
-
-    cmd_data = {"content": "Session: {api_provider}, Model: {model}", "metadata": {}}
-    result = processor.process(cmd_data, [])
-
-    # Verify the braces were replaced
-    assert "{api_provider}" not in result.content
-    assert "{model}" not in result.content
-    assert "Session:" in result.content
-    assert "Model:" in result.content

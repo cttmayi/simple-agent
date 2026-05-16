@@ -25,9 +25,13 @@ class BaseProvider(ABC):
 
 class OpenAIProvider(BaseProvider):
     def __init__(self, config: Dict[str, Any], logger: Optional[LLMLogger] = None):
+        # Strip trailing slashes from base_url to avoid double slash issues
+        base_url = config.get("base_url")
+        if base_url:
+            base_url = base_url.rstrip('/')
         self.client = OpenAI(
             api_key=config.get("api_key") or "test-key",  # Fallback for tests
-            base_url=config.get("base_url"),
+            base_url=base_url,
         )
         self.model = config.get("model", "gpt-4o")
         self._logger = logger
@@ -127,9 +131,13 @@ class OpenAIProvider(BaseProvider):
 class AnthropicProvider(BaseProvider):
     def __init__(self, config: Dict[str, Any], logger: Optional[LLMLogger] = None):
         # Anthropic uses OpenAI SDK with custom base_url
+        # Strip trailing slashes from base_url to avoid double slash issues
+        base_url = config.get("base_url", "https://api.anthropic.com")
+        if base_url:
+            base_url = base_url.rstrip('/')
         self.client = OpenAI(
             api_key=config.get("api_key") or "test-key",  # Fallback for tests
-            base_url=config.get("base_url", "https://api.anthropic.com"),
+            base_url=base_url,
         )
         self.model = config.get("model", "claude-sonnet-4-20250514")
         self._logger = logger
@@ -151,12 +159,31 @@ class AnthropicProvider(BaseProvider):
             )
 
         # Anthropic compatible call
-        response = self.client.chat.completions.create(
-            model=self.model,
-            messages=messages,
-            tools=tools or None,
-            extra_headers={"anthropic-version": "2023-06-01"},
-        )
+        base_url = str(self.client.base_url) if self.client.base_url else ""
+        extra_headers = {}
+        # Only add anthropic-version header if not using ByteDance/Volcano API
+        if "ark.cn-beijing.volces.com" not in base_url and "api.volcengine.com" not in base_url:
+            extra_headers["anthropic-version"] = "2023-06-01"
+
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                tools=tools or None,
+                extra_headers=extra_headers if extra_headers else None,
+            )
+        except Exception as e:
+            # Log API error details and re-raise
+            import traceback
+            print(f"[DEBUG] API Error: {e}")
+            print(f"[DEBUG] Base URL: {base_url}")
+            print(f"[DEBUG] Model: {self.model}")
+            print(f"[DEBUG] Messages count: {len(messages)}")
+            print(f"[DEBUG] Messages: {messages[:1] if messages else 'None'}")  # Show first message
+            print(f"[DEBUG] Tools count: {len(tools) if tools else 0}")
+            print(f"[DEBUG] Extra headers: {extra_headers}")
+            print(f"[DEBUG] Traceback:\n{traceback.format_exc()}")
+            raise
 
         assistant_message = {
             "role": "assistant",
@@ -209,13 +236,18 @@ class AnthropicProvider(BaseProvider):
         self, messages: List[Dict[str, str]], tools: List[Dict[str, Any]]
     ) -> Generator[str, None]:
         """Stream messages from the API with proper resource cleanup."""
-        # Use context manager to ensure stream is properly closed
+        base_url = str(self.client.base_url) if self.client.base_url else ""
+        extra_headers = {}
+        # Only add anthropic-version header if not using ByteDance/Volcano API
+        if "ark.cn-beijing.volces.com" not in base_url and "api.volcengine.com" not in base_url:
+            extra_headers["anthropic-version"] = "2023-06-01"
+
         stream = self.client.chat.completions.create(
             model=self.model,
             messages=messages,
             tools=tools or None,
             stream=True,
-            extra_headers={"anthropic-version": "2023-06-01"},
+            extra_headers=extra_headers if extra_headers else None,
         )
 
         try:
