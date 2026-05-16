@@ -99,3 +99,57 @@ class TodoManager:
     def get_task(self, task_id: str) -> Optional[Task]:
         """获取指定任务。"""
         return self._tasks.get(task_id)
+
+    def create_task(
+        self,
+        subject: str,
+        description: str = "",
+        activeForm: str = "",
+        status: str = "pending",
+        priority: str = "normal",
+        parent_id: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None
+    ) -> tuple[bool, str, Optional[Task]]:
+        """创建新任务。
+
+        Args:
+            subject: 任务标题
+            description: 任务描述
+            activeForm: 进行中状态显示文本
+            status: 任务状态
+            priority: 任务优先级
+            parent_id: 父任务 ID
+            metadata: 扩展元数据
+
+        Returns:
+            (success, message, task) 元组
+        """
+        if status not in VALID_STATUSES:
+            return False, f"Invalid status: must be one of {', '.join(VALID_STATUSES)}", None
+
+        if priority not in VALID_PRIORITIES:
+            return False, f"Invalid priority: must be one of {', '.join(VALID_PRIORITIES)}", None
+
+        if parent_id and parent_id not in self._tasks:
+            return False, "Parent task not found", None
+
+        task_id = str(uuid.uuid4())
+        task = Task(
+            id=task_id,
+            subject=subject,
+            description=description,
+            status=status,
+            priority=priority,
+            activeForm=activeForm,
+            parent_id=parent_id,
+            metadata=metadata or {}
+        )
+
+        self._tasks[task_id] = task
+
+        # 如果有父任务，更新父任务的 subtasks 列表
+        if parent_id:
+            self._tasks[parent_id].subtasks.append(task_id)
+
+        self._save()
+        return True, "Task created", task
