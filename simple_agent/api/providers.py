@@ -8,7 +8,11 @@ from simple_agent.core.llm_logger import LLMLogger
 class BaseProvider(ABC):
     @abstractmethod
     def send_message(
-        self, messages: List[Dict[str, str]], tools: List[Dict[str, Any]]
+        self,
+        messages: List[Dict[str, str]],
+        tools: List[Dict[str, Any]],
+        subagent_call_id: Optional[str] = None,
+        subagent_agent_name: Optional[str] = None,
     ) -> List[Dict[str, str]]:
         pass
 
@@ -29,12 +33,20 @@ class OpenAIProvider(BaseProvider):
         self._logger = logger
 
     def send_message(
-        self, messages: List[Dict[str, str]], tools: List[Dict[str, Any]]
+        self,
+        messages: List[Dict[str, str]],
+        tools: List[Dict[str, Any]],
+        subagent_call_id: Optional[str] = None,
+        subagent_agent_name: Optional[str] = None,
     ) -> List[Dict[str, str]]:
         # Generate request ID and log request
         request_id = LLMLogger.generate_request_id()
         if self._logger:
-            self._logger.log_request(request_id, self.model, messages, tools)
+            self._logger.log_request(
+                request_id, self.model, messages, tools,
+                subagent_call_id=subagent_call_id,
+                subagent_agent_name=subagent_agent_name
+            )
 
         response: ChatCompletion = self.client.chat.completions.create(
             model=self.model,
@@ -77,10 +89,16 @@ class OpenAIProvider(BaseProvider):
                 tool_calls=tool_calls,
                 usage=usage,
                 finish_reason=response.choices[0].finish_reason,
+                subagent_call_id=subagent_call_id,
+                subagent_agent_name=subagent_agent_name,
             )
 
-        # Include request_id in response for tool logging
+        # Include request_id and subagent context in response for tool logging
         assistant_message["_request_id"] = request_id
+        if subagent_call_id:
+            assistant_message["_subagent_call_id"] = subagent_call_id
+        if subagent_agent_name:
+            assistant_message["_subagent_agent_name"] = subagent_agent_name
         return [assistant_message]
 
     def stream_message(
@@ -117,12 +135,20 @@ class AnthropicProvider(BaseProvider):
         self._logger = logger
 
     def send_message(
-        self, messages: List[Dict[str, str]], tools: List[Dict[str, Any]]
+        self,
+        messages: List[Dict[str, str]],
+        tools: List[Dict[str, Any]],
+        subagent_call_id: Optional[str] = None,
+        subagent_agent_name: Optional[str] = None,
     ) -> List[Dict[str, str]]:
         # Generate request ID and log request
         request_id = LLMLogger.generate_request_id()
         if self._logger:
-            self._logger.log_request(request_id, self.model, messages, tools)
+            self._logger.log_request(
+                request_id, self.model, messages, tools,
+                subagent_call_id=subagent_call_id,
+                subagent_agent_name=subagent_agent_name
+            )
 
         # Anthropic compatible call
         response = self.client.chat.completions.create(
@@ -167,10 +193,16 @@ class AnthropicProvider(BaseProvider):
                 tool_calls=tool_calls,
                 usage=usage,
                 finish_reason=response.choices[0].finish_reason,
+                subagent_call_id=subagent_call_id,
+                subagent_agent_name=subagent_agent_name,
             )
 
-        # Include request_id in response for tool logging
+        # Include request_id and subagent context in response for tool logging
         assistant_message["_request_id"] = request_id
+        if subagent_call_id:
+            assistant_message["_subagent_call_id"] = subagent_call_id
+        if subagent_agent_name:
+            assistant_message["_subagent_agent_name"] = subagent_agent_name
         return [assistant_message]
 
     def stream_message(

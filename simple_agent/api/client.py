@@ -25,9 +25,18 @@ class APIClient:
             raise ValueError(f"Unknown provider: {self._provider}")
 
     def send_message(
-        self, messages: List[Dict[str, str]], tools: List[Dict[str, Any]]
+        self,
+        messages: List[Dict[str, str]],
+        tools: List[Dict[str, Any]],
+        subagent_call_id: Optional[str] = None,
+        subagent_agent_name: Optional[str] = None,
     ) -> List[Dict[str, str]]:
-        return self._provider_impl.send_message(messages, tools)
+        return self._provider_impl.send_message(
+            messages,
+            tools,
+            subagent_call_id=subagent_call_id,
+            subagent_agent_name=subagent_agent_name,
+        )
 
     def stream_message(
         self, messages: List[Dict[str, str]], tools: List[Dict[str, Any]]

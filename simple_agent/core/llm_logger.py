@@ -43,6 +43,8 @@ class LLMLogger:
         model: str,
         messages: List[Dict[str, Any]],
         tools: Optional[List[Dict[str, Any]]] = None,
+        subagent_call_id: Optional[str] = None,
+        subagent_agent_name: Optional[str] = None,
     ) -> None:
         """Log an LLM API request.
 
@@ -51,6 +53,8 @@ class LLMLogger:
             model: Model name being used
             messages: Message history sent to the API
             tools: Tools available to the LLM
+            subagent_call_id: Unique identifier for subagent call (if this is a subagent request)
+            subagent_agent_name: Name of the subagent (if this is a subagent request)
         """
         if not self._enabled:
             return
@@ -64,6 +68,12 @@ class LLMLogger:
             "tools": tools if tools else [],
         }
 
+        # Add subagent context if present
+        if subagent_call_id:
+            entry["subagent_call_id"] = subagent_call_id
+        if subagent_agent_name:
+            entry["subagent_agent_name"] = subagent_agent_name
+
         self._write_entry(entry)
 
     def log_response(
@@ -73,6 +83,8 @@ class LLMLogger:
         tool_calls: Optional[List[Dict[str, Any]]] = None,
         usage: Optional[Dict[str, int]] = None,
         finish_reason: Optional[str] = None,
+        subagent_call_id: Optional[str] = None,
+        subagent_agent_name: Optional[str] = None,
     ) -> None:
         """Log an LLM API response.
 
@@ -82,6 +94,8 @@ class LLMLogger:
             tool_calls: Tool calls made by the LLM
             usage: Token usage information
             finish_reason: Reason the response finished
+            subagent_call_id: Unique identifier for subagent call (if this is a subagent response)
+            subagent_agent_name: Name of the subagent (if this is a subagent response)
         """
         if not self._enabled:
             return
@@ -96,6 +110,12 @@ class LLMLogger:
             "finish_reason": finish_reason,
         }
 
+        # Add subagent context if present
+        if subagent_call_id:
+            entry["subagent_call_id"] = subagent_call_id
+        if subagent_agent_name:
+            entry["subagent_agent_name"] = subagent_agent_name
+
         self._write_entry(entry)
 
     def log_tool_execution(
@@ -105,6 +125,8 @@ class LLMLogger:
         tool_call_id: str,
         arguments: Dict[str, Any],
         result: Dict[str, Any],
+        subagent_call_id: Optional[str] = None,
+        subagent_agent_name: Optional[str] = None,
     ) -> None:
         """Log a tool execution.
 
@@ -114,6 +136,8 @@ class LLMLogger:
             tool_call_id: ID of the tool call
             arguments: Arguments passed to the tool
             result: Result returned by the tool
+            subagent_call_id: Unique identifier for subagent call (if this is a subagent tool call)
+            subagent_agent_name: Name of the subagent (if this is a subagent tool call)
         """
         if not self._enabled:
             return
@@ -127,6 +151,12 @@ class LLMLogger:
             "arguments": arguments,
             "result": result,
         }
+
+        # Add subagent context if present
+        if subagent_call_id:
+            entry["subagent_call_id"] = subagent_call_id
+        if subagent_agent_name:
+            entry["subagent_agent_name"] = subagent_agent_name
 
         self._write_entry(entry)
 
@@ -176,6 +206,57 @@ class LLMLogger:
         entry = {
             "type": "AgentLoaded",
             "agent_name": agent_name,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+        self._write_entry(entry)
+
+    def log_subagent_invoked(self, agent_name: str, task: str) -> str:
+        """Log a subagent being invoked.
+
+        Args:
+            agent_name: Name of the subagent
+            task: The task/question for the subagent
+
+        Returns:
+            A unique subagent_call_id for tracking this subagent execution
+        """
+        subagent_call_id = str(uuid.uuid4())
+
+        if not self._enabled:
+            return subagent_call_id
+
+        entry = {
+            "type": "SubAgentInvoked",
+            "subagent_call_id": subagent_call_id,
+            "agent_name": agent_name,
+            "task": task,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+        self._write_entry(entry)
+        return subagent_call_id
+
+    def log_subagent_complete(self, subagent_call_id: str, agent_name: str, tool_calls_count: int, turns_used: int, success: bool) -> None:
+        """Log a subagent execution complete.
+
+        Args:
+            subagent_call_id: Unique identifier for the subagent call
+            agent_name: Name of the subagent
+            tool_calls_count: Number of tool calls made
+            turns_used: Number of conversation turns used
+            success: Whether the subagent execution was successful
+        """
+        if not self._enabled:
+            return
+
+        entry = {
+            "type": "SubAgentComplete",
+            "subagent_call_id": subagent_call_id,
+            "agent_name": agent_name,
+            "tool_calls_count": tool_calls_count,
+            "turns_used": turns_used,
+            "success": success,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
