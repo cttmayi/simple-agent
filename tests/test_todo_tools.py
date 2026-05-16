@@ -5,7 +5,7 @@ import tempfile
 import shutil
 from pathlib import Path
 from simple_agent.core.todo_manager import TodoManager
-from simple_agent.tools.builtin.todo import set_todo_manager, list_tasks, get_task
+from simple_agent.tools.builtin.todo import set_todo_manager, list_tasks, get_task, create_task
 
 
 @pytest.fixture
@@ -51,3 +51,27 @@ class TestTaskGet:
         result = get_task("nonexistent")
         assert result["success"] is False
         assert "Task not found" in result["error"]
+
+
+class TestTaskCreate:
+    """测试 TaskCreate 工具。"""
+
+    def test_create_basic_task(self, todo_manager_with_data):
+        """测试创建基本任务。"""
+        result = create_task(subject="新任务")
+        assert result["success"] is True
+        assert "task_id" in result
+        assert result["task"]["subject"] == "新任务"
+
+    def test_create_with_parent(self, todo_manager_with_data):
+        """测试创建带父任务的任务。"""
+        parent_id = todo_manager_with_data.get_all_tasks()[0]["id"]
+        result = create_task(subject="子任务", parent_id=parent_id)
+        assert result["success"] is True
+        assert result["task"]["parent_id"] == parent_id
+
+    def test_create_with_invalid_status(self, todo_manager_with_data):
+        """测试创建带无效状态的任务。"""
+        result = create_task(subject="测试", status="invalid")
+        assert result["success"] is False
+        assert "Invalid status" in result["error"]
