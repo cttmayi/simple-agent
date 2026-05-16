@@ -17,3 +17,51 @@ def test_processor_creates_processed_command():
 
     assert isinstance(result, ProcessedCommand)
     assert result.content == "Hello world"
+
+def test_parameter_replacement_single():
+    processor = CommandProcessor(Settings(), LLMLogger())
+
+    cmd_data = {"content": "Fix bug: $1", "metadata": {}}
+    result = processor.process(cmd_data, ["login issue"])
+
+    assert "Fix bug: login issue" in result.content
+
+def test_parameter_replacement_with_spaces():
+    processor = CommandProcessor(Settings(), LLMLogger())
+
+    cmd_data = {"content": "Commit: $1", "metadata": {}}
+    result = processor.process(cmd_data, ["fix login bug and add tests"])
+
+    assert "Commit: fix login bug and add tests" in result.content
+
+def test_parameter_replacement_args_var():
+    processor = CommandProcessor(Settings(), LLMLogger())
+
+    cmd_data = {"content": "Task: $args", "metadata": {}}
+    result = processor.process(cmd_data, ["hello", "world"])
+
+    assert "Task: hello world" in result.content
+
+def test_parameter_replacement_no_args():
+    processor = CommandProcessor(Settings(), LLMLogger())
+
+    cmd_data = {"content": "Task: $1", "metadata": {}}
+    result = processor.process(cmd_data, [])
+
+    assert "Task: " in result.content
+
+def test_parameter_replacement_has_args():
+    processor = CommandProcessor(Settings(), LLMLogger())
+
+    cmd_data = {"content": "Args: $#", "metadata": {}}
+    result = processor.process(cmd_data, ["test"])
+
+    assert "Args: 1" in result.content
+
+def test_parameter_replacement_no_args_count():
+    processor = CommandProcessor(Settings(), LLMLogger())
+
+    cmd_data = {"content": "Args: $#", "metadata": {}}
+    result = processor.process(cmd_data, [])
+
+    assert "Args: 0" in result.content
