@@ -1,23 +1,15 @@
 ---
 name: agents
-description: List available and loaded agents
+description: List available agents
 ---
 
 # Agents
 
-Agents run as isolated subagents with their own execution context and tools.
-
-## Available Agents
-
-{agents_list}
-
-## Loaded Agents
-
-{loaded_agents}
+Agents are loaded from `./plugin/agents` directory.
 
 ## Subagent Execution
 
-Agents are now invoked using the `run_subagent` tool:
+Agents are invoked using the `run_subagent` tool:
 
 ```
 Please run the code-analyzer agent to analyze this project.

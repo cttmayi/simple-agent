@@ -5,23 +5,15 @@ description: Show or modify configuration
 
 # Configuration
 
-## Current Configuration
+Use environment variables or `~/.config/simple-agent/config.yml` to configure the agent.
 
-### API
-- **Provider**: {api_provider}
-- **Base URL**: {base_url}
-- **Model**: {model}
+### API Configuration
+- `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` - API key
+- `OPENAI_BASE_URL` or `ANTHROPIC_BASE_URL` - API base URL
 
-### Paths
-- **Skills Directories**: {skills_dirs}
-- **Agents Directory**: {agents_dir}
-- **Hooks Directory**: {hooks_dir}
-- **Commands Directory**: {commands_dir}
-
-### UI
-- **Theme**: {theme}
-- **Show Thinking**: {show_thinking}
-
-### Logging
-- **Enabled**: {logging_enabled}
-- **Log Directory**: {log_dir}
+### Example Config
+```bash
+export OPENAI_API_KEY=sk-...
+export OPENAI_BASE_URL=https://api.openai.com/v1
+simple-agent
+```

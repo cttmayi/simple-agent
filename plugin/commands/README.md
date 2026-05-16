@@ -10,36 +10,18 @@ Each command is a `.md` file with frontmatter:
 ---
 name: command-name
 description: A brief description of what the command does
-usage: /command-name [optional-args]
 ---
 
 # Command Title
 
 Command help text goes here...
-
-You can use template variables:
-- `{session_id}` - Current session ID
-- `{message_count}` - Number of messages in session
-- `{api_provider}` - API provider name
-- `{model}` - Model name
-- `{base_url}` - API base URL
-- `{skills_dirs}` - Skills directories
-- `{agents_dir}` - Agents directory
-- `{hooks_dir}` - Hooks directory
-- `{commands_dir}` - Commands directory
-- `{theme}` - UI theme
-- `{show_thinking}` - Show thinking setting
-- `{logging_enabled}` - Logging enabled setting
-- `{log_dir}` - Log directory
-- `{skills_count}` - Number of loaded skills
-- `{agents_count}` - Number of loaded agents
-- `{total_skills}` - Total available skills
-- `{total_agents}` - Total available agents
-- `{skills_list}` - List of available skills
-- `{loaded_skills}` - List of loaded skills
-- `{agents_list}` - List of available agents
-- `{loaded_agents}` - List of loaded agents
 ```
+
+## Features
+
+- **Parameter replacement**: Use `$1` or `$args` to insert command arguments
+- **Bash command execution**: Use !`command` to execute and include output
+- **File inclusion**: Use @filename to include file content
 
 ## Available Commands
 
@@ -48,8 +30,8 @@ You can use template variables:
 - `/reset` - Reset session (clear history and unload skills/agents)
 - `/status` - Show current session status
 - `/config` - Show or modify configuration
-- `/skills` - List available and loaded skills
-- `/agents` - List available and loaded agents
+- `/skills` - List available skills
+- `/agents` - List available agents
 
 ## Creating a New Command
 
@@ -74,12 +56,11 @@ Create `plugin/commands/greet.md`:
 ---
 name: greet
 description: Say hello to the user
-usage: /greet [name]
 ---
 
 # Hello
 
-Hello, {name}!
+Hello, $1!
 
-Welcome to simple-agent. We hope you have a great experience using this tool.
+Welcome to simple-agent.
 ```

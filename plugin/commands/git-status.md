@@ -21,12 +21,6 @@ description: Show git repository status
 
 Branch: !`git branch --show-current`
 
-## Project Information
-
-- Model: {model}
-- API Provider: {api_provider}
-- Session ID: {session_id}
-
 ## Project README
 
 Content of README.md:

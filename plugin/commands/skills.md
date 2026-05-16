@@ -1,14 +1,12 @@
 ---
 name: skills
-description: List available and loaded skills
+description: List available skills
 ---
 
-# Skills
+# Available Skills
 
-## Available Skills
+Skills are loaded from:
+- `./plugin/skills`
+- `~/.agents/skills`
 
-{skills_list}
-
-## Loaded Skills
-
-{loaded_skills}
+Check these directories for available skills.
