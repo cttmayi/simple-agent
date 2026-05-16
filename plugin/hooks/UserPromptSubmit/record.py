@@ -3,6 +3,7 @@
 
 def UserPromptSubmit(role: str, content: str, hook_context) -> None:
     """记录用户消息到共享状态"""
+    hook_context.messages_sent += 1
     hook_context.append("user_messages", {
         "role": role,
         "content": content[:100] + "..." if len(content) > 100 else content

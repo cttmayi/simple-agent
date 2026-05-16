@@ -3,6 +3,7 @@
 
 def PostMessage(role: str, content: str, hook_context) -> None:
     """记录助手消息"""
+    hook_context.messages_received += 1
     hook_context.append("assistant_messages", {
         "content": content[:100] + "..." if len(content) > 100 else content
     }, max_items=10)
