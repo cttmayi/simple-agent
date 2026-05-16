@@ -2,22 +2,30 @@
 
 import re
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Set
 from simple_agent.tools.registry import get_global_registry, ToolDefinition
+
+
+# Directories to skip when searching
+SKIP_DIRS = {
+    '.git', '.venv', 'venv', 'env', '__pycache__',
+    '.pytest_cache', 'node_modules', '.mypy_cache',
+    '.tox', '.eggs', 'build', 'dist',
+}
 
 
 class GREP:
     """Search for text patterns in files."""
 
     name = "grep"
-    description = "Search for a pattern in a file"
+    description = "Search for a pattern in a file or directory (recursively searches all files in directory)"
 
     @staticmethod
     def _grep(path: str, pattern: str, case_sensitive: bool = False, cwd: Optional[str] = None) -> Dict[str, Any]:
-        """Search for a pattern in a file with safety checks.
+        """Search for a pattern in a file or directory with safety checks.
 
         Args:
-            path: File path (relative or absolute)
+            path: File or directory path (relative or absolute)
             pattern: Regular expression pattern to search for
             case_sensitive: Whether the search is case sensitive (default False)
             cwd: Working directory for relative paths (defaults to current directory)
@@ -44,19 +52,12 @@ class GREP:
                     "error": "Invalid path"
                 }
 
-            # Check if file exists
+            # Check if path exists
             if not file_path.exists():
                 return {
                     "success": False,
                     "matches": [],
-                    "error": "File not found"
-                }
-
-            if not file_path.is_file():
-                return {
-                    "success": False,
-                    "matches": [],
-                    "error": "Path is not a file"
+                    "error": "Path not found"
                 }
 
             # Compile the pattern with safety limits
@@ -73,31 +74,53 @@ class GREP:
 
             # Read file and search for matches
             matches = []
-            try:
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    for line_num, line in enumerate(f, 1):
-                        try:
-                            for match in regex.finditer(line):
-                                matches.append({
-                                    "file": str(file_path),
-                                    "line": line_num,
-                                    "content": line.rstrip('\n\r'),
-                                    "match": match.group(),
-                                })
-                        except (re.error, Exception):
-                            # Skip problematic lines to prevent ReDoS
-                            continue
-            except PermissionError:
+
+            def search_file(fpath: Path):
+                """Search for pattern in a single file."""
+                nonlocal matches
+                try:
+                    with open(fpath, 'r', encoding='utf-8') as f:
+                        for line_num, line in enumerate(f, 1):
+                            try:
+                                for match in regex.finditer(line):
+                                    matches.append({
+                                        "file": str(fpath),
+                                        "line": line_num,
+                                        "content": line.rstrip('\n\r'),
+                                        "match": match.group(),
+                                    })
+                            except (re.error, Exception):
+                                # Skip problematic lines to prevent ReDoS
+                                continue
+                except (PermissionError, UnicodeDecodeError):
+                    # Skip files we can't read
+                    pass
+
+            def search_directory(dpath: Path):
+                """Recursively search all files in directory, skipping certain dirs."""
+                for item in dpath.iterdir():
+                    # Skip hidden files/dirs
+                    if item.name.startswith('.'):
+                        continue
+                    # Skip known skip directories
+                    if item.name in SKIP_DIRS:
+                        continue
+                    if item.is_file():
+                        search_file(item)
+                    elif item.is_dir():
+                        search_directory(item)
+
+            if file_path.is_file():
+                # Search single file
+                search_file(file_path)
+            elif file_path.is_dir():
+                # Recursively search all files in directory
+                search_directory(file_path)
+            else:
                 return {
                     "success": False,
                     "matches": [],
-                    "error": "Permission denied"
-                }
-            except UnicodeDecodeError:
-                return {
-                    "success": False,
-                    "matches": [],
-                    "error": "File is not valid UTF-8 text"
+                    "error": "Path is not a file or directory"
                 }
 
             return {
@@ -113,10 +136,10 @@ class GREP:
 
     @staticmethod
     def execute(path: str, pattern: str, case_sensitive: bool = False, cwd: Optional[str] = None) -> Dict[str, Any]:
-        """Search for a pattern in a file.
+        """Search for a pattern in a file or directory.
 
         Args:
-            path: File path (relative or absolute)
+            path: File or directory path (relative or absolute)
             pattern: Regular expression pattern to search for
             case_sensitive: Whether the search is case sensitive (default False)
             cwd: Working directory for relative paths (defaults to current directory)
