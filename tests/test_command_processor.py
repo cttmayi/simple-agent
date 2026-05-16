@@ -65,3 +65,36 @@ def test_parameter_replacement_no_args_count():
     result = processor.process(cmd_data, [])
 
     assert "Args: 0" in result.content
+
+def test_bash_execution():
+    processor = CommandProcessor(Settings(), LLMLogger())
+
+    cmd_data = {"content": "Status: !`echo OK`", "metadata": {}}
+    result = processor.process(cmd_data, [])
+
+    assert "Status: OK" in result.content
+
+def test_bash_execution_with_command_output():
+    processor = CommandProcessor(Settings(), LLMLogger())
+
+    cmd_data = {"content": "Files: !`ls tests/`", "metadata": {}}
+    result = processor.process(cmd_data, [])
+
+    assert "Files:" in result.content
+    assert "test_" in result.content or "command_" in result.content
+
+def test_bash_execution_timeout():
+    processor = CommandProcessor(Settings(), LLMLogger())
+
+    cmd_data = {"content": "Result: !`sleep 15`", "metadata": {}}
+    result = processor.process(cmd_data, [])
+
+    assert "Result: [Command timed out]" in result.content
+
+def test_bash_execution_error():
+    processor = CommandProcessor(Settings(), LLMLogger())
+
+    cmd_data = {"content": "Result: !`exit 1`", "metadata": {}}
+    result = processor.process(cmd_data, [])
+
+    assert "Result:" in result.content  # No output, but should not crash

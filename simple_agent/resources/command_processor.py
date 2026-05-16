@@ -1,3 +1,5 @@
+import subprocess
+import re
 from dataclasses import dataclass
 from typing import List, Optional
 from pathlib import Path
@@ -37,6 +39,9 @@ class CommandProcessor:
         # Replace parameters
         content = self._replace_positional_params(content, args)
 
+        # Execute bash commands
+        content = self._execute_bash_commands(content)
+
         return ProcessedCommand(
             content=content,
             allowed_tools=metadata.get("allowed-tools"),
@@ -64,3 +69,34 @@ class CommandProcessor:
         content = content.replace("$#", "1" if arg_value else "0")
 
         return content
+
+    def _execute_bash_commands(self, content: str) -> str:
+        """Execute bash commands in !`cmd` syntax.
+
+        Args:
+            content: Content with bash commands
+
+        Returns:
+            Content with commands replaced by their output
+        """
+        pattern = r'!`([^`]*)`'
+
+        def replace(match):
+            cmd = match.group(1)
+            try:
+                result = subprocess.run(
+                    cmd,
+                    shell=True,
+                    cwd=Path.cwd(),
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                )
+                output = result.stdout.strip() or result.stderr.strip()
+                return output
+            except subprocess.TimeoutExpired:
+                return "[Command timed out]"
+            except Exception as e:
+                return f"[Error: {str(e)}]"
+
+        return re.sub(pattern, replace, content)
