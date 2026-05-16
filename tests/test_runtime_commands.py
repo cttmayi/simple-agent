@@ -148,8 +148,19 @@ def test_custom_command_execution():
 
     # Test version command
     result = runtime._handle_slash_command("version", [])
-    assert "Simple Agent CLI" in result
+    assert result == "command_processed"
+    # Check system message was added to session
+    messages = runtime._session.get_messages()
+    system_msgs = [m for m in messages if m.get("role") == "system"]
+    assert len(system_msgs) > 0
+    assert "Simple Agent CLI" in system_msgs[-1].get("content", "")
 
-    # Test status command
+    # Clear session and test status command
+    runtime._session.clear()
     result = runtime._handle_slash_command("status", [])
-    assert "# Session Status" in result
+    assert result == "command_processed"
+    # Check system message was added to session
+    messages = runtime._session.get_messages()
+    system_msgs = [m for m in messages if m.get("role") == "system"]
+    assert len(system_msgs) > 0
+    assert "# Session Status" in system_msgs[-1].get("content", "")

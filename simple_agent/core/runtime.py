@@ -15,6 +15,7 @@ from simple_agent.resources.skills import SkillLoader
 from simple_agent.resources.agents import AgentLoader
 from simple_agent.resources.hooks import HookLoader
 from simple_agent.resources.commands import CommandLoader
+from simple_agent.resources.command_processor import CommandProcessor
 from simple_agent.ui.renderer import UIRenderer
 from prompt_toolkit.shortcuts import PromptSession
 from prompt_toolkit.history import InMemoryHistory
@@ -66,6 +67,7 @@ class Runtime:
         self._agent_loader = AgentLoader(base_dir / config.paths.agents_dir)
         self._hook_loader = HookLoader(base_dir / config.paths.hooks_dir)
         self._command_loader = CommandLoader(base_dir / config.paths.commands_dir)
+        self._command_processor = CommandProcessor(config, self._logger)
 
         # Load and register hooks
         self._load_hooks()
@@ -393,12 +395,31 @@ class Runtime:
             self._loaded_agents.clear()
             return self._load_command("reset", args)
 
-        # Handle custom commands
-        command_result = self._load_command(command, args)
-        if command_result:
-            return command_result
+        # Load command
+        cmd_data = self._command_loader.get_command(command)
+        if not cmd_data:
+            return f"Unknown command: /{command}"
 
-        return f"Unknown command: /{command}"
+        # Use CommandProcessor to process
+        processed = self._command_processor.process(cmd_data, args)
+
+        # Apply allowed tools restriction
+        if processed.allowed_tools:
+            saved_tools = self._tool_registry.snapshot()
+            allowed = [t.strip() for t in processed.allowed_tools.split(",")]
+            self._tool_registry.filter(allowed)
+        else:
+            saved_tools = None
+
+        # Add to session as system message
+        self._session.add_message("system", processed.content)
+
+        # Restore tools
+        if saved_tools:
+            self._tool_registry.restore(saved_tools)
+
+        # Return special marker to indicate API call needed
+        return "command_processed"
 
     def _cmd_help(self) -> str:
         """Generate help text."""
@@ -849,7 +870,7 @@ class Runtime:
                 if result == "exit":
                     self._renderer.render_message("system", "Goodbye!")
                     break
-                elif result == "message_processed":
+                elif result == "message_processed" or result == "command_processed":
                     # Process message with API
                     messages = self._prepare_messages_with_context()
                     tools = self._tool_registry.to_openai_format()
