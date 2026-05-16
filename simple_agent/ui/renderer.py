@@ -157,6 +157,81 @@ class UIRenderer:
         """Render an error message."""
         self.console.print(f"\n[bold red]Error:[/bold red] {escape(message)}")
 
+    def render_task_status(self, task: dict) -> None:
+        """渲染任务状态内联显示。
+
+        Args:
+            task: 任务字典
+        """
+        status = task.get("status", "pending")
+        task_id = task.get("id", "unknown")
+        subject = task.get("subject", "")
+
+        # 状态图标和样式
+        status_config = {
+            "pending": ("⏳", "dim"),
+            "in_progress": ("⚙️", "yellow"),
+            "completed": ("✓", "green"),
+            "blocked": ("🚫", "red"),
+            "deleted": ("🗑️", "dim")
+        }
+
+        icon, style = status_config.get(status, ("⏳", "dim"))
+
+        # 进度
+        progress = task.get("progress", 0)
+
+        # 构建显示文本
+        if status == "in_progress":
+            text = f"[{style}]{icon} 任务 #{task_id} 进行中: {subject} ({progress}%)[/{style}]"
+        elif status == "completed":
+            text = f"[{style}]{icon} 任务 #{task_id} 完成: {subject}[/{style}]"
+        elif status == "pending":
+            text = f"[{style}]{icon} 任务 #{task_id}: {subject}[/{style}]"
+        elif status == "blocked":
+            text = f"[{style}]{icon} 任务 #{task_id} 阻塞: {subject}[/{style}]"
+        else:
+            text = f"[{style}]{icon} 任务 #{task_id}: {subject}[/{style}]"
+
+        self.console.print(text)
+
+    def render_task_list(self, tasks: list) -> None:
+        """渲染任务列表（带层级缩进）。
+
+        Args:
+            tasks: 任务列表
+        """
+        self.console.print("\n[bold]任务列表[/bold]\n")
+
+        def render_task_recursive(task: dict, indent: int = 0) -> None:
+            """递归渲染任务。"""
+            status = task.get("status", "pending")
+            task_id = task.get("id", "?")
+            subject = task.get("subject", "")
+            progress = task.get("progress", 0)
+
+            status_config = {
+                "pending": ("⏳", "dim"),
+                "in_progress": ("⚙️", "yellow"),
+                "completed": ("✓", "green"),
+                "blocked": ("🚫", "red"),
+            }
+
+            icon, style = status_config.get(status, ("⏳", "dim"))
+            prefix = "  " * indent
+
+            self.console.print(f"{prefix}[{style}]{icon} #{task_id}[/{style}] {subject} ({progress}%)")
+
+            # 递归渲染子任务
+            children = task.get("children", [])
+            for child in children:
+                render_task_recursive(child, indent + 1)
+
+        for task in tasks:
+            render_task_recursive(task)
+
+        self.console.print()
+
     def render_warning(self, message: str) -> None:
         """Render a warning message."""
         self.console.print(f"\n[bold yellow]Warning:[/bold yellow] {escape(message)}")
