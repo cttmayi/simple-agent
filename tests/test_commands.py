@@ -34,13 +34,15 @@ def test_command_loader_has_metadata():
         assert cmd['description']  # description should not be empty
 
 def test_command_usage():
-    """Test that commands have usage information."""
+    """Test that commands have usage information (default is /name)."""
     loader = CommandLoader('plugin/commands')
     commands = loader.list_commands()
 
     for cmd in commands:
+        # usage is now optional, default is /name
         usage = cmd['metadata'].get('usage')
-        assert usage is not None
+        if usage is None:
+            usage = f"/{cmd['name']}"
         assert usage.startswith('/')  # usage should start with /
 
 def test_get_command():

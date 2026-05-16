@@ -1,7 +1,6 @@
 ---
 name: version
 description: Show the current version of simple-agent
-usage: /version
 ---
 
 # Version

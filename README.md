@@ -143,9 +143,21 @@ Simple Agent supports slash commands for quick operations. See [Commands Documen
 > /help          # Show all available commands
 > /version       # Show version information
 > /status        # Show session status
+> /git-status    # Show git repository status (with bash execution)
 > /clear         # Clear conversation history
 > /reset         # Reset session (clear history + unload skills/agents)
 ```
+
+#### Command Features
+
+Custom commands support powerful features:
+
+- **Parameters**: Use `$1` or `$args` to pass arguments
+- **Bash execution**: Use `!`command`` to run shell commands
+- **File inclusion**: Use `@filename` to include file content
+- **Template variables**: Use `{variable_name}` for dynamic values
+- **Namespaces**: Organize commands with `/` separator (e.g., `/git/commit`)
+- **Tool restrictions**: Use `allowed-tools` field to limit available tools
 
 ### Plugin System
 

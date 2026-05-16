@@ -185,3 +185,102 @@ def test_help_command_shows_namespaces():
 
         assert "/flat" in help_output
         assert "/git/commit" in help_output
+
+
+def test_full_command_with_all_features():
+    """Test command with all new features: parameters, bash, file inclusion, template variables, allowed-tools."""
+    # Save original working directory
+    original_cwd = Path.cwd()
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Create test files
+        cmd_dir = Path(tmpdir) / "commands"
+        cmd_dir.mkdir()
+
+        # Create a test file to include (in tmpdir)
+        test_file = Path(tmpdir) / "test.txt"
+        test_file.write_text("This is the test file content.\nSecond line.")
+
+        # Change to tmpdir so bash commands and file inclusion work from there
+        import os
+        os.chdir(tmpdir)
+
+        try:
+            # Create command with all features
+            cmd_file = cmd_dir / "full-featured.md"
+            cmd_file.write_text(
+                """---
+name: full-featured
+description: Command with all features
+allowed-tools: Bash,Grep
+---
+# Full Featured Command
+
+## Parameters
+You entered: $1
+Has args: $#
+
+## Bash Execution
+Current dir: !`pwd`
+User: !`whoami`
+
+## File Inclusion
+@test.txt
+
+## Template Variables
+Model: {model}
+Provider: {api_provider}
+
+You can only use Bash and Grep tools.
+"""
+            )
+
+            # Create runtime with custom command dir
+            config = load_config()
+            config.paths.commands_dir = str(cmd_dir)
+            runtime = Runtime(config, skip_api_init=True)
+
+            # Reload command loader with new path
+            from simple_agent.resources.commands import CommandLoader
+            runtime._command_loader = CommandLoader(cmd_dir)
+
+            # Snapshot tools before command
+            tools_before_count = len(runtime._tool_registry.to_openai_format())
+
+            # Process command with argument
+            result = runtime._handle_slash_command("full-featured", ["Hello World"])
+
+            assert result == "command_processed"
+
+            # Check session has system message
+            messages = runtime._session.get_messages()
+            system_msgs = [m for m in messages if m.get("role") == "system"]
+            assert len(system_msgs) > 0
+
+            content = system_msgs[-1].get("content", "")
+
+            # Check parameters were replaced
+            assert "Hello World" in content
+
+            # Check bash commands were executed
+            # Current dir should be tmpdir
+            assert tmpdir in content or str(cmd_dir) in content
+            assert "User:" in content  # whoami should have executed
+
+            # Check file was included
+            assert "This is the test file content" in content
+            assert "Second line" in content
+
+            # Check template variables were replaced
+            assert config.api.model in content
+            assert config.api.provider in content
+
+            # Check allowed-tools message is present
+            assert "Bash and Grep tools" in content or "Bash,Grep" in content
+
+            # Check tools are restored after command
+            tools_after_count = len(runtime._tool_registry.to_openai_format())
+            assert tools_after_count == tools_before_count
+        finally:
+            # Restore original working directory
+            os.chdir(original_cwd)

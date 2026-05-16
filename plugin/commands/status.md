@@ -1,7 +1,6 @@
 ---
 name: status
 description: Show current session status
-usage: /status
 ---
 
 # Session Status
