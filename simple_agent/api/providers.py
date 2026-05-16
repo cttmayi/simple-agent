@@ -173,16 +173,7 @@ class AnthropicProvider(BaseProvider):
                 extra_headers=extra_headers if extra_headers else None,
             )
         except Exception as e:
-            # Log API error details and re-raise
-            import traceback
-            print(f"[DEBUG] API Error: {e}")
-            print(f"[DEBUG] Base URL: {base_url}")
-            print(f"[DEBUG] Model: {self.model}")
-            print(f"[DEBUG] Messages count: {len(messages)}")
-            print(f"[DEBUG] Messages: {messages[:1] if messages else 'None'}")  # Show first message
-            print(f"[DEBUG] Tools count: {len(tools) if tools else 0}")
-            print(f"[DEBUG] Extra headers: {extra_headers}")
-            print(f"[DEBUG] Traceback:\n{traceback.format_exc()}")
+            # Re-raise the exception for handling by the caller
             raise
 
         assistant_message = {
