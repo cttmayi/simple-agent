@@ -38,3 +38,41 @@ task_list_def = ToolDefinition(
 )
 
 get_global_registry().register(task_list_def)
+
+
+def get_task(task_id: str) -> Dict[str, Any]:
+    """获取指定任务的详细信息（含子任务）。
+
+    Args:
+        task_id: 任务 ID
+
+    Returns:
+        包含任务详情的字典
+    """
+    if _todo_manager is None:
+        return {"success": False, "error": "TodoManager not initialized"}
+
+    task = _todo_manager.get_task_with_subtasks(task_id)
+    if task is None:
+        return {"success": False, "error": "Task not found"}
+
+    return {"success": True, "task": task}
+
+
+task_get_def = ToolDefinition(
+    name="TaskGet",
+    description="获取指定任务的详细信息，包括子任务",
+    fn=get_task,
+    parameters={
+        "type": "object",
+        "properties": {
+            "task_id": {
+                "type": "string",
+                "description": "任务 ID"
+            }
+        },
+        "required": ["task_id"]
+    }
+)
+
+get_global_registry().register(task_get_def)

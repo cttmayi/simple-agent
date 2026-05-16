@@ -1,0 +1,53 @@
+"""测试 TODO 工具。"""
+
+import pytest
+import tempfile
+import shutil
+from pathlib import Path
+from simple_agent.core.todo_manager import TodoManager
+from simple_agent.tools.builtin.todo import set_todo_manager, list_tasks, get_task
+
+
+@pytest.fixture
+def todo_manager_with_data():
+    """创建带有测试数据的 TodoManager。"""
+    temp_dir = tempfile.mkdtemp()
+    manager = TodoManager(todos_path=str(Path(temp_dir) / "todos.json"))
+
+    # 创建测试任务
+    _, _, parent = manager.create_task(subject="父任务")
+    _, _, child = manager.create_task(subject="子任务", parent_id=parent.id)
+
+    set_todo_manager(manager)
+    yield manager
+    shutil.rmtree(temp_dir)
+
+
+class TestTaskList:
+    """测试 TaskList 工具。"""
+
+    def test_list_all_tasks(self, todo_manager_with_data):
+        """测试列出所有任务。"""
+        result = list_tasks()
+        assert result["success"] is True
+        assert len(result["tasks"]) == 2
+        assert any(t["subject"] == "父任务" for t in result["tasks"])
+
+
+class TestTaskGet:
+    """测试 TaskGet 工具。"""
+
+    def test_get_existing_task(self, todo_manager_with_data):
+        """测试获取存在的任务。"""
+        tasks = todo_manager_with_data.get_all_tasks()
+        task_id = tasks[0]["id"]
+
+        result = get_task(task_id)
+        assert result["success"] is True
+        assert result["task"]["id"] == task_id
+
+    def test_get_nonexistent_task(self, todo_manager_with_data):
+        """测试获取不存在的任务。"""
+        result = get_task("nonexistent")
+        assert result["success"] is False
+        assert "Task not found" in result["error"]
