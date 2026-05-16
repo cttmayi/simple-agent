@@ -139,3 +139,20 @@ class TestUpdateTask:
         )
         assert success is False
         assert "Circular dependency" in message
+
+    def test_remove_parent_task(self, temp_manager):
+        """测试移除父任务（设置 parent_id=None）。"""
+        _, _, parent = temp_manager.create_task(subject="父任务")
+        _, _, child = temp_manager.create_task(subject="子任务", parent_id=parent.id)
+
+        # 验证初始状态：子任务有父任务，父任务有子任务
+        assert child.parent_id == parent.id
+        assert child.id in parent.subtasks
+
+        # 移除父任务
+        success, message, updated = temp_manager.update_task(
+            child.id, parent_id=None
+        )
+        assert success is True
+        assert updated.parent_id is None
+        assert child.id not in parent.subtasks

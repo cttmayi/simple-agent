@@ -225,6 +225,13 @@ class TodoManager:
             new_parent = self._tasks[parent_id]
             if task_id not in new_parent.subtasks:
                 new_parent.subtasks.append(task_id)
+        else:
+            # parent_id=None: 移除父任务
+            if task.parent_id:
+                old_parent = self._tasks.get(task.parent_id)
+                if old_parent and task_id in old_parent.subtasks:
+                    old_parent.subtasks.remove(task_id)
+            task.parent_id = None
 
         self._save()
         return True, "Task updated", task
