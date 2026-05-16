@@ -68,6 +68,18 @@ class ToolRegistry:
         """Restore tool state from snapshot."""
         self._tools = snapshot.copy()
 
+    def filter(self, allowed: List[str]) -> None:
+        """Filter tools to only include those in the allowed list.
+
+        Args:
+            allowed: List of tool names to allow
+        """
+        allowed_set = set(allowed)
+        self._tools = {
+            name: tool for name, tool in self._tools.items()
+            if name in allowed_set
+        }
+
 
 def tool(name: Optional[str] = None, description: str = "", registry: Optional["ToolRegistry"] = None):
     """Decorator to register a function as a tool."""
