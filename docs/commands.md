@@ -418,5 +418,6 @@ simple-agent
 
 - [Skills 文档](./skills.md)
 - [Agents 文档](./agents.md)
+- [Subagents 文档](./subagents.md)
 - [Hooks 文档](./hooks.md)
 - [README.md](../README.md)
