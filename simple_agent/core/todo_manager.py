@@ -153,3 +153,78 @@ class TodoManager:
 
         self._save()
         return True, "Task created", task
+
+    def update_task(
+        self,
+        task_id: str,
+        status: Optional[str] = None,
+        progress: Optional[int] = None,
+        parent_id: Optional[str] = None,
+        description: Optional[str] = None,
+        subject: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None
+    ) -> tuple[bool, str, Optional[Task]]:
+        """更新任务。
+
+        Args:
+            task_id: 任务 ID
+            status: 新状态
+            progress: 新进度 (0-100)
+            parent_id: 新父任务 ID
+            description: 新描述
+            subject: 新标题
+            metadata: 新元数据（会合并现有元数据）
+
+        Returns:
+            (success, message, task) 元组
+        """
+        task = self._tasks.get(task_id)
+        if not task:
+            return False, "Task not found", None
+
+        if status is not None:
+            if status not in VALID_STATUSES:
+                return False, f"Invalid status: must be one of {', '.join(VALID_STATUSES)}", None
+            task.status = status
+
+        if progress is not None:
+            if not 0 <= progress <= 100:
+                return False, "Progress must be between 0 and 100", None
+            task.progress = progress
+
+        if description is not None:
+            task.description = description
+
+        if subject is not None:
+            task.subject = subject
+
+        if metadata is not None:
+            task.metadata.update(metadata)
+
+        # 处理父任务变更（检测循环依赖）
+        if parent_id is not None:
+            if parent_id not in self._tasks:
+                return False, "Parent task not found", None
+
+            # 检测循环依赖
+            current = self._tasks.get(parent_id)
+            while current and current.parent_id:
+                if current.parent_id == task_id:
+                    return False, "Circular dependency: task cannot be its own ancestor", None
+                current = self._tasks.get(current.parent_id)
+
+            # 从旧父任务的 subtasks 中移除
+            if task.parent_id:
+                old_parent = self._tasks.get(task.parent_id)
+                if old_parent and task_id in old_parent.subtasks:
+                    old_parent.subtasks.remove(task_id)
+
+            # 更新父任务
+            task.parent_id = parent_id
+            # 添加到新父任务的 subtasks
+            new_parent = self._tasks[parent_id]
+            if task_id not in new_parent.subtasks:
+                new_parent.subtasks.append(task_id)
+
+        self._save()
+        return True, "Task updated", task
