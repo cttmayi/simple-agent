@@ -624,33 +624,10 @@ def test_load_skill_publishes_event():
 
 def test_load_agent_publishes_event():
     """LoadAgent publishes AgentLoaded event"""
-    from simple_agent.tools.builtin.load_agent import LoadAgent
-    from simple_agent.resources.agents import AgentLoader
-
-    published_events = []
-
-    class MockEventBus:
-        def publish(self, event):
-            published_events.append(event)
-
-    with tempfile.TemporaryDirectory() as tmpdir:
-        agents_dir = Path(tmpdir)
-        agent_dir = agents_dir / "test_agent"
-        agent_dir.mkdir()
-        agent_file = agent_dir / "AGENT.md"
-        agent_file.write_text("---\nname: test_agent\ndescription: Test\n---\nTest agent")
-
-        loader = AgentLoader(agents_dir)
-        loaded_agents = set()
-        LoadAgent.set_runtime(loader, loaded_agents, None, MockEventBus())
-
-        result = LoadAgent.execute("test_agent")
-
-        # Verify AgentLoaded event was published
-        assert result["success"] is True
-        assert len(published_events) == 1
-        assert published_events[0].name == "AgentLoaded"
-        assert published_events[0].data["agent_name"] == "test_agent"
+    # load_agent tool has been removed, run_subagent handles agent loading internally
+    # This test is no longer applicable
+    import pytest
+    pytest.skip("load_agent tool has been removed")
 
 
 # ========== 5. Shell Hook 测试 ==========
