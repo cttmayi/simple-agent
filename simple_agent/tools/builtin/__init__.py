@@ -7,8 +7,7 @@ from simple_agent.tools.builtin.grep import GREP
 from simple_agent.tools.builtin.websearch import WebSearch
 from simple_agent.tools.builtin.load_skill import LoadSkill
 from simple_agent.tools.builtin.run_subagent import RunSubAgent
-# Import todo module to register TODO tools in the global registry
-from simple_agent.tools.builtin import todo
+from simple_agent.tools.builtin.todo import TaskList, TaskGet, TaskCreate, TaskUpdate
 
 __all__ = ["BASH", "READ", "WRITE", "GREP", "WebSearch", "LoadSkill", "RunSubAgent",
            "TaskList", "TaskGet", "TaskCreate", "TaskUpdate"]

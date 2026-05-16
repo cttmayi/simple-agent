@@ -13,6 +13,32 @@ def set_todo_manager(manager) -> None:
     _todo_manager = manager
 
 
+# Tool classes for direct import (matches the pattern used in bash.py)
+
+class TaskList:
+    """列出所有任务及其状态。"""
+    name = "TaskList"
+    description = "列出所有任务及其状态、进度和层级关系"
+
+
+class TaskGet:
+    """获取指定任务的详细信息。"""
+    name = "TaskGet"
+    description = "获取指定任务的详细信息，包括子任务"
+
+
+class TaskCreate:
+    """创建新任务。"""
+    name = "TaskCreate"
+    description = "创建新任务，支持设置标题、描述、状态、优先级和父任务"
+
+
+class TaskUpdate:
+    """更新任务状态。"""
+    name = "TaskUpdate"
+    description = "更新任务状态、进度、描述、标题、父任务等字段"
+
+
 def list_tasks() -> Dict[str, Any]:
     """列出所有任务及其状态。
 
@@ -27,8 +53,8 @@ def list_tasks() -> Dict[str, Any]:
 
 
 task_list_def = ToolDefinition(
-    name="TaskList",
-    description="列出所有任务及其状态、进度和层级关系",
+    name=TaskList.name,
+    description=TaskList.description,
     fn=list_tasks,
     parameters={
         "type": "object",
@@ -60,8 +86,8 @@ def get_task(task_id: str) -> Dict[str, Any]:
 
 
 task_get_def = ToolDefinition(
-    name="TaskGet",
-    description="获取指定任务的详细信息，包括子任务",
+    name=TaskGet.name,
+    description=TaskGet.description,
     fn=get_task,
     parameters={
         "type": "object",
@@ -121,8 +147,8 @@ def create_task(
 
 
 task_create_def = ToolDefinition(
-    name="TaskCreate",
-    description="创建新任务，支持设置标题、描述、状态、优先级和父任务",
+    name=TaskCreate.name,
+    description=TaskCreate.description,
     fn=create_task,
     parameters={
         "type": "object",
@@ -208,8 +234,8 @@ def update_task(
 
 
 task_update_def = ToolDefinition(
-    name="TaskUpdate",
-    description="更新任务状态、进度、描述、标题、父任务等字段",
+    name=TaskUpdate.name,
+    description=TaskUpdate.description,
     fn=update_task,
     parameters={
         "type": "object",
