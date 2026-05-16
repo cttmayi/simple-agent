@@ -22,7 +22,7 @@ from prompt_toolkit.history import InMemoryHistory
 # Import builtin tools to auto-register them
 from simple_agent.tools import builtin  # noqa: F401
 from simple_agent.tools.builtin.load_skill import LoadSkill
-from simple_agent.tools.builtin.load_agent import LoadAgent
+from simple_agent.tools.builtin.run_subagent import RunSubAgent
 
 
 class Runtime:
@@ -78,15 +78,15 @@ class Runtime:
         self._loaded_agents = set()  # Track which agents have been fully loaded
         self._agents_context = self._build_agents_context()
 
-        # Set up load_skill and load_agent tools
+        # Set up load_skill and run_subagent tools
         LoadSkill.set_runtime(self._skill_loader, self._loaded_skills, self, self._event_bus)
-        LoadAgent.set_runtime(self._agent_loader, self._loaded_agents, self, self._event_bus)
+        RunSubAgent.set_runtime(self._agent_loader, self._loaded_agents, self._config.api, self._logger, self, self._event_bus, self._renderer)
 
         # Register the tool definitions
         from simple_agent.tools.builtin.load_skill import load_skill_tool_def
-        from simple_agent.tools.builtin.load_agent import load_agent_tool_def
+        from simple_agent.tools.builtin.run_subagent import run_subagent_tool_def
         self._tool_registry.register(load_skill_tool_def)
-        self._tool_registry.register(load_agent_tool_def)
+        self._tool_registry.register(run_subagent_tool_def)
 
     def _build_skills_context(self) -> str:
         """Build context string from all available skills (metadata only).
@@ -109,15 +109,15 @@ class Runtime:
     def _build_agents_context(self) -> str:
         """Build context string from all available agents (metadata only).
 
-        First layer: Only show agent directory (summary), not full content.
-        Full content is loaded via trigger layer (load_agent tool) only when needed.
+        Agents run as isolated subagents with their own execution context.
+        Use the run_subagent tool to invoke an agent with a specific task.
         """
         agents = self._agent_loader.list_agents()
         if not agents:
             return ""
 
         context_parts = ["# Available Agents\n"]
-        context_parts.append("The following agents are available. Mention them in your request to auto-load.\n\n")
+        context_parts.append("The following agents are available as subagents. Use run_subagent(agent_name, task) to invoke them.\n\n")
 
         for agent in agents:
             tools = agent['metadata'].get('tools', [])
@@ -570,6 +570,10 @@ class Runtime:
         if request_id is None:
             request_id = response[0].pop("_request_id", None) if response else None
 
+        # Extract subagent context from response if available
+        subagent_call_id = response[0].pop("_subagent_call_id", None) if response else None
+        subagent_agent_name = response[0].pop("_subagent_agent_name", None) if response else None
+
         # Add assistant message with tool_calls to session
         self._session.add_message(msg["role"], msg.get("content", ""), tool_calls=msg["tool_calls"])
 
@@ -617,6 +621,8 @@ class Runtime:
                     tool_call_id=tool_call["id"],
                     arguments=arguments,
                     result=result,
+                    subagent_call_id=subagent_call_id,
+                    subagent_agent_name=subagent_agent_name,
                 )
 
             # Show completion status with checkmark (on same line, then newline)
