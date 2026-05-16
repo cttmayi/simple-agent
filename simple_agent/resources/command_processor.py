@@ -42,6 +42,9 @@ class CommandProcessor:
         # Execute bash commands
         content = self._execute_bash_commands(content)
 
+        # Include files
+        content = self._include_files(content)
+
         return ProcessedCommand(
             content=content,
             allowed_tools=metadata.get("allowed-tools"),
@@ -98,5 +101,27 @@ class CommandProcessor:
                 return "[Command timed out]"
             except Exception as e:
                 return f"[Error: {str(e)}]"
+
+        return re.sub(pattern, replace, content)
+
+    def _include_files(self, content: str) -> str:
+        """Include file content using @filename syntax.
+
+        Args:
+            content: Content with file references
+
+        Returns:
+            Content with files replaced by their content
+        """
+        pattern = r'@(\S+)'
+
+        def replace(match):
+            filepath = Path.cwd() / match.group(1)
+            try:
+                return filepath.read_text()
+            except FileNotFoundError:
+                return f"[File not found: {match.group(1)}]"
+            except Exception as e:
+                return f"[Error reading file: {str(e)}]"
 
         return re.sub(pattern, replace, content)
