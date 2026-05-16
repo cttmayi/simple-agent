@@ -45,6 +45,9 @@ class CommandProcessor:
         # Include files
         content = self._include_files(content)
 
+        # Replace template variables
+        content = self._replace_template_variables(content)
+
         return ProcessedCommand(
             content=content,
             allowed_tools=metadata.get("allowed-tools"),
@@ -125,3 +128,32 @@ class CommandProcessor:
                 return f"[Error reading file: {str(e)}]"
 
         return re.sub(pattern, replace, content)
+
+    def _replace_template_variables(self, content: str) -> str:
+        """Replace template variables like {api_provider}, {model}, etc.
+
+        Args:
+            content: Content with template variables
+
+        Returns:
+            Content with variables replaced
+        """
+        # Configuration variables
+        replacements = {
+            '{api_provider}': self._config.api.provider,
+            '{model}': self._config.api.model,
+            '{base_url}': self._config.api.base_url or "default",
+            '{skills_dirs}': ", ".join(self._config.paths.skills_dirs),
+            '{agents_dir}': self._config.paths.agents_dir,
+            '{hooks_dir}': self._config.paths.hooks_dir,
+            '{commands_dir}': self._config.paths.commands_dir,
+            '{theme}': self._config.ui.theme,
+            '{show_thinking}': str(self._config.ui.show_thinking),
+            '{logging_enabled}': str(self._config.logging.enabled),
+            '{log_dir}': self._config.logging.log_dir or "default",
+        }
+
+        for var, value in replacements.items():
+            content = content.replace(var, str(value))
+
+        return content

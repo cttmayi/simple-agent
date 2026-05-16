@@ -149,3 +149,15 @@ def test_file_inclusion_with_path():
             assert "Content: Nested content" in result.content
         finally:
             os.chdir(old_cwd)
+
+def test_template_variables():
+    processor = CommandProcessor(Settings(), LLMLogger())
+
+    cmd_data = {"content": "Session: {api_provider}, Model: {model}", "metadata": {}}
+    result = processor.process(cmd_data, [])
+
+    # Verify the braces were replaced
+    assert "{api_provider}" not in result.content
+    assert "{model}" not in result.content
+    assert "Session:" in result.content
+    assert "Model:" in result.content
