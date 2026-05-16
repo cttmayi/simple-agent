@@ -25,8 +25,11 @@ class CommandLoader:
 
             parsed = frontmatter.load(md_file)
 
+            # Use frontmatter name if available, otherwise fall back to filename-based name
+            name = parsed.get("name", command_name)
+
             commands.append({
-                "name": command_name,
+                "name": name,
                 "description": parsed.get("description", ""),
                 "path": str(md_file),
                 "metadata": parsed.metadata,
