@@ -4,7 +4,7 @@ from simple_agent.resources.commands import CommandLoader
 
 
 def test_namespace_from_subdirectory():
-    """Test that commands in subdirectories get namespace-prefixed names."""
+    """Test that frontmatter name overrides namespace-based name."""
     with tempfile.TemporaryDirectory() as tmpdir:
         # Create subdirectory with command
         subdir = Path(tmpdir) / "git"
@@ -15,9 +15,9 @@ def test_namespace_from_subdirectory():
         loader = CommandLoader(tmpdir)
         commands = loader.list_commands()
 
-        # Should have command with namespace
+        # Should use frontmatter name, not namespace
         assert len(commands) == 1
-        assert commands[0]["name"] == "git/commit"
+        assert commands[0]["name"] == "commit"
 
 
 def test_namespace_flat_commands():
@@ -36,7 +36,7 @@ def test_namespace_flat_commands():
 
 
 def test_nested_namespace():
-    """Test that nested subdirectories create multi-level namespaces."""
+    """Test that frontmatter name overrides multi-level namespace."""
     with tempfile.TemporaryDirectory() as tmpdir:
         # Create nested subdirectory
         subdir = Path(tmpdir) / "frontend" / "test"
@@ -47,5 +47,6 @@ def test_nested_namespace():
         loader = CommandLoader(tmpdir)
         commands = loader.list_commands()
 
+        # Should use frontmatter name, not namespace
         assert len(commands) == 1
-        assert commands[0]["name"] == "frontend/test/run"
+        assert commands[0]["name"] == "run"
