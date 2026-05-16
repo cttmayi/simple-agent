@@ -60,6 +60,14 @@ class ToolRegistry:
             for t in self._tools.values()
         ]
 
+    def snapshot(self) -> Dict[str, ToolDefinition]:
+        """Save current tool state as a copy."""
+        return self._tools.copy()
+
+    def restore(self, snapshot: Dict[str, ToolDefinition]) -> None:
+        """Restore tool state from snapshot."""
+        self._tools = snapshot
+
 
 def tool(name: Optional[str] = None, description: str = "", registry: Optional["ToolRegistry"] = None):
     """Decorator to register a function as a tool."""
