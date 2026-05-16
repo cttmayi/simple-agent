@@ -341,6 +341,41 @@
             margin-bottom: 0;
         }
 
+        .api-call-card.subagent-card {
+            margin-left: 40px;
+            border-left: 3px solid #10b981;
+        }
+
+        /* Subagent container and toggle styles */
+        .subagent-container {
+            position: relative;
+        }
+
+        .subagent-container.collapsed .api-call-card.subagent-card {
+            display: none;
+        }
+
+        .subagent-toggle {
+            cursor: pointer;
+            user-select: none;
+            transition: background 0.2s;
+        }
+
+        .subagent-toggle:hover {
+            background: rgba(16, 185, 129, 0.2) !important;
+        }
+
+        .subagent-toggle-arrow {
+            display: inline-block;
+            transition: transform 0.2s;
+            font-size: 0.8em;
+            margin-right: 4px;
+        }
+
+        .subagent-container.expanded .subagent-toggle-arrow {
+            transform: rotate(90deg);
+        }
+
         .message {
             margin-bottom: 20px;
             padding: 15px;
@@ -705,13 +740,154 @@
         const sortedConversations = [...group.conversations].sort((a, b) => a.request.timestamp.localeCompare(b.request.timestamp));
         const cardsHtml = sortedConversations.map((conv, convIndex) => {
             const cardId = `card-${cardIndex++}`;
-            return `
-            <div class="api-call-card">
+            // 检查是否是 subagent 调用
+            const subagentCallId = conv.request?.subagent_call_id || conv.response?.subagent_call_id;
+            const subagentAgentName = conv.request?.subagent_agent_name || conv.response?.subagent_agent_name;
+            const isSubagent = subagentCallId || subagentAgentName;
+
+            // Only render the card itself here - wrapping will happen after grouping
+            return {
+                id: cardId,
+                conv: conv,
+                subagentCallId: subagentCallId,
+                subagentAgentName: subagentAgentName,
+                isSubagent: isSubagent,
+                html: `<div class="api-call-card${isSubagent ? ' subagent-card' : ''}">
                 ${renderCardSummary(conv, cardId)}
                 ${renderCardDetails(conv)}
-            </div>
-        `;
-        }).join('');
+            </div>`
+            };
+        });
+
+        // Group cards by subagent_call_id
+        const groupedCards = [];
+        const subagentGroups = {};
+        const processedSubagentCards = new Set();
+
+        // First pass: identify parent cards and their subagent_call_ids
+        cardsHtml.forEach((card, index) => {
+            if (!card.isSubagent) {
+                const toolExecutions = card.conv.tool_executions || [];
+                const parentSubagentCallId = findSubagentCallId(toolExecutions, card.conv);
+                const hasRunSubagent = toolExecutions.some(te => te.tool_name === 'run_subagent');
+                groupedCards.push({
+                    ...card,
+                    parentSubagentCallId: parentSubagentCallId,
+                    hasRunSubagent: hasRunSubagent
+                });
+            } else {
+                // Subagent cards - group them by their subagentCallId
+                // But don't mark as processed yet - we'll match them in second pass
+                if (card.subagentCallId) {
+                    if (!subagentGroups[card.subagentCallId]) {
+                        subagentGroups[card.subagentCallId] = [];
+                    }
+                    subagentGroups[card.subagentCallId].push(card);
+                } else {
+                }
+            }
+        });
+
+        // Second pass: sequential matching for unmatched subagent cards
+        // Match subagent cards that follow parent cards when IDs don't match
+        const sequentialMatches = [];
+
+
+        cardsHtml.forEach((card, index) => {
+            if (card.isSubagent && !processedSubagentCards.has(index)) {
+
+                // Look for the nearest preceding non-subagent card
+                for (let i = index - 1; i >= 0; i--) {
+                    const prevCard = cardsHtml[i];
+                    if (!prevCard.isSubagent) {
+
+                        // This parent might match this subagent
+                        if (!prevCard.matchedSubagentIds) {
+                            prevCard.matchedSubagentIds = [];
+                        }
+                        prevCard.matchedSubagentIds.push(index);
+                        sequentialMatches.push({ parentIndex: i, subagentIndex: index });
+                        processedSubagentCards.add(index);
+                        break;
+                    }
+                }
+            } else if (card.isSubagent && card.subagentCallId) {
+                // Check if this subagent's ID matches any parent's parentSubagentCallId
+                const hasMatchingParent = groupedCards.some(pc => pc.parentSubagentCallId === card.subagentCallId);
+                if (!hasMatchingParent) {
+                    // No matching parent, use sequential matching
+                    for (let i = index - 1; i >= 0; i--) {
+                        const prevCard = cardsHtml[i];
+                        if (!prevCard.isSubagent) {
+                            if (!prevCard.matchedSubagentIds) {
+                                prevCard.matchedSubagentIds = [];
+                            }
+                            prevCard.matchedSubagentIds.push(index);
+                            sequentialMatches.push({ parentIndex: i, subagentIndex: index });
+                            processedSubagentCards.add(index);
+                            break;
+                        }
+                    }
+                }
+            }
+        });
+        
+        
+        
+
+        // Third pass: build final HTML with subagent containers
+        let finalHtml = '';
+        const processedSubagentIds = new Set();
+
+
+        cardsHtml.forEach((parentCard, parentIndex) => {
+            if (parentCard.isSubagent) {
+                return; // Skip subagent cards here
+            }
+
+            // Find the corresponding groupedCard to get parentSubagentCallId
+            const groupedCard = groupedCards.find(gc => gc.id === parentCard.id);
+            const parentSubagentCallId = groupedCard?.parentSubagentCallId || parentCard.parentSubagentCallId;
+
+            // Add parent card
+            finalHtml += parentCard.html;
+
+            // If this card has subagents by ID, add them in a collapsible container
+            if (parentSubagentCallId && subagentGroups[parentSubagentCallId]) {
+                const subagentCards = subagentGroups[parentSubagentCallId];
+                processedSubagentIds.add(parentSubagentCallId);
+                const containerId = `subagent-container-${parentSubagentCallId}`;
+                finalHtml += `<div class="subagent-container collapsed" id="${containerId}">`;
+                finalHtml += subagentCards.map(c => c.html).join('');
+                finalHtml += `</div>`;
+            }
+
+            // Add sequential matches for this parent
+            if (parentCard.matchedSubagentIds && parentCard.matchedSubagentIds.length > 0) {
+                const matchedSubagentCards = parentCard.matchedSubagentIds.map(idx => cardsHtml[idx]);
+                const containerId = `subagent-container-${parentCard.id}`;
+                finalHtml += `<div class="subagent-container collapsed" id="${containerId}">`;
+                finalHtml += matchedSubagentCards.map(c => c.html).join('');
+                finalHtml += `</div>`;
+            }
+        });
+
+        // Add any orphan subagent cards (those without a parent found by ID or sequence)
+        cardsHtml.forEach((card, index) => {
+            if (card.isSubagent && !processedSubagentCards.has(index)) {
+                // Create a container for this orphan
+                const containerId = `subagent-orphan-${index}`;
+                finalHtml += `<div class="subagent-container collapsed" id="${containerId}">`;
+                finalHtml += card.html;
+                finalHtml += `</div>`;
+            }
+        });
+
+        const cardsHtmlJoined = finalHtml;
+        
+        if (!finalHtml.includes('subagent-container')) {
+            
+        }
 
         // 计算 total tokens
         const totalTokens = sortedConversations.reduce((sum, conv) => {
@@ -734,14 +910,14 @@
                         </div>
                         ${totalTokens > 0 ? `
                         <div style="margin-top: 3px; color: #667eea; font-size: 0.85em;">
-                            ${totalPromptTokens.toLocaleString()} prompt + ${totalCompletionTokens.toLocaleString()} completion = ${totalTokens.toLocaleString()} tokens
+                            ${totalPromptTokens.toLocaleString()} prompt tokens, ${totalCompletionTokens.toLocaleString()} completion tokens = ${totalTokens.toLocaleString()} total tokens
                         </div>
                         ` : ''}
                     </div>
                     <div class="conv-count">${sortedConversations.length}</div>
                 </div>
                 <div class="session-body" id="session-${idx}">
-                    ${cardsHtml}
+                    ${cardsHtmlJoined}
                 </div>
             </div>
         `;
@@ -1088,7 +1264,23 @@ function renderCardSummary(conv, cardId) {
             const toolId = `${cardId}-tool-${toolIndex}`;
 
             // 构建badge - Tool 和工具名分开，工具名显示状态颜色
-            let badgesHtml = `<span class="badge tool badge-aligned">Tool</span> <span class="badge ${te.result?.success ? 'success' : 'error'} badge-aligned">${escapeHtml(toolName)}</span>`;
+            // 检查是否是 run_subagent 调用
+            const isRunSubagent = te.tool_name === 'run_subagent';
+            const subagentCallId = isRunSubagent && te.result?.metadata?.subagent_call_id;
+            const hasSubagents = isRunSubagent;
+
+            // 构建badge - Tool 和工具名分开，工具名显示状态颜色
+            let badgesHtml = `<span class="badge tool badge-aligned">Tool</span> `;
+            if (hasSubagents) {
+                // 添加点击处理和箭头用于 run_subagent
+                // Use cardId as fallback for sequential matching
+                const containerId = subagentCallId || cardId;
+                badgesHtml += `<span class="badge ${te.result?.success ? 'success' : 'error'} badge-aligned subagent-toggle" onclick="event.stopPropagation(); toggleSubagentCards('${containerId}')">`;
+                badgesHtml += `<span class="subagent-toggle-arrow">▶</span> ${escapeHtml(toolName)}`;
+                badgesHtml += `</span>`;
+            } else {
+                badgesHtml += `<span class="badge ${te.result?.success ? 'success' : 'error'} badge-aligned">${escapeHtml(toolName)}</span>`;
+            }
             let commandInfo = '';
 
             if (te.arguments) {
@@ -1309,8 +1501,83 @@ function toggleContent(element) {
     element.textContent = isExpanded ? '▼' : '▶';
 }
 
+// Toggle subagent cards visibility
+function toggleSubagentCards(subagentCallId) {
+    const subagentContainer = document.getElementById(`subagent-container-${subagentCallId}`);
+    if (subagentContainer) {
+        const isExpanded = subagentContainer.classList.contains('expanded');
+
+        if (isExpanded) {
+            subagentContainer.classList.remove('expanded');
+            subagentContainer.classList.add('collapsed');
+        } else {
+            subagentContainer.classList.remove('collapsed');
+            subagentContainer.classList.add('expanded');
+        }
+
+        const arrow = subagentContainer.querySelector('.subagent-toggle-arrow');
+        if (arrow) {
+            arrow.textContent = !isExpanded ? '▼' : '▶';
+        }
+    }
+}
+
+// Test: verify toggleSubagentCards is defined
+
+// Find subagent_call_id from run_subagent tool result (new format)
+// or from request/response metadata (old format from subagent context)
+function findSubagentCallId(toolExecutions, conv) {
+    // First try: check for subagent_call_id in run_subagent tool result (new format)
+    for (const te of toolExecutions) {
+        if (te.tool_name === 'run_subagent' && te.result?.metadata?.subagent_call_id) {
+            return te.result.metadata.subagent_call_id;
+        }
+    }
+
+    // Second try: check if the card itself has subagent_call_id in request/response (old format)
+    if (conv?.request?.subagent_call_id) {
+        return conv.request.subagent_call_id;
+    }
+    if (conv?.response?.subagent_call_id) {
+        return conv.response.subagent_call_id;
+    }
+
+    return null;
+}
+
+// Find agent_name from run_subagent tool arguments (for sequential matching in old format)
+function findSubagentAgentName(toolExecutions, conv) {
+    for (const te of toolExecutions) {
+        if (te.tool_name === 'run_subagent' && te.arguments?.agent_name) {
+            return te.arguments.agent_name;
+        }
+    }
+    return null;
+}
+
 
     // Search functionality
+    // Add test button for debugging
+    const testButton = document.createElement('button');
+    testButton.textContent = 'Test Toggle';
+    testButton.style.marginLeft = '10px';
+    testButton.style.background = '#667eea';
+    testButton.style.color = 'white';
+    testButton.style.border = 'none';
+    testButton.style.padding = '5px 10px';
+    testButton.style.cursor = 'pointer';
+    testButton.onclick = function() {
+        const testContainer = document.querySelector('[id^="subagent-container-"]');
+        if (testContainer) {
+            toggleSubagentCards(testContainer.id.replace('subagent-container-', ''));
+        } else {
+        }
+    };
+    const searchContainer = document.getElementById('search-input').parentElement;
+    if (searchContainer) {
+        searchContainer.appendChild(testButton);
+    }
+
     document.getElementById('search-input').addEventListener('input', (e) => {
         const query = e.target.value.toLowerCase();
         const filtered = allConversations.filter(conv => {
@@ -1324,6 +1591,14 @@ function toggleContent(element) {
 
     // Load logs on page load
     window.addEventListener('load', loadLogs);
+
+// Test: Check subagent containers after load
+setTimeout(() => {
+    const subagentContainers = document.querySelectorAll('[id^="subagent-container-"]');
+    
+    // Test: Check subagent-toggle elements
+    const subagentToggles = document.querySelectorAll('.subagent-toggle');
+}, 1000);
     </script>
 </body>
 </html>
