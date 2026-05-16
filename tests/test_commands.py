@@ -163,9 +163,9 @@ def test_command_without_usage_in_metadata():
         assert usage == '/test'  # default is /{name}
 
 def test_command_duplicate_names():
-    """Test behavior when multiple files have same name in metadata."""
+    """Test behavior when multiple files have different names (from filename)."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        # Create two files with same name
+        # Create two files with same name in metadata but different filenames
         md_file1 = Path(tmpdir) / "first.md"
         md_file1.write_text("---\nname: duplicate\n---\nFirst")
 
@@ -174,16 +174,15 @@ def test_command_duplicate_names():
 
         loader = CommandLoader(tmpdir)
         commands = loader.list_commands()
-        # Both should be loaded (no deduplication in current implementation)
+        # Both should be loaded with their filename as command name
         assert len(commands) == 2
-        assert all(cmd['name'] == 'duplicate' for cmd in commands)
+        assert all(cmd['name'] in ['first', 'second'] for cmd in commands)
 
 def test_command_frontmatter_parsing():
     """Test that frontmatter is correctly parsed."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        md_file = Path(tmpdir) / "test.md"
+        md_file = Path(tmpdir) / "test-cmd.md"
         md_file.write_text("""---
-name: test-cmd
 description: A test command
 usage: /test <arg> [optional]
 extra_field: extra_value

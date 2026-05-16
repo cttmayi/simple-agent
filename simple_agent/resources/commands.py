@@ -4,7 +4,7 @@ import frontmatter
 
 
 class CommandLoader:
-    """Loader for command resources (flat .md files)."""
+    """Loader for command resources (supports .md files with namespace)."""
 
     def __init__(self, base_dir: Path):
         self._base_dir = Path(base_dir)
@@ -15,18 +15,23 @@ class CommandLoader:
             return []
 
         commands = []
-        for item in self._base_dir.iterdir():
-            if item.is_file() and item.suffix == ".md" and item.name != "README.md":
-                parsed = frontmatter.load(item)
-                # Use filename without .md as name if not in frontmatter
-                name = parsed.get("name", item.stem)
-                commands.append({
-                    "name": name,
-                    "description": parsed.get("description", ""),
-                    "path": str(item),
-                    "metadata": parsed.metadata,
-                    "content": parsed.content,
-                })
+        for md_file in self._base_dir.rglob("*.md"):
+            if md_file.name == "README.md":
+                continue
+
+            # Calculate relative path as command name with namespace
+            rel_path = md_file.relative_to(self._base_dir)
+            command_name = str(rel_path.with_suffix('')).replace('\\', '/')
+
+            parsed = frontmatter.load(md_file)
+
+            commands.append({
+                "name": command_name,
+                "description": parsed.get("description", ""),
+                "path": str(md_file),
+                "metadata": parsed.metadata,
+                "content": parsed.content,
+            })
         return commands
 
     def get_command(self, name: str) -> Optional[dict]:
