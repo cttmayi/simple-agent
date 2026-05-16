@@ -170,3 +170,4 @@ pytest
 ## Documentation
 
 - [Commands Documentation](docs/commands.md) - Creating and using custom slash commands
+- [Subagents Documentation](docs/subagents.md) - Creating and using isolated subagents
