@@ -160,3 +160,28 @@ def test_command_processor_template_variables():
         assert "Provider:" in content
         assert config.api.model in content
         assert config.api.provider in content
+
+
+def test_help_command_shows_namespaces():
+    """Test help command shows namespaced commands correctly."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Create commands with namespaces
+        cmd_dir = Path(tmpdir) / "commands"
+        cmd_dir.mkdir()
+        git_dir = cmd_dir / "git"
+        git_dir.mkdir()
+
+        (cmd_dir / "flat.md").write_text("---\nname: flat\ndescription: Flat command\n---\nContent")
+        (git_dir / "commit.md").write_text("---\nname: git/commit\ndescription: Git commit\n---\nContent")
+
+        config = load_config()
+        config.paths.commands_dir = str(cmd_dir)
+        runtime = Runtime(config, skip_api_init=True)
+
+        from simple_agent.resources.commands import CommandLoader
+        runtime._command_loader = CommandLoader(cmd_dir)
+
+        help_output = runtime._cmd_help()
+
+        assert "/flat" in help_output
+        assert "/git/commit" in help_output
