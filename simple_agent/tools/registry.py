@@ -66,7 +66,7 @@ class ToolRegistry:
 
     def restore(self, snapshot: Dict[str, ToolDefinition]) -> None:
         """Restore tool state from snapshot."""
-        self._tools = snapshot
+        self._tools = snapshot.copy()
 
 
 def tool(name: Optional[str] = None, description: str = "", registry: Optional["ToolRegistry"] = None):

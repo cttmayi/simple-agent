@@ -116,3 +116,52 @@ def test_bash_stderr_limiting():
     assert "error 6" not in stderr
     # Should have exactly 5 lines
     assert len(stderr.strip().split('\n')) == 5
+
+def test_tool_snapshot_isolation():
+    """Test that snapshot is not modified after restore and subsequent registry changes."""
+    registry = ToolRegistry()
+
+    # Register first tool
+    @tool(name="tool1", description="Tool 1", registry=registry)
+    def tool1():
+        return "tool1"
+
+    # Take snapshot
+    snapshot = registry.snapshot()
+    assert len(snapshot) == 1
+    assert "tool1" in snapshot
+
+    # Add second tool
+    @tool(name="tool2", description="Tool 2", registry=registry)
+    def tool2():
+        return "tool2"
+
+    # Snapshot should not be affected
+    assert len(snapshot) == 1
+    assert "tool1" in snapshot
+    assert "tool2" not in snapshot
+
+    # Restore from snapshot
+    registry.restore(snapshot)
+
+    # Registry should have only tool1 now
+    assert len(registry._tools) == 1
+    assert "tool1" in registry._tools
+    assert "tool2" not in registry._tools
+
+    # Add a new tool to registry
+    @tool(name="tool3", description="Tool 3", registry=registry)
+    def tool3():
+        return "tool3"
+
+    # Snapshot should STILL not be affected
+    assert len(snapshot) == 1
+    assert "tool1" in snapshot
+    assert "tool2" not in snapshot
+    assert "tool3" not in snapshot
+
+    # Registry should have tool1 and tool3
+    assert len(registry._tools) == 2
+    assert "tool1" in registry._tools
+    assert "tool2" not in registry._tools
+    assert "tool3" in registry._tools
