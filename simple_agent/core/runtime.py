@@ -9,6 +9,7 @@ from simple_agent.api.client import APIClient
 from simple_agent.core.events import EventBus, Event, HookBlockedException, HookContext
 from simple_agent.core.session import Session
 from simple_agent.core.llm_logger import LLMLogger
+from simple_agent.core.todo_manager import TodoManager
 from simple_agent.tools.registry import get_global_registry
 from simple_agent.tools.dispatcher import ToolDispatcher
 from simple_agent.resources.skills import SkillLoader
@@ -44,6 +45,13 @@ class Runtime:
         # Use configured log_dir or default to ./.simple-agent/logs
         log_dir = Path(config.logging.log_dir) if config.logging.log_dir else Path.cwd() / ".simple-agent" / "logs"
         self._logger = LLMLogger(log_dir, enabled=config.logging.enabled, log_file=log_file)
+
+        # Initialize TodoManager for task tracking
+        self._todo_manager = TodoManager()
+
+        # Set up TODO tools
+        from simple_agent.tools.builtin.todo import set_todo_manager
+        set_todo_manager(self._todo_manager)
 
         # Initialize API client with logger (can be skipped for testing)
         if not skip_api_init:
