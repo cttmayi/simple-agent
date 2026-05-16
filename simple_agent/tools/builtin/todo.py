@@ -163,3 +163,89 @@ task_create_def = ToolDefinition(
 )
 
 get_global_registry().register(task_create_def)
+
+
+def update_task(
+    task_id: str,
+    status: Optional[str] = None,
+    progress: Optional[int] = None,
+    parent_id: Optional[str] = None,
+    description: Optional[str] = None,
+    subject: Optional[str] = None,
+    metadata: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    """更新任务状态。通过 parent_id 可调整任务的父子关系。
+
+    Args:
+        task_id: 任务 ID
+        status: 新状态
+        progress: 新进度 (0-100)
+        parent_id: 新父任务 ID
+        description: 新描述
+        subject: 新标题
+        metadata: 新元数据
+
+    Returns:
+        包含更新后任务信息的字典
+    """
+    if _todo_manager is None:
+        return {"success": False, "error": "TodoManager not initialized"}
+
+    success, message, task = _todo_manager.update_task(
+        task_id=task_id,
+        status=status,
+        progress=progress,
+        parent_id=parent_id,
+        description=description,
+        subject=subject,
+        metadata=metadata
+    )
+
+    if not success:
+        return {"success": False, "error": message}
+
+    return {"success": True, "task": task.to_dict()}
+
+
+task_update_def = ToolDefinition(
+    name="TaskUpdate",
+    description="更新任务状态、进度、描述、标题、父任务等字段",
+    fn=update_task,
+    parameters={
+        "type": "object",
+        "properties": {
+            "task_id": {
+                "type": "string",
+                "description": "任务 ID"
+            },
+            "status": {
+                "type": "string",
+                "description": "新状态: pending, in_progress, completed, blocked, deleted",
+                "enum": ["pending", "in_progress", "completed", "blocked", "deleted"]
+            },
+            "progress": {
+                "type": "integer",
+                "description": "新进度 (0-100)"
+            },
+            "parent_id": {
+                "type": "string",
+                "description": "新父任务 ID"
+            },
+            "description": {
+                "type": "string",
+                "description": "新描述"
+            },
+            "subject": {
+                "type": "string",
+                "description": "新标题"
+            },
+            "metadata": {
+                "type": "object",
+                "description": "新元数据"
+            }
+        },
+        "required": ["task_id"]
+    }
+)
+
+get_global_registry().register(task_update_def)

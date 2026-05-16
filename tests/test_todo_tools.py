@@ -5,7 +5,7 @@ import tempfile
 import shutil
 from pathlib import Path
 from simple_agent.core.todo_manager import TodoManager
-from simple_agent.tools.builtin.todo import set_todo_manager, list_tasks, get_task, create_task
+from simple_agent.tools.builtin.todo import set_todo_manager, list_tasks, get_task, create_task, update_task
 
 
 @pytest.fixture
@@ -75,3 +75,27 @@ class TestTaskCreate:
         result = create_task(subject="测试", status="invalid")
         assert result["success"] is False
         assert "Invalid status" in result["error"]
+
+
+class TestTaskUpdate:
+    """测试 TaskUpdate 工具。"""
+
+    def test_update_status(self, todo_manager_with_data):
+        """测试更新状态。"""
+        task_id = todo_manager_with_data.get_all_tasks()[0]["id"]
+        result = update_task(task_id, status="completed")
+        assert result["success"] is True
+        assert result["task"]["status"] == "completed"
+
+    def test_update_progress(self, todo_manager_with_data):
+        """测试更新进度。"""
+        task_id = todo_manager_with_data.get_all_tasks()[0]["id"]
+        result = update_task(task_id, progress=75)
+        assert result["success"] is True
+        assert result["task"]["progress"] == 75
+
+    def test_update_nonexistent_task(self, todo_manager_with_data):
+        """测试更新不存在的任务。"""
+        result = update_task("nonexistent", status="completed")
+        assert result["success"] is False
+        assert "Task not found" in result["error"]
