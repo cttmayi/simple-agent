@@ -138,3 +138,31 @@ session.add_message(
 - `test_session.py`: 会话管理
 
 添加新功能时，在相应的文件中添加对应的测试。
+
+## TODO 功能
+
+TODO 功能帮助跟踪会话中的任务，支持任务树、持久化和 AI 操作。
+
+### 工具
+
+- **TaskList**: 列出所有任务
+- **TaskGet**: 获取任务详情（含子任务）
+- **TaskCreate**: 创建新任务
+- **TaskUpdate**: 更新任务状态
+
+### 存储
+
+- TODO 数据保存在 `.simple-agent/todos.json`
+- 可通过环境变量 `SIMPLE_AGENT_TODOS_PATH` 自定义路径
+
+### 命令
+
+- `/todos` - 显示任务列表说明
+
+### 任务状态
+
+- `pending` - 待处理
+- `in_progress` - 进行中
+- `completed` - 已完成
+- `blocked` - 阻塞
+- `deleted` - 已删除
