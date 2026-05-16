@@ -1,7 +1,6 @@
 ---
 name: agents
 description: List available and loaded agents
-usage: /agents [list|load|unload] [name]
 ---
 
 # Agents
@@ -15,13 +14,6 @@ Agents run as isolated subagents with their own execution context and tools.
 ## Loaded Agents
 
 {loaded_agents}
-
-## Usage
-
-- `/agents` - List all agents
-- `/agents list` - List all available agents
-- `/agents load <name>` - Load a specific agent (deprecated, use run_subagent)
-- `/agents unload <name>` - Unload a specific agent
 
 ## Subagent Execution
 

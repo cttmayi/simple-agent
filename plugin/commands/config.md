@@ -1,7 +1,6 @@
 ---
 name: config
 description: Show or modify configuration
-usage: /config [get|set] [key] [value]
 ---
 
 # Configuration
@@ -26,9 +25,3 @@ usage: /config [get|set] [key] [value]
 ### Logging
 - **Enabled**: {logging_enabled}
 - **Log Directory**: {log_dir}
-
-## Usage
-
-- `/config` - Show all configuration
-- `/config get <key>` - Get a specific configuration value
-- `/config set <key> <value>` - Set a configuration value

@@ -1,7 +1,6 @@
 ---
 name: reset
 description: Reset the current session (clear history and unload skills/agents)
-usage: /reset
 ---
 
 # Reset

@@ -1,7 +1,6 @@
 ---
 name: clear
 description: Clear the conversation history
-usage: /clear
 ---
 
 # Clear
