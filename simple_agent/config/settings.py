@@ -305,9 +305,11 @@ def load_config(plugin_dir: Optional[str] = None) -> Settings:
                 paths_data["commands_dirs"] = [str(plugin_relative / "commands")]
 
     # Start with plugins/config.yml as base (shared config for all plugins)
-    plugins_config = Path.cwd() / "plugins" / "config.yml"
-    if plugins_config.exists():
-        config_data = _deep_merge(config_data, _load_yaml_config(plugins_config))
+    # But only if using the default plugin or if the specified plugin exists
+    if plugin_dir is None or plugin_dir == "./plugins/default" or plugin_path.exists():
+        plugins_config = Path.cwd() / "plugins" / "config.yml"
+        if plugins_config.exists():
+            config_data = _deep_merge(config_data, _load_yaml_config(plugins_config))
 
     # Then plugin-specific config (overrides plugins/config.yml)
     plugin_config = plugin_path / "config.yml"
@@ -327,6 +329,37 @@ def load_config(plugin_dir: Optional[str] = None) -> Settings:
     # Set plugin_dir in config
     config_data.setdefault("paths", {})["plugin_dir"] = plugin_dir
 
+    # Auto-discover plugin resources
+    # This allows plugins like superpowers to work without plugin.json
+    paths_data = config_data.setdefault("paths", {})
+
+    # Auto-discover and append skills from plugin directory
+    skills_dir = plugin_path / "skills"
+    if skills_dir.exists() and skills_dir.is_dir():
+        skills_path = str(plugin_relative / "skills")
+        if "skills_dirs" not in paths_data:
+            paths_data["skills_dirs"] = [skills_path]
+        elif skills_path not in paths_data["skills_dirs"]:
+            paths_data["skills_dirs"].append(skills_path)
+
+    # Auto-discover and append agents from plugin directory
+    agents_dir = plugin_path / "agents"
+    if agents_dir.exists() and agents_dir.is_dir():
+        agents_path = str(plugin_relative / "agents")
+        if "agents_dirs" not in paths_data:
+            paths_data["agents_dirs"] = [agents_path]
+        elif agents_path not in paths_data["agents_dirs"]:
+            paths_data["agents_dirs"].append(agents_path)
+
+    # Auto-discover and append commands from plugin directory
+    commands_dir = plugin_path / "commands"
+    if commands_dir.exists() and commands_dir.is_dir():
+        commands_path = str(plugin_relative / "commands")
+        if "commands_dirs" not in paths_data:
+            paths_data["commands_dirs"] = [commands_path]
+        elif commands_path not in paths_data["commands_dirs"]:
+            paths_data["commands_dirs"].append(commands_path)
+
     # Apply environment variable overrides
     api_key = os.environ.get("OPENAI_API_KEY") or os.environ.get("ANTHROPIC_API_KEY")
     if api_key:
@@ -341,5 +374,10 @@ def load_config(plugin_dir: Optional[str] = None) -> Settings:
         for key, value in config_data["api"].items():
             if isinstance(value, str):
                 config_data["api"][key] = _resolve_env_var(value)
+
+    # Validate plugin directory exists for non-default plugins
+    if plugin_dir is not None and plugin_dir != "./plugins/default":
+        if not plugin_path.exists():
+            raise ValueError(f"Plugin directory not found: {plugin_dir}")
 
     return Settings(**config_data)
