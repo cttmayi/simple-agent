@@ -1020,6 +1020,11 @@ class Runtime:
 
                 if result == "exit":
                     self._renderer.render_message("system", "Goodbye!")
+                    # Publish Stop event
+                    self._event_bus.publish(Event("Stop", {
+                        "responseLength": 0,
+                        "usedTools": []
+                    }))
                     break
                 elif result == "message_processed" or result == "command_processed":
                     # Process message with API
