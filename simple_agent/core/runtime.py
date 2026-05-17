@@ -676,18 +676,28 @@ class Runtime:
                 # or return builtin result directly when it already has 'success' field
 
                 # Build concise content for API (to avoid Extra data errors)
+                # Include tool name and arguments for better AI understanding
+                args_parts = []
+                for k, v in arguments.items():
+                    if k not in ["cwd", "timeout", "case_sensitive"]:
+                        v_str = repr(v)
+                        if len(v_str) > 30:
+                            v_str = v_str[:30] + "..."
+                        args_parts.append(f"{k}={v_str}")
+                tool_header = f"{tool_name}({', '.join(args_parts)})"
+
                 if not tool_result.get("success", True):
                     # Tool failed - send error message
                     error_msg = tool_result.get("error", "Unknown error")
-                    tool_content = f"[TOOL_ERROR] {error_msg}"
+                    tool_content = f"{tool_header}\nError: {error_msg}"
                 elif "stdout" in tool_result:
                     # Shell command - show stdout/stderr
                     stdout = tool_result.get("stdout", "").strip()
                     stderr = tool_result.get("stderr", "").strip()
                     if stderr:
-                        tool_content = f"Output:\n{stdout}\nErrors:\n{stderr}"
+                        tool_content = f"{tool_header}\nOutput:\n{stdout}\nErrors:\n{stderr}"
                     else:
-                        tool_content = f"Output:\n{stdout}"
+                        tool_content = f"{tool_header}\nOutput:\n{stdout}"
                 elif "content" in tool_result:
                     # File read - show content
                     content = tool_result.get("content", "")
@@ -702,20 +712,20 @@ class Runtime:
                         content = '\n'.join(content_lines)
                     # No length limit - send full content for read tool
                     # The read.py already limits to 200 lines, so content is reasonably sized
-                    tool_content = f"Content:\n{content}"
+                    tool_content = f"{tool_header}\nContent:\n{content}"
                 elif "matches" in tool_result:
                     # Grep - show match count and samples
                     matches = tool_result.get("matches", [])
                     if matches:
-                        tool_content = f"Found {len(matches)} matches. First few:\n{matches[:3]}"
+                        tool_content = f"{tool_header}\nFound {len(matches)} matches. First few:\n{matches[:3]}"
                     else:
-                        tool_content = "No matches found"
+                        tool_content = f"{tool_header}\nNo matches found"
                 elif "results" in tool_result:
                     # Web search - show result count
                     results = tool_result.get("results", [])
-                    tool_content = f"Found {len(results)} results"
+                    tool_content = f"{tool_header}\nFound {len(results)} results"
                 else:
-                    tool_content = str(tool_result)
+                    tool_content = f"{tool_header}\n{str(tool_result)}"
 
                 # Add tool result to session with tool_call_id
                 self._session.add_message("tool", tool_content, tool_call_id=tool_call["id"])
