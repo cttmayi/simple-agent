@@ -9,4 +9,6 @@ INPUT_JSON=$(cat)
 USER_PROMPT=$(echo "$INPUT_JSON" | grep -o '"userPrompt"[^,}]*' | sed 's/.*: *"\([^"]*\)".*/\1/')
 USER_PROMPT=${USER_PROMPT:0:50}  # 只显示前50个字符
 
-echo "{"decision": "allow", "message": "📤 发送消息: $USER_PROMPT..."}"
+cat <<EOF
+{"decision": "allow", "message": "📤 发送消息: $USER_PROMPT..."}
+EOF

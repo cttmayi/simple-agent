@@ -9,4 +9,6 @@ INPUT_JSON=$(cat)
 SESSION_ID=$(echo "$INPUT_JSON" | grep -o '"id"[^,}]*' | sed 's/.*: *"\([^"]*\)".*/\1/')
 SHORT_ID=${SESSION_ID:0:8}
 
-echo "{"decision": "allow", "message": "👋 会话结束于 $(date '+%H:%M:%S') (ID: $SHORT_ID)"}"
+cat <<EOF
+{"decision": "allow", "message": "👋 会话结束于 $(date '+%H:%M:%S') (ID: $SHORT_ID)"}
+EOF
