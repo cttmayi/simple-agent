@@ -1,9 +1,22 @@
 #!/usr/bin/env python3
-"""收到AI响应时记录到共享状态"""
+"""收到AI响应时记录 - 官方 stdin/stdout JSON 协议"""
 
-def PostMessage(role: str, content: str, hook_context) -> None:
-    """记录助手消息"""
-    hook_context.messages_received += 1
-    hook_context.append("assistant_messages", {
-        "content": content[:100] + "..." if len(content) > 100 else content
-    }, max_items=10)
+import sys
+import json
+
+# 读取 stdin
+input_json = sys.stdin.read()
+data = json.loads(input_json)
+
+# 解析字段
+payload = data.get("payload", {})
+role = payload.get("role", "unknown")
+content = payload.get("content", "")
+
+# 输出JSON
+result = {
+    "decision": "allow",
+    "message": f"📥 收到 {role} 响应"
+}
+
+print(json.dumps(result, ensure_ascii=False))

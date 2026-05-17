@@ -1,7 +1,12 @@
 #!/bin/bash
-# 记录会话开始 - session_start Shell Hook 示例
+set -e
 
-LOG_FILE=".simple-agent/session.log"
-mkdir -p "$(dirname "$LOG_FILE")"
+# 会话开始 Shell Hook - 显示欢迎消息
 
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Session started" >> "$LOG_FILE"
+INPUT_JSON=$(cat)
+SESSION_ID=$(echo "$INPUT_JSON" | grep -o '"session_id"[^,}]*' | sed 's/.*: *"\([^"]*\)".*/\1/')
+
+SHORT_ID=${SESSION_ID:0:8}
+
+# 显示欢迎消息
+echo "{\"decision\": \"allow\", \"message\": \"🚀 会话已启动! ID: $SHORT_ID\"}"

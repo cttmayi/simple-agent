@@ -1,14 +1,29 @@
 #!/usr/bin/env python3
-"""记录工具调用"""
+"""记录工具调用结果 - 官方 stdin/stdout JSON 协议"""
 
-def PostToolUse(tool_name: str, arguments: dict, result: dict, hook_context) -> None:
-    """记录工具调用结果"""
-    hook_context.tools_called += 1
-    if result.get("success", False):
-        hook_context.tools_succeeded += 1
-    else:
-        hook_context.tools_failed += 1
-    hook_context.append("tools_used", {
-        "name": tool_name,
-        "success": result.get("success", False)
-    }, max_items=20)
+import sys
+import json
+
+# 读取 stdin
+input_json = sys.stdin.read()
+data = json.loads(input_json)
+
+# 解析字段
+payload = data.get("payload", {})
+tool_name = payload.get("tool_name", "unknown")
+result = payload.get("result", {})
+success = result.get("success", True)
+
+# 输出日志
+LOG_FILE = ".simple-agent/tools.log"
+import os
+os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
+
+with open(LOG_FILE, "a") as f:
+    from datetime import datetime
+    status = "✓" if success else "✗"
+    f.write(f"[{datetime.now()}] Tool: {tool_name} {status}\n")
+
+# 放行
+output = {"decision": "allow"}
+print(json.dumps(output, ensure_ascii=False))
