@@ -90,7 +90,7 @@ import json
 input_json = sys.stdin.read()
 data = json.loads(input_json)
 
-tool = data.get("payload", {}).get("tool_name", "")
+tool = data.get("payload", {}).get("tool", "")
 
 if tool == "DANGER":
     result = {
@@ -115,7 +115,7 @@ print(json.dumps(result, ensure_ascii=False))
 
         hook_input = {
             "event": "PreToolUse",
-            "payload": {"tool_name": "DANGER", "arguments": {}}
+            "payload": {"tool": "DANGER", "parameters": {}}
         }
         hook_input_json = json.dumps(hook_input, ensure_ascii=False)
 
@@ -209,6 +209,7 @@ Session ID: {{session_id}}
         runtime._renderer = MagicMock()
         runtime._logger = MagicMock()
         runtime._session = MagicMock()
+        runtime._session_id = "test-123"
 
         event = Event("SessionStart", {"session_id": "test-123"})
 
@@ -247,6 +248,7 @@ print(json.dumps({"decision": "allow", "message": "This should not run"}))
         runtime._renderer = MagicMock()
         runtime._logger = MagicMock()
         runtime._session = MagicMock()
+        runtime._session_id = "test-session-id"
 
         hook = {"event_name": "test_event", "path": str(hook_dir), "files": ["block.py", "after.py"]}
         event = Event("test_event", {"session_id": "test"})
@@ -303,7 +305,7 @@ def test_hook_handler_raises_on_block():
         runtime._session = MagicMock()
 
         hook_data = {"event_name": "PreToolUse"}
-        event = Event("PreToolUse", {"tool_name": "danger"})
+        event = Event("PreToolUse", {"tool": "danger"})
 
         def handler(event_obj):
             result = {"decision": "block", "message": "Tool blocked"}
@@ -419,8 +421,8 @@ result = {
     "decision": "allow",
     "message": "Updated",
     "updatedInput": {
-        "tool_name": data.get("payload", {}).get("tool_name") + "_modified",
-        "arguments": {"new_key": "new_value"}
+        "tool": data.get("payload", {}).get("tool") + "_modified",
+        "parameters": {"new_key": "new_value"}
     }
 }
 
@@ -434,15 +436,15 @@ print(json.dumps(result, ensure_ascii=False))
         runtime._logger = MagicMock()
         runtime._session = MagicMock()
 
-        hook_input = {"event": "PreToolUse", "payload": {"tool_name": "test", "arguments": {}}}
+        hook_input = {"event": "PreToolUse", "payload": {"tool": "test", "parameters": {}}}
         hook_input_json = json.dumps(hook_input, ensure_ascii=False)
 
         result = runtime._execute_python_hook(hook_file, hook_input_json)
 
         assert result is not None
         assert result["decision"] == "allow"
-        assert result["updatedInput"]["tool_name"] == "test_modified"
-        assert result["updatedInput"]["arguments"]["new_key"] == "new_value"
+        assert result["updatedInput"]["tool"] == "test_modified"
+        assert result["updatedInput"]["parameters"]["new_key"] == "new_value"
 
 
 def test_multiple_hooks_combined_results():
@@ -471,6 +473,7 @@ print(json.dumps({"decision": "allow", "additionalContext": "Context from hook 2
         runtime._renderer = MagicMock()
         runtime._logger = MagicMock()
         runtime._session = MagicMock()
+        runtime._session_id = "test-session-id"
 
         # Use real _execute_python_hook
         def mock_execute_python(filepath, hook_input_json):

@@ -13,7 +13,7 @@ INPUT_JSON=$(cat)
 
 # 解析字段（使用 jq，如果没有 jq 可以用 grep/sed）
 EVENT=$(echo "$INPUT_JSON" | grep -o '"event"[^,]*' | cut -d'"' -f4)
-TOOL=$(echo "$INPUT_JSON" | grep -o '"tool_name"[^,}]*' | cut -d'"' -f4)
+TOOL=$(echo "$INPUT_JSON" | grep -o '"tool"[^,}]*' | cut -d'"' -f4)
 
 # ======================
 # 业务逻辑

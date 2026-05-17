@@ -53,11 +53,64 @@ Python 脚本示例，展示更复杂的业务逻辑判断。
 
 | 事件名称 | 说明 | payload 结构 |
 |---------|------|-------------|
-| SessionStart | 会话开始 | {session_id, hook_context} |
-| Stop | 会话结束 | {session_id, hook_context} |
-| UserPromptSubmit | 用户提交消息 | {role, content, hook_context} |
-| PostMessage | AI 返回消息 | {role, content, hook_context} |
-| PreToolUse | 工具调用前 | {tool_name, arguments} |
-| PostToolUse | 工具调用后 | {tool_name, arguments, result} |
-| ToolUseFailed | 工具调用失败 | {tool_name, arguments, error} |
-| Error | 发生错误 | {error_type, error_message, hook_context} |
+| SessionStart | 会话开始 | {} |
+| Stop | 会话结束 | {sessionId} |
+| UserPromptSubmit | 用户提交消息 | {userPrompt} |
+| PostMessage | AI 返回消息 | {role, userPrompt} |
+| PreToolUse | 工具调用前 | {tool, parameters} |
+| PostToolUse | 工具调用后 | {tool, parameters, result, error, success} |
+| ToolUseFailed | 工具调用失败 | {tool, parameters, error} |
+| Error | 发生错误 | {errorType, errorMessage} |
+
+## 输入 JSON 完整格式
+
+### 1) PreToolUse（工具调用前）
+```json
+{
+  "event": "PreToolUse",
+  "session": {"id": "..."},
+  "project": {"path": "..."},
+  "payload": {
+    "tool": "Read | Write | Bash | Edit",
+    "parameters": {"file_path": "...", "command": "..."}
+  }
+}
+```
+
+### 2) PostToolUse（工具执行后）
+```json
+{
+  "event": "PostToolUse",
+  "session": {"id": "..."},
+  "project": {"path": "..."},
+  "payload": {
+    "tool": "...",
+    "parameters": {...},
+    "result": {...},
+    "error": null,
+    "success": true
+  }
+}
+```
+
+### 3) UserPromptSubmit（用户提交消息前）
+```json
+{
+  "event": "UserPromptSubmit",
+  "session": {"id": "..."},
+  "project": {"path": "..."},
+  "payload": {
+    "userPrompt": "用户输入的内容"
+  }
+}
+```
+
+### 4) SessionStart（会话启动）
+```json
+{
+  "event": "SessionStart",
+  "session": {"id": "..."},
+  "project": {"path": "..."},
+  "payload": {}
+}
+```

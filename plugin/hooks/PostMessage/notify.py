@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""收到AI响应时记录 - 官方 stdin/stdout JSON 协议"""
+"""PostMessage Hook - 收到AI响应时记录 - 官方 stdin/stdout JSON 协议"""
 
 import sys
 import json
@@ -11,7 +11,7 @@ data = json.loads(input_json)
 # 解析字段
 payload = data.get("payload", {})
 role = payload.get("role", "unknown")
-content = payload.get("content", "")
+user_prompt = payload.get("userPrompt", "")
 
 # 输出JSON
 result = {

@@ -1,12 +1,12 @@
 #!/bin/bash
 set -e
 
-# 显示消息发送日志
+# UserPromptSubmit Shell Hook - 显示消息发送日志
 
 INPUT_JSON=$(cat)
 
-# 从JSON中提取content（简单处理）
-CONTENT=$(echo "$INPUT_JSON" | grep -o '"content"[^,}]*' | sed 's/.*: *"\([^"]*\)".*/\1/')
-CONTENT=${CONTENT:0:50}  # 只显示前50个字符
+# 从payload中提取userPrompt（而不是content）
+USER_PROMPT=$(echo "$INPUT_JSON" | grep -o '"userPrompt"[^,}]*' | sed 's/.*: *"\([^"]*\)".*/\1/')
+USER_PROMPT=${USER_PROMPT:0:50}  # 只显示前50个字符
 
-echo "{\"decision\": \"allow\", \"message\": \"📤 发送消息: $CONTENT...\"}"
+echo "{"decision": "allow", "message": "📤 发送消息: $USER_PROMPT..."}"

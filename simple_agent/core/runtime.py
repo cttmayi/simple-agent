@@ -200,14 +200,136 @@ class Runtime:
             - updatedInput: Modified event data (optional)
             - additionalContext: Content to send to LLM (optional)
         """
+
+    def _build_hook_input(self, event: Event) -> dict:
+        """Build hook input JSON in official format.
+
+        Official format varies by event type:
+        - PreToolUse: {event, session, project, payload: {tool, parameters}}
+        - PostToolUse: {event, session, project, payload: {tool, parameters, result, error, success}}
+        - UserPromptSubmit: {event, session, project, payload: {userPrompt}}
+        - SessionStart: {event, session, project, payload: {}}
+
+        Args:
+            event: Event object with name and data
+
+        Returns:
+            dict: Hook input JSON
+        """
+        event_name = event.name
+        event_data = event.data if event.data else {}
+
+        # Base session info
+        session_info = {
+            "id": self._session_id or "unknown"
+        }
+
+        # Base project info
+        project_info = {
+            "path": str(Path.cwd())
+        }
+
+        # Build payload based on event type
+        payload = {}
+
+        if event_name == "PreToolUse":
+            # PreToolUse: tool_name -> tool, arguments -> parameters
+            tool_name = event_data.get("tool_name", "")
+            arguments = event_data.get("arguments", {})
+            payload = {
+                "tool": tool_name,
+                "parameters": arguments
+            }
+
+        elif event_name == "PostToolUse":
+            # PostToolUse: include tool, parameters, result, error, success
+            tool_name = event_data.get("tool_name", "")
+            arguments = event_data.get("arguments", {})
+            result = event_data.get("result", {})
+            error = event_data.get("error")
+            success = result.get("success", True) if isinstance(result, dict) else True
+
+            payload = {
+                "tool": tool_name,
+                "parameters": arguments,
+                "result": result,
+                "error": error,
+                "success": success
+            }
+
+        elif event_name == "UserPromptSubmit":
+            # UserPromptSubmit: content -> userPrompt
+            content = event_data.get("content", "")
+            payload = {
+                "userPrompt": content
+            }
+
+        elif event_name == "SessionStart":
+            # SessionStart: payload is empty
+            payload = {}
+
+        elif event_name == "PostMessage":
+            # PostMessage: content -> userPrompt (similar to UserPromptSubmit)
+            role = event_data.get("role", "")
+            content = event_data.get("content", "")
+            payload = {
+                "role": role,
+                "userPrompt": content  # Use userPrompt field for consistency
+            }
+
+        elif event_name == "Stop":
+            # Stop: session_id in payload
+            payload = {
+                "sessionId": event_data.get("session_id", self._session_id or "")
+            }
+
+        elif event_name == "Error":
+            # Error: error_type, error_message
+            payload = {
+                "errorType": event_data.get("error_type", ""),
+                "errorMessage": event_data.get("error_message", "")
+            }
+
+        elif event_name == "ToolUseFailed":
+            # ToolUseFailed: tool_name, arguments, error
+            tool_name = event_data.get("tool_name", "")
+            arguments = event_data.get("arguments", {})
+            error = event_data.get("error", "")
+            payload = {
+                "tool": tool_name,
+                "parameters": arguments,
+                "error": error
+            }
+
+        elif event_name == "SkillLoaded":
+            # SkillLoaded: skill_name
+            payload = {
+                "skillName": event_data.get("skill_name", "")
+            }
+
+        elif event_name == "SubagentLoaded":
+            # SubagentLoaded: agent_name
+            payload = {
+                "agentName": event_data.get("agent_name", "")
+            }
+
+        else:
+            # Unknown event type, use raw event data
+            payload = event_data
+
+        return {
+            "event": event_name,
+            "session": session_info,
+            "project": project_info,
+            "payload": payload
+        }
+
+    def _execute_hook(self, hook: Dict[str, Any], event: Event) -> Optional[dict]:
         hook_dir = Path(hook["path"])
         combined_result = None
 
-        # Prepare hook input in official format: {"event": "...", "payload": {...}}
-        hook_input = {
-            "event": event.name,
-            "payload": event.data if event.data else {}
-        }
+        # Prepare hook input in official format with session, project, and payload
+        hook_input = self._build_hook_input(event)
         hook_input_json = json.dumps(hook_input, ensure_ascii=False)
 
         for filename in hook["files"]:

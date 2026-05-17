@@ -27,16 +27,20 @@ data = json.loads(input_json)
 # ======================
 event = data.get("event")
 payload = data.get("payload", {})
-tool_name = payload.get("tool_name", "")
-arguments = payload.get("arguments", {})
+
+# PreToolUse/PostToolUse: tool, parameters
+# UserPromptSubmit: userPrompt
+tool = payload.get("tool", "")
+parameters = payload.get("parameters", {})
+user_prompt = payload.get("userPrompt", "")
 
 # ======================
 # 3. 业务逻辑
 # ======================
 if event == "PreToolUse":
     # 示例：拦截危险的 Bash 命令
-    if tool_name == "Bash":
-        command = arguments.get("command", "")
+    if tool == "Bash":
+        command = parameters.get("command", "")
         if "rm -rf" in command or "del /f /s /q" in command:
             result = {
                 "decision": "block",
@@ -52,8 +56,7 @@ if event == "PreToolUse":
 
 elif event == "UserPromptSubmit":
     # 示例：为 LLM 添加上下文
-    content = payload.get("content", "")
-    if "error" in content.lower():
+    if "error" in user_prompt.lower():
         result = {
             "decision": "allow",
             "additionalContext": "用户提到了错误，优先检查日志和错误信息。"

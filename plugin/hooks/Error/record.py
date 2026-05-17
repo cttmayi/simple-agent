@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""记录运行时错误 - 官方 stdin/stdout JSON 协议"""
+"""Error Hook - 记录运行时错误 - 官方 stdin/stdout JSON 协议"""
 
 import sys
 import json
@@ -8,10 +8,10 @@ import json
 input_json = sys.stdin.read()
 data = json.loads(input_json)
 
-# 解析字段
+# 解析字段 - 使用驼峰命名 errorType/errorMessage
 payload = data.get("payload", {})
-error_type = payload.get("error_type", "unknown")
-error_message = payload.get("error_message", "")
+error_type = payload.get("errorType", "unknown")
+error_message = payload.get("errorMessage", "")
 
 # 记录到日志文件
 import os

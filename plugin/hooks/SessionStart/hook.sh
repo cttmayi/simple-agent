@@ -1,10 +1,12 @@
 #!/bin/bash
 set -e
 
-# 会话开始 Shell Hook - 记录到日志
+# SessionStart Shell Hook - 记录到日志
 
 INPUT_JSON=$(cat)
-SESSION_ID=$(echo "$INPUT_JSON" | grep -o '"session_id"[^,}]*' | sed 's/.*: *"\([^"]*\)".*/\1/')
+
+# 从session中提取session_id
+SESSION_ID=$(echo "$INPUT_JSON" | grep -o '"id"[^,}]*' | sed 's/.*: *"\([^"]*\)".*/\1/')
 
 LOG_FILE=".simple-agent/session.log"
 mkdir -p "$(dirname "$LOG_FILE")"

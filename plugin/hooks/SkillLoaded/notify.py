@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Skill 加载时记录 - 官方 stdin/stdout JSON 协议"""
+"""SkillLoaded Hook - 记录 - 官方 stdin/stdout JSON 协议"""
 
 import sys
 import json
@@ -8,9 +8,9 @@ import json
 input_json = sys.stdin.read()
 data = json.loads(input_json)
 
-# 解析字段
+# 解析字段 - 使用 skillName (驼峰命名)
 payload = data.get("payload", {})
-skill_name = payload.get("skill_name", "unknown")
+skill_name = payload.get("skillName", "unknown")
 
 # 输出JSON
 result = {

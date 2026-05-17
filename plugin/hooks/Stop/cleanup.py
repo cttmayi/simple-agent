@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""会话结束时显示摘要 - 官方 stdin/stdout JSON 协议"""
+"""Stop Hook - 会话结束时显示摘要 - 官方 stdin/stdout JSON 协议"""
 
 import sys
 import json
@@ -9,7 +9,8 @@ input_json = sys.stdin.read()
 data = json.loads(input_json)
 
 # 解析字段
-session_id = data.get("payload", {}).get("session_id", "unknown")
+session = data.get("session", {})
+session_id = session.get("id", "unknown")
 
 # 构建会话摘要消息（从日志文件读取统计信息）
 import os

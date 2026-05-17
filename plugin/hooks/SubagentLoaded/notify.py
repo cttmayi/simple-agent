@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Subagent 加载时记录 - 官方 stdin/stdout JSON 协议"""
+"""SubagentLoaded Hook - 记录 - 官方 stdin/stdout JSON 协议"""
 
 import sys
 import json
@@ -8,14 +8,14 @@ import json
 input_json = sys.stdin.read()
 data = json.loads(input_json)
 
-# 解析字段
+# 解析字段 - 使用 agentName (驼峰命名)
 payload = data.get("payload", {})
-subagent_name = payload.get("agent_name", "unknown")
+agent_name = payload.get("agentName", "unknown")
 
 # 输出JSON
 result = {
     "decision": "allow",
-    "message": f"✓ Subagent 已加载: {subagent_name}"
+    "message": f"✓ Subagent 已加载: {agent_name}"
 }
 
 print(json.dumps(result, ensure_ascii=False))

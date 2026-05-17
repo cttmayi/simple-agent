@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""会话开始时显示欢迎消息 - 官方 stdin/stdout JSON 协议"""
+"""SessionStart Hook - 显示欢迎消息 - 官方 stdin/stdout JSON 协议"""
 
 import sys
 import json
@@ -8,8 +8,9 @@ import json
 input_json = sys.stdin.read()
 data = json.loads(input_json)
 
-# 解析字段
-session_id = data.get("payload", {}).get("session_id", "unknown")
+# 从session中提取session_id
+session = data.get("session", {})
+session_id = session.get("id", "unknown")
 short_id = session_id[:8] if len(session_id) > 8 else session_id
 
 # 输出 JSON
