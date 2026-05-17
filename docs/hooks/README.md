@@ -1,6 +1,12 @@
 # Hooks 系统
 
-Hooks 允许您在特定事件发生时执行自定义逻辑，扩展 simple-agent 的功能。
+Hooks 允许您在特定事件发生时执行自定义脚本，扩展 simple-agent 的功能。
+
+## 官方协议
+
+所有 hook 脚本使用 **stdin/stdout JSON 协议**：
+- **输入**：通过 stdin 接收 JSON
+- **输出**：通过 stdout 返回 JSON
 
 ## 支持的事件类型
 
@@ -9,408 +15,459 @@ Hooks 允许您在特定事件发生时执行自定义逻辑，扩展 simple-age
 | `SessionStart` | 会话开始 | 否 | agent 启动时 |
 | `Stop` | 会话结束 | 否 | agent 退出时 |
 | `UserPromptSubmit` | 消息发送 | 否 | 用户发送消息后 |
-| `PostMessage` | 收到响应 | 否 | AI 响应返回时 |
 | `PreToolUse` | 工具调用前 | **是** | 工具执行之前 |
 | `PostToolUse` | 工具调用后 | 否 | 工具执行之后 |
-| `ToolUseFailed` | 工具调用失败 | 否 | 工具执行出错时 |
-| `SkillLoaded` | Skill 加载 | 否 | `load_skill` 工具加载 skill 时 |
-| `SubagentLoaded` | Subagent 加载 | 否 | `load_subagent` 工具加载 subagent 时 |
-| `Error` | 错误发生 | 否 | 运行时出现错误时 |
+| `SkillLoad` | Skill 加载 | 否 | `load_skill` 工具加载 skill 时 |
 
 ## 目录结构
 
 ```
-.simple-agent/hooks/
+plugin/hooks/
 ├── SessionStart/           # 会话开始时触发
 │   ├── welcome.py          # 欢迎消息
-│   └── init.sh             # 初始化脚本
+│   ├── log.sh              # 记录日志
+│   └── prompt.md           # 注入 Prompt
 ├── Stop/                  # 会话结束时触发
-│   └── cleanup.sh          # 清理工作
-├── UserPromptSubmit/         # 消息发送时触发
+│   ├── cleanup.sh          # 清理工作
+│   └── summary.py          # 会话摘要
+├── UserPromptSubmit/       # 消息发送时触发
 │   ├── log.py              # 记录消息
-│   └── inject.py           # 动态注入
-├── PostMessage/             # 收到响应时触发
-│   ├── notify.py           # 通知
-│   └── format.py           # 格式化
+│   └── inject.sh           # 动态注入
 ├── PreToolUse/            # 工具调用前触发（可阻止）
-│   ├── security.py          # 安全检查
+│   ├── security.py         # 安全检查
 │   └── log.sh              # 记录
-├── PostToolUse/             # 工具调用后触发
+├── PostToolUse/           # 工具调用后触发
 │   ├── summary.py          # 摘要统计
-│   └── format.py           # 格式化
-├── ToolUseFailed/            # 工具调用失败时触发
-│   ├── alert.py            # 告警
-│   └── retry.py            # 重试
-├── SkillLoaded/             # Skill 加载时触发
-│   └── notify.py
-├── SubagentLoaded/          # Subagent 加载时触发
-│   └── notify.py
+│   └── logger.py           # 记录日志
+├── SkillLoad/             # Skill 加载时触发
+│   └── notify.py           # 通知
+└── examples/              # 官方示例
+    ├── bash-example.sh
+    ├── python-example.py
+    └── javascript-example.js
 ```
 
 ## Hook 文件类型
 
-| 文件类型 | 说明 | 功能 |
-|---------|------|------|
-| `.py` | Python 脚本 | 支持返回值控制，可阻止执行 |
-| `.sh` / `.cmd` | Shell 脚本 | 执行命令，返回 stdout 作为注入内容 |
-| `.md` | Markdown 文件 | Prompt hook，内容会发送给 AI |
+| 文件类型 | 说明 |
+|---------|------|
+| `.py` | Python 脚本 |
+| `.sh` / `.cmd` | Shell 脚本 |
+| `.js` | JavaScript 脚本 |
+| `.md` | Markdown 文件（作为 additionalContext 发送给 AI） |
 
-## 使用方法
+## 输入 JSON 格式
 
-### Python Hook
+所有 hook 都通过 stdin 接收统一格式的 JSON：
 
-Python hook 函数名直接使用事件名（如 `session_start`）：
-
-```python
-# .simple-agent/hooks/SessionStart/welcome.py
-
-def session_start(session_id: str, hook_context) -> None:
-    """会话开始时显示欢迎消息"""
-    short_id = session_id[:8] if len(session_id) > 8 else session_id
-    print(f"🚀 会话已启动! ID: {short_id}")
+```json
+{
+  "event": "事件名称",
+  "session": {
+    "id": "会话ID"
+  },
+  "project": {
+    "path": "/项目路径"
+  },
+  "payload": {
+    // 事件特定的数据
+  }
+}
 ```
 
-#### 返回值控制（仅限可阻止的事件）
+### 各事件 payload 结构
 
-```python
-# .simple-agent/hooks/PreToolUse/safety.py
-
-def pre_tool_use(tool_name: str, arguments: dict, hook_context) -> dict:
-    """阻止危险的工具调用"""
-
-    # 阻止执行
-    if "dangerous" in arguments:
-        return {"action": "block", "message": "危险操作已被阻止"}
-
-    # 继续执行（可选，默认行为）
-    return {"action": "continue"}
-
-    # 也可以返回 None，效果等同于 continue
+#### SessionStart
+```json
+{
+  "payload": {}
+}
 ```
 
-### Shell Hook
+#### Stop
+```json
+{
+  "payload": {}
+}
+```
+
+#### UserPromptSubmit
+```json
+{
+  "payload": {
+    "userPrompt": "用户消息内容"
+  }
+}
+```
+
+#### PreToolUse
+```json
+{
+  "payload": {
+    "tool": "工具名称",
+    "parameters": {
+      // 工具参数
+    }
+  }
+}
+```
+
+#### PostToolUse
+```json
+{
+  "payload": {
+    "tool": "工具名称",
+    "parameters": {},
+    "result": {},
+    "success": true
+  }
+}
+```
+
+#### SkillLoad
+```json
+{
+  "payload": {
+    "skillName": "skill名称",
+    "skillPath": "/path/to/skill",
+    "rawContent": "skill内容"
+  }
+}
+```
+
+## 输出 JSON 格式
+
+所有 hook 都通过 stdout 返回 JSON：
+
+```json
+{
+  "decision": "allow",           // 必填：allow 或 block
+  "message": "显示在CLI的内容",  // 可选
+  "updatedInput": {},            // 可选：修改输入数据
+  "additionalContext": "发送给AI的内容"  // 可选
+}
+```
+
+| 字段 | 必填 | 说明 |
+|------|------|------|
+| `decision` | 是 | `"allow"` 或 `"block"` |
+| `message` | 否 | 显示在 CLI 的内容 |
+| `updatedInput` | 否 | 修改输入数据（如工具参数） |
+| `additionalContext` | 否 | 发送给 AI 的额外内容 |
+
+## 编写 Hook
+
+### Bash Hook
 
 ```bash
 #!/bin/bash
-# .simple-agent/hooks/UserPromptSubmit/log.sh
+# plugin/hooks/SessionStart/welcome.sh
 
-LOG_FILE=".simple-agent/messages.log"
-mkdir -p "$(dirname "$LOG_FILE")"
+# 读取 stdin JSON
+INPUT_JSON=$(cat)
 
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Message sent" >> "$LOG_FILE"
+# 提取 session_id
+SESSION_ID=$(echo "$INPUT_JSON" | grep -o '"id"[^,}]*' | sed 's/.*: *"\([^"]*\)".*/\1/')
+SHORT_ID=${SESSION_ID:0:8}
+
+# 输出 JSON（必须使用 heredoc 避免转义问题）
+cat <<EOF
+{
+  "decision": "allow",
+  "message": "🚀 会话已启动! ID: $SHORT_ID"
+}
+EOF
 ```
 
-Shell hook 的 stdout 会被拼接到用户消息前。
+### Python Hook
 
-### Prompt Hook (.md)
+```python
+#!/usr/bin/env python3
+# plugin/hooks/UserPromptSubmit/log.py
+
+import sys
+import json
+
+# 读取 stdin
+input_json = sys.stdin.read()
+data = json.loads(input_json)
+
+# 解析 payload
+payload = data.get("payload", {})
+user_prompt = payload.get("userPrompt", "")
+session_id = data.get("session", {}).get("id", "")
+
+# 记录日志（可选）
+log_file = ".simple-agent/messages.log"
+with open(log_file, "a") as f:
+    f.write(f"{session_id}: {user_prompt[:50]}...\n")
+
+# 输出 JSON
+output = {
+    "decision": "allow",
+    "message": f"📤 消息已发送: {user_prompt[:30]}..."
+}
+print(json.dumps(output, ensure_ascii=False))
+```
+
+### JavaScript Hook
+
+```javascript
+#!/usr/bin/env node
+// plugin/hooks/PreToolUse/security.js
+
+// 读取 stdin
+let input = '';
+process.stdin.on('data', chunk => input += chunk);
+process.stdin.on('end', () => {
+    const data = JSON.parse(input);
+    const payload = data.payload || {};
+
+    // 安全检查
+    const tool = payload.tool || '';
+    const dangerousTools = ['rm', 'dd', 'mkfs'];
+
+    if (dangerousTools.includes(tool)) {
+        console.log(JSON.stringify({
+            decision: "block",
+            message: `⚠️ 危险工具被阻止: ${tool}`
+        }));
+        return;
+    }
+
+    // 放行
+    console.log(JSON.stringify({
+        decision: "allow"
+    }));
+});
+```
+
+### Markdown Hook (.md)
+
+Markdown 文件内容会自动作为 `additionalContext` 发送给 AI：
 
 ```markdown
-# .simple-agent/hooks/SessionStart/instruction.md
+# plugin/hooks/SessionStart/instruction.md
 
-你是专业的编程助手，请使用中文回答所有问题。
-```
+你是专业的编程助手，专注于 Python 开发。
 
-## 事件数据
-
-每个 hook 函数接收对应事件的数据作为关键字参数（Python hook 还会自动接收 `hook_context` 参数）：
-
-| 事件名称 | 参数 | 类型 | 说明 |
-|---------|------|------|------|
-| `SessionStart` | `session_id`, `hook_context` | `str`, `HookContext` | 会话 ID、共享状态 |
-| `Stop` | `session_id`, `hook_context` | `str`, `HookContext` | 会话 ID、共享状态 |
-| `UserPromptSubmit` | `role`, `content`, `hook_context` | `str`, `str`, `HookContext` | 角色、内容、共享状态 |
-| `PostMessage` | `role`, `content`, `hook_context` | `str`, `str`, `HookContext` | 角色、内容、共享状态 |
-| `PreToolUse` | `tool_name`, `arguments`, `hook_context` | `str`, `dict`, `HookContext` | 工具名、参数、共享状态 |
-| `PostToolUse` | `tool_name`, `arguments`, `result`, `hook_context` | `str`, `dict`, `dict`, `HookContext` | 工具名、参数、结果、共享状态 |
-| `ToolUseFailed` | `tool_name`, `arguments`, `error`, `hook_context` | `str`, `dict`, `str`, `HookContext` | 工具名、参数、错误信息、共享状态 |
-| `SkillLoaded` | `skill_name`, `hook_context` | `str`, `HookContext` | Skill 名称、共享状态 |
-| `SubagentLoaded` | `subagent_name`, `hook_context` | `str`, `HookContext` | Subagent 名称、共享状态 |
-| `Error` | `error_type`, `error_message`, `hook_context` | `str`, `str`, `HookContext` | 错误类型、错误消息、共享状态 |
-
-## HookContext 共享状态
-
-`HookContext` 是一个单例对象，允许所有 hook 直接共享内存中的变量，无需通过文件中转。
-
-### 基本用法
-
-```python
-# 所有 hook 函数自动接收 hook_context 参数
-
-def session_start(session_id: str, hook_context) -> None:
-    # 直接访问共享状态
-    hook_context.messages_sent += 1
-    hook_context.set("my_key", "my_value")
-```
-
-### 内置变量
-
-| 变量名 | 类型 | 说明 |
-|--------|------|------|
-| `session_id` | `str` | 会话 ID |
-| `start_time` | `datetime` | 会话开始时间 |
-| `messages_sent` | `int` | 发送消息数 |
-| `messages_received` | `int` | 接收消息数 |
-| `tools_called` | `int` | 工具调用总数 |
-| `tools_succeeded` | `int` | 工具成功数 |
-| `tools_failed` | `int` | 工具失败数 |
-| `user_messages` | `List[dict]` | 用户消息列表 |
-| `assistant_messages` | `List[dict]` | 助手消息列表 |
-| `tools_used` | `List[dict]` | 工具使用记录 |
-| `keywords` | `List[str]` | 提取的关键词 |
-| `errors` | `List[dict]` | 错误记录 |
-
-### API 方法
-
-#### set(key, value) / get(key, default=None)
-设置和获取自定义值：
-
-```python
-hook_context.set("user_name", "Alice")
-hook_context.set("debug_mode", True)
-name = hook_context.get("user_name")
-debug = hook_context.get("debug_mode", False)
-```
-
-#### increment(key, amount=1)
-递增计数器：
-
-```python
-count = hook_context.increment("my_counter")  # 返回 1
-count = hook_context.increment("my_counter")  # 返回 2
-hook_context.increment("score", 10)
-```
-
-#### append(key, value, max_items=None)
-添加到列表：
-
-```python
-hook_context.append("tags", "#python")
-hook_context.append("tags", ["#debug", "#test"])
-
-# 限制列表大小（保留最后 N 条）
-hook_context.append("messages", new_msg, max_items=10)
-```
-
-#### summary()
-获取状态摘要：
-
-```python
-summary = hook_context.summary()
-# {
-#   "session_id": "abc123",
-#   "duration": "0:05:30",
-#   "messages": {"sent": 5, "received": 3},
-#   "tools": {"called": 2, "succeeded": 2, "failed": 0},
-#   "keywords": ["#debug"],
-#   "custom_data": {"user_name": "Alice"}
-# }
-```
-
-## 消息注入（Message Injection）
-
-`UserPromptSubmit` hook 可以将额外内容注入到用户消息中。
-
-### Python Hook 返回
-
-```python
-def user_prompt_submit(role: str, content: str, hook_context) -> dict:
-    return {
-        "append_to_message": "要注入的内容"
-    }
-```
-
-### Shell Hook
-
-Shell hook 的 stdout 会被自动注入到用户消息前。
-
-```bash
-echo "当前时间: $(date)"
-```
-
-### 注入效果
-
-```
-用户输入
-↓
-[Hook 输出]
-↓
-[用户输入]
-↓
-发送给 LLM
+## 通信风格
+- 使用中文回答
+- 代码示例要完整可运行
+- 解释要清晰易懂
 ```
 
 ## 完整示例
 
-### 示例 1: 安全检查
-
-阻止危险的 shell 命令：
+### 示例 1: 安全检查（阻止危险命令）
 
 ```python
-# .simple-agent/hooks/PreToolUse/safety.py
+#!/usr/bin/env python3
+# plugin/hooks/PreToolUse/safety.py
 
-DANGEROUS_PATTERNS = [
-    "rm -rf",
-    "rm -fr",
-    "rm -Rf",
-    ":(){:|:&};:",      # fork bomb
-    "mkfs",
-    "dd if=/dev/",
-]
+import sys
+import json
 
-def pre_tool_use(tool_name: str, arguments: dict, hook_context) -> dict:
-    """阻止危险命令"""
-    if tool_name != "bash":
-        return {"action": "continue"}
+input_json = sys.stdin.read()
+data = json.loads(input_json)
+payload = data.get("payload", {})
 
-    cmd = arguments.get("command", "")
+tool = payload.get("tool", "")
+params = payload.get("parameters", {})
 
-    for pattern in DANGEROUS_PATTERNS:
+# 危险命令模式
+DANGEROUS = ["rm -rf", "rm -fr", "dd if=/dev/", "mkfs", ":(){:|:&};:"]
+
+if tool == "bash":
+    cmd = params.get("command", "")
+    for pattern in DANGEROUS:
         if pattern in cmd:
-            return {
-                "action": "block",
-                "message": f"安全警告: 检测到危险命令 '{pattern}'"
-            }
+            print(json.dumps({
+                "decision": "block",
+                "message": f"🚫 危险命令被阻止: {pattern}"
+            }))
+            sys.exit(0)
 
-    return {"action": "continue"}
+print(json.dumps({"decision": "allow"}))
 ```
 
-### 示例 2: 日志记录
+### 示例 2: 工具日志记录
 
 ```python
-# .simple-agent/hooks/PostToolUse/logger.py
+#!/usr/bin/env python3
+# plugin/hooks/PostToolUse/logger.py
 
+import sys
 import json
-from pathlib import Path
 from datetime import datetime
 
-def post_tool_use(tool_name: str, arguments: dict, result: dict, hook_context) -> None:
-    """记录工具执行结果"""
-    log_dir = Path(".simple-agent/logs")
-    log_dir.mkdir(parents=True, exist_ok=True)
+input_json = sys.stdin.read()
+data = json.loads(input_json)
+payload = data.get("payload", {})
 
-    log_file = log_dir / "tools.jsonl"
+tool = payload.get("tool", "unknown")
+success = payload.get("success", False)
 
-    entry = {
-        "timestamp": datetime.now().isoformat(),
-        "tool": tool_name,
-        "arguments": arguments,
-        "success": result.get("success", False),
-    }
+LOG_FILE = ".simple-agent/tools.log"
+status = "✓" if success else "✗"
 
-    with open(log_file, "a", encoding="utf-8") as f:
-        f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+with open(LOG_FILE, "a") as f:
+    f.write(f"[{datetime.now()}] Tool: {tool} {status}\n")
+
+print(json.dumps({"decision": "allow"}))
 ```
 
-### 示例 3: 动态注入
+### 示例 3: 动态注入文件上下文
 
 ```python
-# .simple-agent/hooks/UserPromptSubmit/dynamic_injector.py
+#!/usr/bin/env python3
+# plugin/hooks/UserPromptSubmit/file_injector.py
 
+import sys
+import json
 import re
 from pathlib import Path
 
+input_json = sys.stdin.read()
+data = json.loads(input_json)
+payload = data.get("payload", {})
+user_prompt = payload.get("userPrompt", "")
 
-def user_prompt_submit(role: str, content: str, hook_context) -> dict:
-    """检测消息中的文件名并注入其内容"""
-    # 提取 Python 文件名
-    files = re.findall(r'[\w/]+\.py', content)
-    if not files:
-        return {}
+# 提取 Python 文件名
+files = re.findall(r'[\w/]+\.py', user_prompt)
+if not files:
+    print(json.dumps({"decision": "allow"}))
+    sys.exit(0)
 
-    # 收集文件内容
-    context_parts = []
-    for filename in set(files):
-        file_path = Path.cwd() / filename
-        if not file_path.exists():
-            continue
+# 收集文件内容
+context_parts = []
+for filename in set(files):
+    file_path = Path.cwd() / filename
+    if not file_path.exists():
+        continue
 
-        try:
-            file_content = file_path.read_text()
-            # 限制内容长度
-            if len(file_content) > 500:
-                file_content = file_content[:500] + "\n... (内容已截断)"
+    content = file_path.read_text()
+    if len(content) > 500:
+        content = content[:500] + "\n... (已截断)"
 
-            context_parts.append(f"### {filename}\n```python\n{file_content}\n```")
-        except Exception:
-            pass
+    context_parts.append(f"### {filename}\n```python\n{content}\n```")
 
-    if context_parts:
-        return {
-            "append_to_message": f"""## 相关代码文件
-
-{chr(10).join(context_parts)}
-
----
-基于以上代码回答问题：
-"""
-        }
-
-    return {}
+if context_parts:
+    additional_context = "## 相关代码文件\n\n" + "\n\n".join(context_parts) + "\n\n---\n基于以上代码回答问题："
+    print(json.dumps({
+        "decision": "allow",
+        "additionalContext": additional_context
+    }))
+else:
+    print(json.dumps({"decision": "allow"}))
 ```
 
-## Hook 返回值
+### 示例 4: 会话结束统计
 
-### Python Hook
+```bash
+#!/bin/bash
+# plugin/hooks/Stop/summary.sh
 
-| 返回值 | 效果 |
-|--------|------|
-| `{"action": "block", "message": "..."}` | 阻止执行（仅限 `PreToolUse`） |
-| `{"action": "continue"}` | 继续执行（可选，默认行为） |
-| `{"append_to_message": "..."}` | 将内容拼接到用户消息前 |
-| `None` 或 `{}` | 默认行为（继续执行或不注入） |
+INPUT_JSON=$(cat)
+SESSION_ID=$(echo "$INPUT_JSON" | grep -o '"id"[^,}]*' | sed 's/.*: *"\([^"]*\)".*/\1/')
+SHORT_ID=${SESSION_ID:0:8}
 
-### Shell Hook
+# 从日志文件统计（如果存在）
+TOOLS_LOG=".simple-agent/tools.log"
+if [ -f "$TOOLS_LOG" ]; then
+    TOOL_COUNT=$(grep -c "$SHORT_ID" "$TOOLS_LOG" 2>/dev/null || echo "0")
+else
+    TOOL_COUNT="0"
+fi
 
-| 输出 | 效果 |
-|------|------|
-| stdout | 内容会被拼接到用户消息前 |
-| 无输出 | 不注入任何内容 |
+cat <<EOF
+{
+  "decision": "allow",
+  "message": "👋 会话结束 (ID: $SHORT_ID, 工具调用: $TOOL_COUNT)"
+}
+EOF
+```
+
+## 调试
+
+### 启用调试输出
+
+设置环境变量 `HOOK_DEBUG=1` 启用详细调试信息：
+
+```bash
+HOOK_DEBUG=1 simple-agent
+```
+
+或先设置环境变量：
+
+```bash
+export HOOK_DEBUG=1
+simple-agent
+```
+
+调试输出会显示：
+- Hook 触发事件和目录
+- Hook 输入 JSON
+- Hook 输出和返回码
+- Hook 解析结果
+- 异常堆栈追踪
+
+### Hook 内调试
+
+在 hook 脚本中添加调试输出：
+
+```python
+import sys
+
+# 调试信息输出到 stderr（不影响 JSON 返回）
+sys.stderr.write(f"[DEBUG] Processing hook...\n")
+```
+
+```bash
+# Shell 中调试
+echo "[DEBUG] Processing..." >&2
+```
 
 ## 注意事项
 
 ### ✅ 推荐
 
-1. **条件注入**：只在需要时注入内容
-   ```python
-   if "项目" in content:
-       return {"append_to_message": "..."}
+1. **使用 heredoc 输出 JSON**（Bash）
+   ```bash
+   cat <<EOF
+   {"decision": "allow"}
+   EOF
    ```
 
-2. **限制长度**：避免注入过长的内容
+2. **及时释放资源**
    ```python
-   content = file.read()[:500] + "..."
+   import sys
+   try:
+       # 处理逻辑
+       pass
+   finally:
+       sys.stdout.flush()
    ```
 
-3. **明确分隔**：用分隔线区分注入内容和用户输入
+3. **限制输出长度**
    ```python
-   return {
-       "append_to_message": "...\n---\n"
-   }
+   content = content[:500] + "..." if len(content) > 500 else content
    ```
 
 ### ❌ 避免
 
-1. **无条件注入**：每条消息都注入相同内容
-2. **过度注入**：注入大量不相关的内容
-3. **循环注入**：Hook 互相触发导致无限注入
+1. **不要使用 echo 直接输出 JSON**（容易转义错误）
+   ```bash
+   # 错误
+   echo '{"decision": "allow"}'
+   ```
 
-## 调试
+2. **不要在 hook 中无限循环**
+3. **不要超时执行**（默认 10 秒超时）
 
-```python
-# .simple-agent/hooks/SessionStart/debug.py
+## 官方示例
 
-def session_start(session_id: str, hook_context) -> None:
-    print(f"[DEBUG] session_id={session_id}")
-    print(f"[DEBUG] 当前 system 消息数={len(session._messages)}")
-
-    # 可以临时注入调试信息
-    # return {"append_to_message": "[DEBUG] 模式已激活"}
-    return {}
-```
-
-## 更多示例
-
-详细的示例代码请查看：
-- `.simple-agent/hooks/HOOK_CONTEXT.md` - HookContext 使用指南
-- `.simple-agent/hooks/MESSAGE_INJECTION.md` - 消息注入指南
-- `.simple-agent/hooks/PROMPT_HOOK_GUIDE.md` - Prompt Hook 指南
+完整的官方示例请查看：
+- `plugin/hooks/examples/bash-example.sh`
+- `plugin/hooks/examples/python-example.py`
+- `plugin/hooks/examples/javascript-example.js`
