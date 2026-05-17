@@ -8,16 +8,38 @@ from simple_agent.core.llm_logger import LLMLogger
 
 class RetryConfig:
     """Retry configuration for API calls."""
-    max_retries: int = 3
-    initial_delay: float = 1.0
-    max_delay: float = 10.0
-    backoff_factor: float = 2.0
+    max_retries: int = float('inf')  # 无限重试
+    initial_delay: float = 10.0      # 从 10s 开始
+    max_delay: float = 60 * 60       # 最大 60 分钟
+    backoff_factor: float = 2.0      # 指数退避因子
 
     @classmethod
     def get_delay(cls, attempt: int) -> float:
-        """Calculate delay with exponential backoff."""
+        """Calculate delay with exponential backoff.
+
+        Args:
+            attempt: Attempt number (1-indexed)
+
+        Returns:
+            Delay in seconds, capped at max_delay
+        """
         delay = cls.initial_delay * (cls.backoff_factor ** (attempt - 1))
         return min(delay, cls.max_delay)
+
+    @classmethod
+    def format_delay(cls, delay_seconds: float) -> str:
+        """Format delay in human-readable format."""
+        if delay_seconds < 60:
+            return f"{int(delay_seconds)}秒"
+        elif delay_seconds < 3600:
+            minutes = int(delay_seconds / 60)
+            return f"{minutes}分钟"
+        else:
+            hours = int(delay_seconds / 3600)
+            minutes = int((delay_seconds % 3600) / 60)
+            if minutes > 0:
+                return f"{hours}小时{minutes}分钟"
+            return f"{hours}小时"
 
 
 class BaseProvider(ABC):
@@ -110,9 +132,10 @@ class OpenAIProvider(BaseProvider):
                 break
             except Exception as e:
                 last_error = e
-                if attempt < RetryConfig.max_retries and self._should_retry(e):
+                if self._should_retry(e):
                     delay = RetryConfig.get_delay(attempt)
-                    print(f"[dim]连接错误，{delay}秒后重试... ({attempt}/{RetryConfig.max_retries})[/dim]")
+                    delay_str = RetryConfig.format_delay(delay)
+                    print(f"[dim]连接错误，{delay_str}后重试... (第 {attempt} 次)[/dim]")
                     time.sleep(delay)
                 else:
                     raise
@@ -182,9 +205,10 @@ class OpenAIProvider(BaseProvider):
                 )
                 break
             except Exception as e:
-                if attempt < RetryConfig.max_retries and self._should_retry(e):
+                if self._should_retry(e):
                     delay = RetryConfig.get_delay(attempt)
-                    print(f"[dim]连接错误，{delay}秒后重试... ({attempt}/{RetryConfig.max_retries})[/dim]")
+                    delay_str = RetryConfig.format_delay(delay)
+                    print(f"[dim]连接错误，{delay_str}后重试... (第 {attempt} 次)[/dim]")
                     time.sleep(delay)
                 else:
                     raise
@@ -250,9 +274,10 @@ class AnthropicProvider(BaseProvider):
                 break
             except Exception as e:
                 last_error = e
-                if attempt < RetryConfig.max_retries and self._should_retry(e):
+                if self._should_retry(e):
                     delay = RetryConfig.get_delay(attempt)
-                    print(f"[dim]连接错误，{delay}秒后重试... ({attempt}/{RetryConfig.max_retries})[/dim]")
+                    delay_str = RetryConfig.format_delay(delay)
+                    print(f"[dim]连接错误，{delay_str}后重试... (第 {attempt} 次)[/dim]")
                     time.sleep(delay)
                 else:
                     raise
@@ -329,9 +354,10 @@ class AnthropicProvider(BaseProvider):
                 )
                 break
             except Exception as e:
-                if attempt < RetryConfig.max_retries and self._should_retry(e):
+                if self._should_retry(e):
                     delay = RetryConfig.get_delay(attempt)
-                    print(f"[dim]连接错误，{delay}秒后重试... ({attempt}/{RetryConfig.max_retries})[/dim]")
+                    delay_str = RetryConfig.format_delay(delay)
+                    print(f"[dim]连接错误，{delay_str}后重试... (第 {attempt} 次)[/dim]")
                     time.sleep(delay)
                 else:
                     raise
