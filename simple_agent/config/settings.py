@@ -1,7 +1,8 @@
 import os
 import yaml
+import json
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, Any
 from pydantic import BaseModel, Field
 
 
@@ -38,6 +39,7 @@ class Settings(BaseModel):
     paths: PathsConfig = Field(default_factory=PathsConfig)
     ui: UIConfig = Field(default_factory=UIConfig)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
+    plugin_info: Optional[Dict[str, Any]] = None  # 插件元数据信息
 
 
 def _resolve_env_var(value: str) -> str:
@@ -56,6 +58,22 @@ def _load_yaml_config(path: Path) -> dict:
         return yaml.safe_load(f) or {}
 
 
+def _load_plugin_metadata(plugin_path: Path) -> Optional[Dict[str, Any]]:
+    """Load plugin metadata from .claude-plugin/plugin.json.
+
+    Args:
+        plugin_path: Path to the plugin directory
+
+    Returns:
+        Plugin metadata dict or None if not found
+    """
+    plugin_json = plugin_path / ".claude-plugin" / "plugin.json"
+    if plugin_json.exists():
+        with open(plugin_json) as f:
+            return json.load(f)
+    return None
+
+
 def load_config(plugin_dir: Optional[str] = None) -> Settings:
     """Load configuration with priority: CLI args > ENV > local > plugin > user > defaults.
 
@@ -70,6 +88,11 @@ def load_config(plugin_dir: Optional[str] = None) -> Settings:
     plugin_path = Path.cwd() / plugin_dir
 
     config_data = {}
+
+    # Load plugin metadata if available
+    plugin_metadata = _load_plugin_metadata(plugin_path)
+    if plugin_metadata:
+        config_data["plugin_info"] = plugin_metadata
 
     # Start with user config as base
     user_config = Path.home() / ".config" / "simple-agent" / "config.yml"

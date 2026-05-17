@@ -23,6 +23,40 @@ def get_latest_log_file() -> Path:
     return max(log_files, key=lambda f: f.stat().st_mtime)
 
 
+def show_plugin_info(plugin_dir: Optional[str] = None):
+    """Show plugin information.
+
+    Args:
+        plugin_dir: Path to the plugin directory
+    """
+    config = load_config(plugin_dir=plugin_dir)
+
+    print(f"\n{'='*50}")
+    print(f"插件信息 (Plugin Info)")
+    print(f"{'='*50}")
+
+    if config.plugin_info:
+        info = config.plugin_info
+        print(f"名称 (Name):        {info.get('name', 'N/A')}")
+        print(f"描述 (Description): {info.get('description', 'N/A')}")
+        print(f"版本 (Version):     {info.get('version', 'N/A')}")
+        if 'author' in info:
+            author = info['author']
+            print(f"作者 (Author):      {author.get('name', 'N/A')}")
+        print(f"\n资源路径 (Resource Paths):")
+        print(f"  Agents:           {info.get('agents', 'N/A')}")
+        print(f"  Skills:           {info.get('skills', 'N/A')}")
+        print(f"  Hooks:            {info.get('hooks', 'N/A')}")
+
+    print(f"\n配置路径 (Config Path):")
+    print(f"  Plugin Dir:       {config.paths.plugin_dir}")
+    print(f"  Agents Dir:       {config.paths.agents_dir}")
+    print(f"  Skills Dir:       {', '.join(config.paths.skills_dirs)}")
+    print(f"  Hooks Dir:        {config.paths.hooks_dir}")
+    print(f"  Commands Dir:     {config.paths.commands_dir}")
+    print(f"{'='*50}\n")
+
+
 def main():
     # Check for --view-logs or --logs flag
     if "--view-logs" in sys.argv or len(sys.argv) > 1 and sys.argv[1] in ["-l", "--logs"]:
@@ -48,7 +82,14 @@ def main():
                         help='Plugin directory (default: ./plugins/default)')
     parser.add_argument('--resume', nargs='?', const='auto',
                         help='Resume from latest log file or specified log file')
+    parser.add_argument('--plugin-info', action='store_true',
+                        help='Show plugin information')
     args = parser.parse_args()
+
+    # Show plugin info if requested
+    if args.plugin_info:
+        show_plugin_info(plugin_dir=args.plugin)
+        return
 
     # Check for --resume flag
     resume_log = None

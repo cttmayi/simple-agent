@@ -1,0 +1,11 @@
+{
+  "name": "default-plugin",
+  "description": "Simple Agent 默认插件",
+  "version": "1.0.0",
+  "author": {
+    "name": "Simple Agent Team"
+  },
+  "agents": "./agents",
+  "skills": "./skills",
+  "hooks": "./hooks"
+}
