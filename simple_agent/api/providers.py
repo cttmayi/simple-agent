@@ -2,7 +2,22 @@ from abc import ABC, abstractmethod
 from typing import Any, Generator, Dict, List, Optional
 from openai import OpenAI, Stream
 from openai.types.chat import ChatCompletion, ChatCompletionChunk
+import time
 from simple_agent.core.llm_logger import LLMLogger
+
+
+class RetryConfig:
+    """Retry configuration for API calls."""
+    max_retries: int = 3
+    initial_delay: float = 1.0
+    max_delay: float = 10.0
+    backoff_factor: float = 2.0
+
+    @classmethod
+    def get_delay(cls, attempt: int) -> float:
+        """Calculate delay with exponential backoff."""
+        delay = cls.initial_delay * (cls.backoff_factor ** (attempt - 1))
+        return min(delay, cls.max_delay)
 
 
 class BaseProvider(ABC):
@@ -21,6 +36,36 @@ class BaseProvider(ABC):
         self, messages: List[Dict[str, str]], tools: List[Dict[str, Any]]
     ) -> Generator[str, None]:
         pass
+
+    def _should_retry(self, error: Exception) -> bool:
+        """Determine if an error is retryable.
+
+        Retryable errors include:
+        - Connection errors (network issues)
+        - Timeout errors
+        - Rate limit errors (429)
+        - Server errors (5xx)
+        """
+        error_msg = str(error).lower()
+        error_type = type(error).__name__
+
+        # Connection and timeout errors
+        if "connection error" in error_msg or "timeout" in error_msg:
+            return True
+
+        # Rate limit (429)
+        if "429" in error_msg or "rate limit" in error_msg:
+            return True
+
+        # Server errors (5xx)
+        if "5" + "00" in error_msg or "internal server error" in error_msg:
+            return True
+
+        # Specific OpenAI error types
+        if error_type in ("APIConnectionError", "APITimeoutError", "InternalServerError"):
+            return True
+
+        return False
 
 
 class OpenAIProvider(BaseProvider):
@@ -52,11 +97,28 @@ class OpenAIProvider(BaseProvider):
                 subagent_agent_name=subagent_agent_name
             )
 
-        response: ChatCompletion = self.client.chat.completions.create(
-            model=self.model,
-            messages=messages,
-            tools=tools or None,
-        )
+        # Retry logic for API calls
+        response = None
+        last_error = None
+        for attempt in range(1, RetryConfig.max_retries + 1):
+            try:
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=messages,
+                    tools=tools or None,
+                )
+                break
+            except Exception as e:
+                last_error = e
+                if attempt < RetryConfig.max_retries and self._should_retry(e):
+                    delay = RetryConfig.get_delay(attempt)
+                    print(f"[dim]连接错误，{delay}秒后重试... ({attempt}/{RetryConfig.max_retries})[/dim]")
+                    time.sleep(delay)
+                else:
+                    raise
+
+        if response is None:
+            raise last_error if last_error else Exception("Unknown error")
 
         assistant_message = {
             "role": "assistant",
@@ -109,13 +171,23 @@ class OpenAIProvider(BaseProvider):
         self, messages: List[Dict[str, str]], tools: List[Dict[str, Any]]
     ) -> Generator[str, None]:
         """Stream messages from the API with proper resource cleanup."""
-        # Use context manager to ensure stream is properly closed
-        stream: Stream[ChatCompletionChunk] = self.client.chat.completions.create(
-            model=self.model,
-            messages=messages,
-            tools=tools or None,
-            stream=True,
-        )
+        stream = None
+        for attempt in range(1, RetryConfig.max_retries + 1):
+            try:
+                stream = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=messages,
+                    tools=tools or None,
+                    stream=True,
+                )
+                break
+            except Exception as e:
+                if attempt < RetryConfig.max_retries and self._should_retry(e):
+                    delay = RetryConfig.get_delay(attempt)
+                    print(f"[dim]连接错误，{delay}秒后重试... ({attempt}/{RetryConfig.max_retries})[/dim]")
+                    time.sleep(delay)
+                else:
+                    raise
 
         try:
             for chunk in stream:
@@ -123,7 +195,6 @@ class OpenAIProvider(BaseProvider):
                     yield chunk.choices[0].delta.content
         finally:
             # Ensure stream is closed properly
-            # The OpenAI Stream object has a close() method
             if hasattr(stream, 'close'):
                 stream.close()
 
@@ -165,16 +236,29 @@ class AnthropicProvider(BaseProvider):
         if "ark.cn-beijing.volces.com" not in base_url and "api.volcengine.com" not in base_url:
             extra_headers["anthropic-version"] = "2023-06-01"
 
-        try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                tools=tools or None,
-                extra_headers=extra_headers if extra_headers else None,
-            )
-        except Exception as e:
-            # Re-raise the exception for handling by the caller
-            raise
+        # Retry logic
+        response = None
+        last_error = None
+        for attempt in range(1, RetryConfig.max_retries + 1):
+            try:
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=messages,
+                    tools=tools or None,
+                    extra_headers=extra_headers if extra_headers else None,
+                )
+                break
+            except Exception as e:
+                last_error = e
+                if attempt < RetryConfig.max_retries and self._should_retry(e):
+                    delay = RetryConfig.get_delay(attempt)
+                    print(f"[dim]连接错误，{delay}秒后重试... ({attempt}/{RetryConfig.max_retries})[/dim]")
+                    time.sleep(delay)
+                else:
+                    raise
+
+        if response is None:
+            raise last_error if last_error else Exception("Unknown error")
 
         assistant_message = {
             "role": "assistant",
@@ -233,13 +317,24 @@ class AnthropicProvider(BaseProvider):
         if "ark.cn-beijing.volces.com" not in base_url and "api.volcengine.com" not in base_url:
             extra_headers["anthropic-version"] = "2023-06-01"
 
-        stream = self.client.chat.completions.create(
-            model=self.model,
-            messages=messages,
-            tools=tools or None,
-            stream=True,
-            extra_headers=extra_headers if extra_headers else None,
-        )
+        stream = None
+        for attempt in range(1, RetryConfig.max_retries + 1):
+            try:
+                stream = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=messages,
+                    tools=tools or None,
+                    stream=True,
+                    extra_headers=extra_headers if extra_headers else None,
+                )
+                break
+            except Exception as e:
+                if attempt < RetryConfig.max_retries and self._should_retry(e):
+                    delay = RetryConfig.get_delay(attempt)
+                    print(f"[dim]连接错误，{delay}秒后重试... ({attempt}/{RetryConfig.max_retries})[/dim]")
+                    time.sleep(delay)
+                else:
+                    raise
 
         try:
             for chunk in stream:
