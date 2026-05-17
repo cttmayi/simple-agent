@@ -13,5 +13,6 @@ mkdir -p "$(dirname "$LOG_FILE")"
 
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Session started: $SESSION_ID" >> "$LOG_FILE"
 
-# 放行
-echo '{"decision": "allow"}'
+cat <<EOF
+{"decision": "allow"}
+EOF

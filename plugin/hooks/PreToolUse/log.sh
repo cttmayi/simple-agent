@@ -13,4 +13,6 @@ mkdir -p "$(dirname "$LOG_FILE")"
 
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Tool called: $TOOL" >> "$LOG_FILE"
 
-echo '{"decision": "allow"}'
+cat <<EOF
+{"decision": "allow"}
+EOF

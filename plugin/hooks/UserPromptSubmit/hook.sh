@@ -14,4 +14,6 @@ mkdir -p "$(dirname "$LOG_FILE")"
 # 记录到日志
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] User: $USER_PROMPT" >> "$LOG_FILE"
 
-echo '{"decision": "allow"}'
+cat <<EOF
+{"decision": "allow"}
+EOF
