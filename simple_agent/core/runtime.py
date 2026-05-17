@@ -149,219 +149,240 @@ class Runtime:
                 def handler(event_obj):
                     result = self._execute_hook(hook_data, event_obj)
 
-                    # Handle block return value
-                    if result and result.get("action") == "block":
-                        message = result.get("message", "Hook blocked execution")
+                    if not result:
+                        return
 
-                        # 1. Terminal display (already shown in _execute_python_hook)
-                        # 2. Log to logger
+                    decision = result.get("decision")
+                    message = result.get("message", "")
+                    additional_context = result.get("additionalContext", "")
+                    updated_input = result.get("updatedInput")
+
+                    # Show message in CLI if provided
+                    if message:
+                        self._renderer.render_message("system", message)
+
+                    # Handle block decision
+                    if decision == "block":
                         if self._logger:
                             self._logger.log_hook_block(
                                 event_name=event_obj.name,
                                 hook_name=hook_data["event_name"],
                                 message=message
                             )
-                        # 3. Send to AI (via session.add_message)
-                        self._session.add_message("system", f"[BLOCKED] {message}")
-
-                        # Throw exception to interrupt flow (only for tool_call_before)
+                        # Send block message to AI
+                        block_msg = f"[BLOCKED by {hook_data['event_name']}] {message}"
+                        self._session.add_message("system", block_msg)
                         raise HookBlockedException(message)
+
+                    # Handle additionalContext - send to AI
+                    if additional_context:
+                        self._session.add_message("system", f"[{hook_data['event_name']}] {additional_context}")
+
+                    # Handle updatedInput - modify event data (for tool calls)
+                    if updated_input and hasattr(event_obj, 'data'):
+                        event_obj.data.update(updated_input)
+
                 return handler
 
             self._event_bus.subscribe(event_name, make_handler(hook, event_name))
 
     def _execute_hook(self, hook: Dict[str, Any], event: Event) -> Optional[dict]:
-        """Execute hook.
+        """Execute hook using official stdin/stdout JSON protocol.
 
         Args:
             hook: Hook data {"event_name", "path", "files"}
             event: Event object
 
         Returns:
-            dict or None:
-            - {"action": "block", "message": "..."} indicates block
-            - {"append_to_message": "..."} indicates message to append
+            dict or None: Hook result with fields:
+            - decision: "allow" | "block" (required)
+            - message: CLI display content (optional)
+            - updatedInput: Modified event data (optional)
+            - additionalContext: Content to send to LLM (optional)
         """
         hook_dir = Path(hook["path"])
-        append_messages = []
+        combined_result = None
+
+        # Prepare hook input in official format: {"event": "...", "payload": {...}}
+        hook_input = {
+            "event": event.name,
+            "payload": event.data if event.data else {}
+        }
+        hook_input_json = json.dumps(hook_input, ensure_ascii=False)
 
         for filename in hook["files"]:
             filepath = hook_dir / filename
             ext = filepath.suffix.lower()
 
             try:
+                result = None
                 if ext == ".py":
-                    result = self._execute_python_hook(filepath, event)
-                    if result:
-                        if result.get("action") == "block":
-                            return result
-                        elif result.get("append_to_message"):
-                            append_messages.append(result.get("append_to_message"))
+                    result = self._execute_python_hook(filepath, hook_input_json)
                 elif ext in [".sh", ".cmd"]:
-                    result = self._execute_shell_hook(filepath, event)
-                    if result and result.get("append_to_message"):
-                        append_messages.append(result.get("append_to_message"))
+                    result = self._execute_shell_hook(filepath, hook_input_json)
                 elif ext == ".md":
-                    self._execute_prompt_hook(filepath, event)
+                    result = self._execute_markdown_hook(filepath, event)
+
+                if result:
+                    # If any hook returns block, immediately return the block result
+                    if result.get("decision") == "block":
+                        return result
+                    # Combine results: allow merges additionalContext and updatedInput
+                    if combined_result is None:
+                        combined_result = result
+                    else:
+                        # Merge results
+                        if result.get("additionalContext"):
+                            combined_result["additionalContext"] = result.get("additionalContext")
+                        if result.get("updatedInput"):
+                            if combined_result.get("updatedInput") is None:
+                                combined_result["updatedInput"] = result["updatedInput"]
+                            else:
+                                combined_result["updatedInput"].update(result["updatedInput"])
+
             except Exception as e:
                 self._renderer.render_message("system", f"Hook {filename} failed: {str(e)}")
 
-        # Concatenate all append_to_message values
-        if append_messages:
-            return {"append_to_message": "\n".join(append_messages)}
-        return None
+        return combined_result
 
-        return None
-
-    def _execute_python_hook(self, filepath: Path, event: Event) -> Optional[dict]:
-        """Execute Python hook and return result.
+    def _execute_python_hook(self, filepath: Path, hook_input_json: str) -> Optional[dict]:
+        """Execute Python hook using official stdin/stdout JSON protocol.
 
         Args:
             filepath: Python hook file path
-            event: Event object
+            hook_input_json: JSON string to send to stdin
 
         Returns:
-            dict: Hook return value, possibly {"action": "block", "message": "..."}
-        """
-        import importlib.util
-        import sys
-        import re
-        import inspect
-
-        module_name = f"hook_{filepath.stem}"
-        spec = importlib.util.spec_from_file_location(module_name, filepath)
-        if not spec or not spec.loader:
-            return None
-
-        module = importlib.util.module_from_spec(spec)
-        sys.modules[module_name] = module
-        spec.loader.exec_module(module)
-
-        event_name = event.name
-        # Convert PascalCase to snake_case (e.g., "SessionStart" → "session_start")
-        snake_name = re.sub(r'(?<!^)(?=[A-Z])', '_', event_name).lower()
-
-        # Legacy name mapping for backward compatibility
-        legacy_names = {
-            "SessionStart": "session_start",
-            "Stop": "session_end",
-            "UserPromptSubmit": "message_sent",
-            "PostMessage": "message_received",
-            "PreToolUse": "tool_call_before",
-            "PostToolUse": "tool_call_after",
-            "ToolUseFailed": "tool_call_failed",
-            "Error": "error_occurred",
-        }
-        legacy_name = legacy_names.get(event_name)
-
-        # Try multiple function name patterns:
-        func_names = [
-            event_name,                           # "SessionStart"
-            snake_name,                           # "session_start"
-            legacy_name,                          # "session_end" (for Stop)
-            f"on_{event_name}",                   # "on_SessionStart"
-            f"on_{snake_name}",                   # "on_session_start"
-            f"on_{legacy_name}",                  # "on_session_end" (if legacy_name exists)
-        ]
-        # Filter out None values
-        func_names = [f for f in func_names if f is not None]
-
-        for func_name in func_names:
-            if hasattr(module, func_name):
-                func = getattr(module, func_name)
-                # Get function signature
-                sig = inspect.signature(func)
-
-                # Check if function accepts **kwargs (VAR_KEYWORD parameter)
-                accepts_var_keyword = any(
-                    p.kind == inspect.Parameter.VAR_KEYWORD
-                    for p in sig.parameters.values()
-                )
-
-                if accepts_var_keyword:
-                    # Function accepts **kwargs or **data, pass all event data directly
-                    filtered_args = dict(event.data) if event.data else {}
-                else:
-                    # Filter event.data to only include parameters the function accepts
-                    filtered_args = {}
-                    for k, v in event.data.items():
-                        if k in sig.parameters:
-                            filtered_args[k] = v
-                        elif k == "hook_context" and "hook_context" in sig.parameters:
-                            # hook_context is special - always include if function accepts it
-                            # even if not in event.data (use global hook_context if available)
-                            pass  # Will be handled below
-
-                    # If function expects hook_context but it's not in event.data,
-                    # try to get it from a global reference or make it optional
-                    if "hook_context" in sig.parameters and "hook_context" not in filtered_args:
-                        # Check if we have a global hook_context reference
-                        if hasattr(self, '_hook_context') and self._hook_context:
-                            filtered_args["hook_context"] = self._hook_context
-                        elif sig.parameters["hook_context"].default is inspect.Parameter.empty:
-                            # No default and no global - we have a problem
-                            # Try to skip this parameter (works with **kwargs style)
-                            pass
-                        else:
-                            # Has default, add it from sig
-                            filtered_args["hook_context"] = sig.parameters["hook_context"].default
-
-                # Try to call with filtered_args
-                try:
-                    result = func(**filtered_args)
-                    return result
-                except TypeError as e:
-                    # If still failing, the function signature doesn't match event data
-                    # This is expected for hooks using old signatures
-                    return None
-
-        return None
-
-    def _execute_shell_hook(self, filepath: Path, event: Event) -> Optional[dict]:
-        """Execute Shell hook.
-
-        Args:
-            filepath: Shell script file path
-            event: Event object
-
-        Returns:
-            dict with append_to_message if stdout exists, None otherwise
+            dict: Hook result with official fields:
+            - decision: "allow" | "block"
+            - message: CLI display (optional)
+            - updatedInput: Modified event data (optional)
+            - additionalContext: Content for LLM (optional)
         """
         import subprocess
 
         try:
+            # Execute Python script with JSON input via stdin, capture JSON output
             result = subprocess.run(
-                f"sh {filepath}" if filepath.suffix == ".sh" else filepath,
+                [sys.executable, str(filepath)],
+                input=hook_input_json,
+                cwd=Path.cwd(),
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+
+            if result.returncode != 0:
+                if result.stderr:
+                    self._renderer.render_message("system", f"Hook {filepath.name} error: {result.stderr.strip()}")
+                return None
+
+            # Parse JSON output from stdout
+            if result.stdout.strip():
+                try:
+                    hook_result = json.loads(result.stdout.strip())
+                    # Validate required fields
+                    if "decision" not in hook_result:
+                        self._renderer.render_message("system", f"Hook {filepath.name} missing 'decision' field")
+                        return None
+                    if hook_result["decision"] not in ["allow", "block"]:
+                        self._renderer.render_message("system", f"Hook {filepath.name} invalid 'decision': {hook_result['decision']}")
+                        return None
+                    return hook_result
+                except json.JSONDecodeError as e:
+                    self._renderer.render_message("system", f"Hook {filepath.name} invalid JSON: {e}")
+                    return None
+
+            # No output means allow
+            return {"decision": "allow"}
+
+        except subprocess.TimeoutExpired:
+            self._renderer.render_message("system", f"Hook {filepath.name} timed out")
+            return None
+        except Exception as e:
+            self._renderer.render_message("system", f"Hook {filepath.name} failed: {str(e)}")
+            return None
+
+    def _execute_shell_hook(self, filepath: Path, hook_input_json: str) -> Optional[dict]:
+        """Execute Shell hook using official stdin/stdout JSON protocol.
+
+        Args:
+            filepath: Shell script file path
+            hook_input_json: JSON string to send to stdin
+
+        Returns:
+            dict: Hook result with official fields
+        """
+        import subprocess
+
+        try:
+            shell_cmd = f"sh {filepath}" if filepath.suffix == ".sh" else str(filepath)
+            result = subprocess.run(
+                shell_cmd,
+                input=hook_input_json,
                 shell=True,
                 cwd=Path.cwd(),
                 capture_output=True,
                 text=True,
-                timeout=5,
+                timeout=10,
             )
-            if result.stdout:
-                output = result.stdout.strip()
-                self._renderer.render_message("system", output)
-                return {"append_to_message": output}
-            if result.stderr:
-                self._renderer.render_message("system", f"Hook stderr: {result.stderr.strip()}")
-        except subprocess.TimeoutExpired:
-            self._renderer.render_message("system", "Shell hook timed out")
 
-    def _execute_prompt_hook(self, filepath: Path, event: Event) -> None:
-        """Execute Prompt hook (simplified version, displays content).
+            if result.returncode != 0:
+                if result.stderr:
+                    self._renderer.render_message("system", f"Hook {filepath.name} error: {result.stderr.strip()}")
+                return None
+
+            # Parse JSON output from stdout
+            if result.stdout.strip():
+                try:
+                    hook_result = json.loads(result.stdout.strip())
+                    if "decision" not in hook_result:
+                        self._renderer.render_message("system", f"Hook {filepath.name} missing 'decision' field")
+                        return None
+                    if hook_result["decision"] not in ["allow", "block"]:
+                        self._renderer.render_message("system", f"Hook {filepath.name} invalid 'decision': {hook_result['decision']}")
+                        return None
+                    return hook_result
+                except json.JSONDecodeError as e:
+                    self._renderer.render_message("system", f"Hook {filepath.name} invalid JSON: {e}")
+                    return None
+
+            return {"decision": "allow"}
+
+        except subprocess.TimeoutExpired:
+            self._renderer.render_message("system", f"Hook {filepath.name} timed out")
+            return None
+        except Exception as e:
+            self._renderer.render_message("system", f"Hook {filepath.name} failed: {str(e)}")
+            return None
+
+    def _execute_markdown_hook(self, filepath: Path, event: Event) -> Optional[dict]:
+        """Execute Markdown hook (simple message append).
+
+        Markdown hooks append content as additionalContext for the LLM.
 
         Args:
             filepath: Markdown file path
             event: Event object
+
+        Returns:
+            dict with additionalContext field
         """
-        prompt_content = filepath.read_text()
+        try:
+            content = filepath.read_text()
 
-        variables = event.data or {}
-        for key, value in variables.items():
-            prompt_content = prompt_content.replace(f"{{{{{key}}}}}", str(value))
+            # Simple template variable replacement
+            variables = event.data or {}
+            for key, value in variables.items():
+                content = content.replace(f"{{{{{key}}}}}", str(value))
 
-        # TODO: Full implementation should send to LLM
-        self._renderer.render_message("system", f"[Prompt Hook] {prompt_content[:100]}...")
+            return {
+                "decision": "allow",
+                "additionalContext": content
+            }
+        except Exception as e:
+            self._renderer.render_message("system", f"Hook {filepath.name} failed: {str(e)}")
+            return None
 
     def get_agent_context(self) -> Optional[str]:
         """Load AGENT.md from plugin directory."""
