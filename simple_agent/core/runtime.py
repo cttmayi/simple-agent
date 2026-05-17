@@ -3,6 +3,7 @@ import sys
 import json
 from pathlib import Path
 from typing import Dict, List, Optional
+from shlex import split
 from rich.markup import escape
 from simple_agent.config.settings import Settings
 from simple_agent.api.client import APIClient
@@ -77,9 +78,25 @@ class Runtime:
         # Resolve relative paths to base_dir
         resolved_skills_dirs = [base_dir / d if not d.startswith("~") else d for d in skills_dirs]
         self._skill_loader = SkillLoader(resolved_skills_dirs)
-        self._agent_loader = AgentLoader(base_dir / config.paths.agents_dir)
-        self._hook_loader = HookLoader(base_dir / config.paths.hooks_dir)
-        self._command_loader = CommandLoader(base_dir / config.paths.commands_dir)
+
+        # Agents loader supports multiple directories
+        agents_dirs = config.paths.agents_dirs
+        if isinstance(agents_dirs, str):
+            agents_dirs = [agents_dirs]
+        resolved_agents_dirs = [base_dir / d if not d.startswith("~") else d for d in agents_dirs]
+        self._agent_loader = AgentLoader(resolved_agents_dirs)
+
+        # Hooks loader - loads from hooks.json in plugin directory
+        hooks_json_path = base_dir / "plugins/default/hooks/hooks.json"
+        self._hook_loader = HookLoader(hooks_json_path)
+
+        # Commands loader supports multiple directories
+        commands_dirs = config.paths.commands_dirs
+        if isinstance(commands_dirs, str):
+            commands_dirs = [commands_dirs]
+        resolved_commands_dirs = [base_dir / d if not d.startswith("~") else d for d in commands_dirs]
+        self._command_loader = CommandLoader(resolved_commands_dirs)
+
         self._command_processor = CommandProcessor(config, self._logger)
 
         # Load and register hooks
@@ -143,55 +160,111 @@ class Runtime:
         return "\n".join(context_parts)
 
     def _load_hooks(self):
-        """Load and register all hooks."""
-        hooks = self._hook_loader.list_hooks()
+        """Load and register all hooks from hooks.json configuration."""
+        # Get unique event names from hooks.json
+        all_hooks = self._hook_loader.list_hooks()
+        event_names = set(hook["event_name"] for hook in all_hooks)
 
         if _is_hook_debug():
-            sys.stderr.write(f"[DEBUG] Loading {len(hooks)} hooks...\n")
+            sys.stderr.write(f"[DEBUG] Loading {len(all_hooks)} hooks for {len(event_names)} events...\n")
 
-        for hook in hooks:
-            event_name = hook["event_name"]
-
-            # For each event, create a handler
-            def make_handler(hook_data, evt_name):
+        # Register one handler per event name that processes all matching hooks
+        for event_name in event_names:
+            def make_handler(evt_name):
                 def handler(event_obj):
-                    result = self._execute_hook(hook_data, event_obj)
+                    # Get all hooks that should be triggered for this event
+                    matching_hooks = self._hook_loader.get_hooks_for_event(evt_name)
 
-                    if not result:
+                    if not matching_hooks:
                         return
 
-                    decision = result.get("decision")
-                    # Note: message is already displayed in _execute_hook
-                    message = result.get("message", "")
-                    additional_context = result.get("additionalContext", "")
-                    updated_input = result.get("updatedInput")
+                    # Execute all matching hooks in order
+                    for hook_group in matching_hooks:
+                        hook_definitions = hook_group.get("hooks", [])
 
-                    # Handle block decision
-                    if decision == "block":
-                        if self._logger:
-                            self._logger.log_hook_block(
-                                event_name=event_obj.name,
-                                hook_name=hook_data["event_name"],
-                                message=message
-                            )
-                        # Send block message to AI
-                        block_msg = f"[BLOCKED by {hook_data['event_name']}] {message}"
-                        self._session.add_message("system", block_msg)
-                        raise HookBlockedException(message)
+                        for hook_def in hook_definitions:
+                            try:
+                                result = self._execute_hook_definition(hook_def, event_obj, evt_name)
 
-                    # Handle additionalContext - send to AI
-                    if additional_context:
-                        self._session.add_message("system", f"[{hook_data['event_name']}] {additional_context}")
+                                if not result:
+                                    continue
 
-                    # Handle updatedInput - modify event data (for tool calls)
-                    if updated_input and hasattr(event_obj, 'data'):
-                        event_obj.data.update(updated_input)
+                                decision = result.get("decision", "allow")
+                                message = result.get("message", "")
+                                additional_context = result.get("additionalContext", "")
+                                updated_input = result.get("updatedInput")
+
+                                # Display message if provided
+                                if message:
+                                    self._renderer.render_message("system", message)
+
+                                # Handle block decision
+                                if decision == "block":
+                                    if self._logger:
+                                        self._logger.log_hook_block(
+                                            event_name=event_obj.name,
+                                            hook_name=hook_def.get("type", "unknown"),
+                                            message=message
+                                        )
+                                    # Send block message to AI
+                                    block_msg = f"[BLOCKED] {message}"
+                                    self._session.add_message("system", block_msg)
+                                    raise HookBlockedException(message)
+
+                                # Handle additionalContext - send to AI
+                                if additional_context:
+                                    self._session.add_message("system", additional_context)
+
+                                # Handle updatedInput - modify event data (for tool calls)
+                                if updated_input and hasattr(event_obj, 'data'):
+                                    event_obj.data.update(updated_input)
+
+                            except Exception as e:
+                                self._renderer.render_message("system", f"Hook failed: {str(e)}")
+                                if _is_hook_debug():
+                                    import traceback
+                                    traceback.print_exc()
 
                 return handler
 
-            if _is_hook_debug():
-                sys.stderr.write(f"[DEBUG] Registered hook: {event_name} -> {hook['files']}\n")
-            self._event_bus.subscribe(event_name, make_handler(hook, event_name))
+            self._event_bus.subscribe(event_name, make_handler(event_name))
+
+    def _execute_hook_definition(self, hook_def: Dict[str, Any], event: Event, event_name: str) -> Optional[dict]:
+        """Execute a single hook definition from hooks.json configuration.
+
+        Args:
+            hook_def: Hook definition from hooks.json, e.g., {"type": "command", "command": "..."}
+            event: Event object
+            event_name: The event name (for logging)
+
+        Returns:
+            dict or None: Hook result with fields:
+            - decision: "allow" | "block" (required)
+            - message: CLI display content (optional)
+            - updatedInput: Modified event data (optional)
+            - additionalContext: Content to send to LLM (optional)
+        """
+        hook_type = hook_def.get("type", "command")
+
+        # Build hook input in official format
+        hook_input = self._build_hook_input(event)
+        hook_input_json = json.dumps(hook_input, ensure_ascii=False)
+
+        if _is_hook_debug():
+            sys.stderr.write(f"[DEBUG] Hook triggered: {event_name} ({hook_type})\n")
+            sys.stderr.write(f"[DEBUG] Hook input: {hook_input_json[:200]}..." if len(hook_input_json) > 200 else f"[DEBUG] Hook input: {hook_input_json}\n")
+
+        if hook_type == "command":
+            result = self._execute_command_hook(hook_def, hook_input_json)
+        elif hook_type == "python":
+            result = self._execute_python_hook(hook_def, hook_input_json)
+        elif hook_type == "markdown":
+            result = self._execute_markdown_hook(hook_def, event)
+        else:
+            self._renderer.render_message("system", f"Unknown hook type: {hook_type}")
+            return None
+
+        return result
 
     def _execute_hook(self, hook: Dict[str, Any], event: Event) -> Optional[dict]:
         """Execute hook using official stdin/stdout JSON protocol.
@@ -472,21 +545,119 @@ class Runtime:
             sys.stderr.write(f"[DEBUG] Combined hook result: {combined_result}\n")
         return combined_result
 
-    def _execute_python_hook(self, filepath: Path, hook_input_json: str) -> Optional[dict]:
-        """Execute Python hook using official stdin/stdout JSON protocol.
+    def _execute_command_hook(self, hook_def: Dict[str, Any], hook_input_json: str) -> Optional[dict]:
+        """Execute command hook from hooks.json.
 
         Args:
-            filepath: Python hook file path
+            hook_def: Hook definition with "command" field
             hook_input_json: JSON string to send to stdin
 
         Returns:
-            dict: Hook result with official fields:
-            - decision: "allow" | "block"
-            - message: CLI display (optional)
-            - updatedInput: Modified event data (optional)
-            - additionalContext: Content for LLM (optional)
+            dict: Hook result with official fields
         """
         import subprocess
+
+        command = hook_def.get("command", "")
+        is_async = hook_def.get("async", False)
+
+        if not command:
+            return None
+
+        try:
+            # Set CLAUDE_PLUGIN_ROOT environment variable for hooks
+            plugin_root = Path.cwd() / self._config.paths.plugin_dir
+            env = os.environ.copy()
+            env["CLAUDE_PLUGIN_ROOT"] = str(plugin_root)
+
+            # Expand environment variables in command using the custom env dict
+            def expand_vars(s: str, env_dict: dict) -> str:
+                """Expand variables like ${VAR} using the provided environment dict."""
+                import re
+                pattern = r'\$\{([^}]+)\}'
+                def replace_var(match):
+                    var_name = match.group(1)
+                    return env_dict.get(var_name, match.group(0))
+                return re.sub(pattern, replace_var, s)
+
+            expanded_command = expand_vars(command, env)
+
+            # Parse command safely using shlex
+            cmd_parts = split(expanded_command)
+
+            # Prepare hook input as JSON via stdin
+            result = subprocess.run(
+                cmd_parts,
+                input=hook_input_json,
+                cwd=Path.cwd(),
+                capture_output=True,
+                text=True,
+                timeout=10,
+                shell=False,
+                env=env,
+            )
+
+            if _is_hook_debug():
+                sys.stderr.write(f"[DEBUG] Command hook executed: {' '.join(cmd_parts)}\n")
+                sys.stderr.write(f"[DEBUG] Return code: {result.returncode}\n")
+                if result.stdout.strip():
+                    sys.stderr.write(f"[DEBUG] Hook output: {result.stdout.strip()[:200]}..." if len(result.stdout.strip()) > 200 else f"[DEBUG] Hook output: {result.stdout.strip()}\n")
+                if result.stderr.strip():
+                    sys.stderr.write(f"[DEBUG] Hook stderr: {result.stderr.strip()}\n")
+
+            if result.returncode != 0:
+                if result.stderr:
+                    self._renderer.render_message("system", f"Command hook error: {result.stderr.strip()}")
+                return None
+
+            if result.stdout.strip():
+                try:
+                    return json.loads(result.stdout.strip())
+                except json.JSONDecodeError:
+                    # If output is not valid JSON, default to allow
+                    return {"decision": "allow"}
+
+        except subprocess.TimeoutExpired:
+            self._renderer.render_message("system", f"Command hook timed out: {command}")
+            return None
+        except Exception as e:
+            self._renderer.render_message("system", f"Command hook failed: {str(e)}")
+            return None
+
+    def _execute_python_hook(self, hook_def: Dict[str, Any], hook_input_json: str) -> Optional[dict]:
+        """Execute Python hook using official stdin/stdout JSON protocol.
+
+        Args:
+            hook_def: Hook definition with "file" field
+            hook_input_json: JSON string to send to stdin
+
+        Returns:
+            dict: Hook result with official fields
+        """
+        import subprocess
+
+        filepath_str = hook_def.get("file", "")
+        if not filepath_str:
+            return None
+
+        # Expand environment variables in file path using the custom env dict
+        plugin_root = Path.cwd() / self._config.paths.plugin_dir
+        env = os.environ.copy()
+        env["CLAUDE_PLUGIN_ROOT"] = str(plugin_root)
+
+        # Custom expand function
+        def expand_vars(s: str, env_dict: dict) -> str:
+            """Expand variables like ${VAR} using the provided environment dict."""
+            import re
+            pattern = r'\$\{([^}]+)\}'
+            def replace_var(match):
+                var_name = match.group(1)
+                return env_dict.get(var_name, match.group(0))
+            return re.sub(pattern, replace_var, s)
+
+        expanded_path = expand_vars(filepath_str, env)
+        filepath = Path(expanded_path).expanduser()
+        if not filepath.exists():
+            return None
 
         try:
             # Execute Python script with JSON input via stdin, capture JSON output
@@ -497,6 +668,7 @@ class Runtime:
                 capture_output=True,
                 text=True,
                 timeout=10,
+                env=env,
             )
 
             if _is_hook_debug():
@@ -602,20 +774,27 @@ class Runtime:
             self._renderer.render_message("system", f"Hook {filepath.name} failed: {str(e)}")
             return None
 
-    def _execute_markdown_hook(self, filepath: Path, event: Event) -> Optional[dict]:
+    def _execute_markdown_hook(self, hook_def: Dict[str, Any], event: Event) -> Optional[dict]:
         """Execute Markdown hook (simple message append).
 
         Markdown hooks append content as additionalContext for the LLM.
 
         Args:
-            filepath: Markdown file path
+            hook_def: Hook definition with "file" or "content" field
             event: Event object
 
         Returns:
             dict with additionalContext field
         """
         try:
-            content = filepath.read_text()
+            # Support either file path or inline content
+            if "file" in hook_def:
+                filepath = Path(hook_def["file"]).expanduser()
+                content = filepath.read_text()
+            elif "content" in hook_def:
+                content = hook_def["content"]
+            else:
+                return None
 
             # Simple template variable replacement
             variables = event.data or {}
@@ -627,7 +806,7 @@ class Runtime:
                 "additionalContext": content
             }
         except Exception as e:
-            self._renderer.render_message("system", f"Hook {filepath.name} failed: {str(e)}")
+            self._renderer.render_message("system", f"Markdown hook failed: {str(e)}")
             return None
 
     def get_agent_context(self) -> Optional[str]:
@@ -781,9 +960,9 @@ class Runtime:
 
         # Paths
         skills_dirs = ", ".join(self._config.paths.skills_dirs)
-        agents_dir = self._config.paths.agents_dir
-        hooks_dir = self._config.paths.hooks_dir
-        commands_dir = self._config.paths.commands_dir
+        agents_dirs = ", ".join(self._config.paths.agents_dirs)
+        hooks_dirs = ", ".join(self._config.paths.hooks_dirs)
+        commands_dirs = ", ".join(self._config.paths.commands_dirs)
 
         # UI
         theme = self._config.ui.theme
@@ -822,9 +1001,9 @@ class Runtime:
 
             # Paths
             '{skills_dirs}': skills_dirs,
-            '{agents_dir}': agents_dir,
-            '{hooks_dir}': hooks_dir,
-            '{commands_dir}': commands_dir,
+            '{agents_dirs}': agents_dirs,
+            '{hooks_dirs}': hooks_dirs,
+            '{commands_dirs}': commands_dirs,
 
             # UI
             '{theme}': theme,

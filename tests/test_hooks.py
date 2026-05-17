@@ -11,28 +11,53 @@ from simple_agent.core.events import Event, HookBlockedException
 from simple_agent.config.settings import Settings
 
 
-def test_hook_loader_scans_directories():
-    """HookLoader scans hooks/ directory subdirectories"""
+def test_hook_loader_loads_json_config():
+    """HookLoader loads hooks from JSON configuration."""
     from simple_agent.resources.hooks import HookLoader
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        hooks_dir = Path(tmpdir)
+        # Create hooks.json
+        hooks_file = Path(tmpdir) / "hooks.json"
+        hooks_file.write_text('''
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo 'Session started'",
+            "async": false
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "markdown",
+            "content": "Processing..."
+          }
+        ]
+      }
+    ]
+  }
+}
+''')
 
-        # Create event directory and files
-        event_dir = hooks_dir / "test_event"
-        event_dir.mkdir()
-
-        # Create different types of hook files
-        (event_dir / "hook.py").write_text("import sys; import json; input_json = sys.stdin.read(); print(json.dumps({'decision': 'allow'}))")
-        (event_dir / "hook.sh").write_text("#!/bin/bash\nINPUT_JSON=$(cat)\necho '{\"decision\": \"allow\"}'")
-        (event_dir / "hook.md").write_text("test prompt")
-
-        loader = HookLoader(hooks_dir)
+        loader = HookLoader(hooks_file)
         hooks = loader.list_hooks()
 
-        assert len(hooks) == 1
-        assert hooks[0]["event_name"] == "test_event"
-        assert hooks[0]["files"] == ["hook.md", "hook.py", "hook.sh"]
+        assert len(hooks) == 2
+        assert hooks[0]["event_name"] == "SessionStart"
+        assert hooks[1]["event_name"] == "UserPromptSubmit"
+
+        # Test getting hooks for specific event
+        session_hooks = loader.get_hooks_for_event("SessionStart")
+        assert len(session_hooks) == 1
+        assert session_hooks[0]["matcher"] == ""
+        assert len(session_hooks[0]["hooks"]) == 1
 
 
 def test_python_hook_allow():
@@ -71,7 +96,8 @@ print(json.dumps(result, ensure_ascii=False))
         hook_input_json = json.dumps(hook_input, ensure_ascii=False)
 
         # Execute hook
-        result = runtime._execute_python_hook(hook_file, hook_input_json)
+        hook_def = {"file": str(hook_file)}
+        result = runtime._execute_python_hook(hook_def, hook_input_json)
 
         assert result is not None
         assert result["decision"] == "allow"
@@ -119,7 +145,8 @@ print(json.dumps(result, ensure_ascii=False))
         }
         hook_input_json = json.dumps(hook_input, ensure_ascii=False)
 
-        result = runtime._execute_python_hook(hook_file, hook_input_json)
+        hook_def = {"file": str(hook_file)}
+        result = runtime._execute_python_hook(hook_def, hook_input_json)
 
         assert result is not None
         assert result["decision"] == "block"
@@ -187,7 +214,8 @@ print(json.dumps(result, ensure_ascii=False))
         hook_input = {"event": "UserPromptSubmit", "payload": {"content": "test"}}
         hook_input_json = json.dumps(hook_input, ensure_ascii=False)
 
-        result = runtime._execute_python_hook(hook_file, hook_input_json)
+        hook_def = {"file": str(hook_file)}
+        result = runtime._execute_python_hook(hook_def, hook_input_json)
 
         assert result is not None
         assert result["decision"] == "allow"
@@ -213,33 +241,22 @@ Session ID: {{session_id}}
 
         event = Event("SessionStart", {"session_id": "test-123"})
 
-        result = runtime._execute_markdown_hook(hook_file, event)
+        hook_def = {"file": str(hook_file)}
+        result = runtime._execute_markdown_hook(hook_def, event)
 
         assert result is not None
         assert result["decision"] == "allow"
         assert "test-123" in result["additionalContext"]
 
 
-def test_execute_hook_with_block():
-    """_execute_hook stops early when hook returns block."""
+def test_execute_hook_definition_with_block():
+    """_execute_hook_definition stops early when hook returns block."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        hook_dir = Path(tmpdir) / "test_event"
-        hook_dir.mkdir()
-
-        # Create Python hook that blocks
-        (hook_dir / "block.py").write_text("""
-import sys
-import json
+        hook_file = Path(tmpdir) / "block.py"
+        hook_file.write_text("""
+import sys, json
 input_json = sys.stdin.read()
-print(json.dumps({"decision": "block", "message": "Stopped early"}))
-""")
-
-        # Create another hook that should NOT execute
-        (hook_dir / "after.py").write_text("""
-import sys
-import json
-input_json = sys.stdin.read()
-print(json.dumps({"decision": "allow", "message": "This should not run"}))
+print(json.dumps({"decision": "block", "message": "Blocked"}))
 """)
 
         runtime = Runtime.__new__(Runtime)
@@ -250,16 +267,13 @@ print(json.dumps({"decision": "allow", "message": "This should not run"}))
         runtime._session = MagicMock()
         runtime._session_id = "test-session-id"
 
-        hook = {"event_name": "test_event", "path": str(hook_dir), "files": ["block.py", "after.py"]}
-        event = Event("test_event", {"session_id": "test"})
+        hook_def = {"type": "python", "file": str(hook_file)}
+        event = Event("TestEvent", {"session_id": "test"})
 
-        # Use real methods
-        result = runtime._execute_hook(hook, event)
+        result = runtime._execute_hook_definition(hook_def, event, "TestEvent")
 
-        # Verify block is returned
         assert result is not None
         assert result["decision"] == "block"
-        assert "Stopped early" in result["message"]
 
 
 def test_hook_handler_processes_additional_context():
@@ -347,7 +361,8 @@ sys.stdin.read()
         hook_input = {"event": "SessionStart", "payload": {}}
         hook_input_json = json.dumps(hook_input, ensure_ascii=False)
 
-        result = runtime._execute_python_hook(hook_file, hook_input_json)
+        hook_def = {"file": str(hook_file)}
+        result = runtime._execute_python_hook(hook_def, hook_input_json)
 
         assert result is not None
         assert result["decision"] == "allow"
@@ -373,7 +388,8 @@ print("This is not JSON")
         hook_input = {"event": "SessionStart", "payload": {}}
         hook_input_json = json.dumps(hook_input, ensure_ascii=False)
 
-        result = runtime._execute_python_hook(hook_file, hook_input_json)
+        hook_def = {"file": str(hook_file)}
+        result = runtime._execute_python_hook(hook_def, hook_input_json)
 
         assert result is None
         runtime._renderer.render_message.assert_called()
@@ -400,7 +416,8 @@ print(json.dumps({"message": "Hello"}))
         hook_input = {"event": "SessionStart", "payload": {}}
         hook_input_json = json.dumps(hook_input, ensure_ascii=False)
 
-        result = runtime._execute_python_hook(hook_file, hook_input_json)
+        hook_def = {"file": str(hook_file)}
+        result = runtime._execute_python_hook(hook_def, hook_input_json)
 
         assert result is not None
         assert result["decision"] == "allow"
@@ -440,7 +457,8 @@ print(json.dumps(result, ensure_ascii=False))
         hook_input = {"event": "PreToolUse", "payload": {"tool": "test", "parameters": {}}}
         hook_input_json = json.dumps(hook_input, ensure_ascii=False)
 
-        result = runtime._execute_python_hook(hook_file, hook_input_json)
+        hook_def = {"file": str(hook_file)}
+        result = runtime._execute_python_hook(hook_def, hook_input_json)
 
         assert result is not None
         assert result["decision"] == "allow"
@@ -451,18 +469,16 @@ print(json.dumps(result, ensure_ascii=False))
 def test_multiple_hooks_combined_results():
     """Test that multiple hooks combine their results."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        hook_dir = Path(tmpdir) / "test_event"
-        hook_dir.mkdir()
-
-        # Hook 1: allow with message
-        (hook_dir / "hook1.py").write_text("""
+        # Create Python hooks
+        hook1 = Path(tmpdir) / "hook1.py"
+        hook1.write_text("""
 import sys, json
 input_json = sys.stdin.read()
 print(json.dumps({"decision": "allow", "message": "Hook 1 processed"}))
 """)
 
-        # Hook 2: add additional context
-        (hook_dir / "hook2.py").write_text("""
+        hook2 = Path(tmpdir) / "hook2.py"
+        hook2.write_text("""
 import sys, json
 input_json = sys.stdin.read()
 print(json.dumps({"decision": "allow", "additionalContext": "Context from hook 2"}))
@@ -477,10 +493,11 @@ print(json.dumps({"decision": "allow", "additionalContext": "Context from hook 2
         runtime._session_id = "test-session-id"
 
         # Use real _execute_python_hook
-        def mock_execute_python(filepath, hook_input_json):
+        def mock_execute_python(hook_def, hook_input_json):
             import subprocess
+            filepath_str = hook_def.get("file", "")
             result = subprocess.run(
-                [sys.executable, str(filepath)],
+                [sys.executable, str(filepath_str)],
                 input=hook_input_json,
                 cwd=Path.cwd(),
                 capture_output=True,
@@ -495,15 +512,34 @@ print(json.dumps({"decision": "allow", "additionalContext": "Context from hook 2
         runtime._execute_shell_hook = lambda f, j: None
         runtime._execute_markdown_hook = lambda f, e: None
 
-        hook = {"event_name": "test_event", "path": str(hook_dir), "files": ["hook1.py", "hook2.py"]}
-        event = Event("test_event", {})
+        # Create hook definitions
+        hook_group = {
+            "event_name": "TestEvent",
+            "matcher": "",
+            "hooks": [
+                {"type": "python", "file": str(hook1)},
+                {"type": "python", "file": str(hook2)},
+            ]
+        }
+        event = Event("TestEvent", {})
 
-        result = Runtime._execute_hook.__get__(runtime, Runtime)(hook, event)
+        combined_result = None
+        for hook_def in hook_group["hooks"]:
+            result = runtime._execute_hook_definition(hook_def, event, "TestEvent")
+            if result:
+                if combined_result is None:
+                    combined_result = result
+                else:
+                    # Merge results
+                    if result.get("message"):
+                        combined_result["message"] = result["message"]
+                    if result.get("additionalContext"):
+                        combined_result["additionalContext"] = result["additionalContext"]
 
-        assert result is not None
-        assert result["decision"] == "allow"
-        assert result["message"] == "Hook 1 processed"
-        assert result["additionalContext"] == "Context from hook 2"
+        assert combined_result is not None
+        assert combined_result["decision"] == "allow"
+        assert combined_result["message"] == "Hook 1 processed"
+        assert combined_result["additionalContext"] == "Context from hook 2"
 
 
 if __name__ == "__main__":

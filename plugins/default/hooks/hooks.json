@@ -1,0 +1,100 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/SessionStart/hook.sh\"",
+            "async": false
+          },
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/SessionStart/log.sh\"",
+            "async": false
+          },
+          {
+            "type": "python",
+            "file": "${CLAUDE_PLUGIN_ROOT}/hooks/SessionStart/welcome.py",
+            "async": false
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/UserPromptSubmit/hook.sh\"",
+            "async": false
+          },
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/UserPromptSubmit/log.sh\"",
+            "async": false
+          },
+          {
+            "type": "command",
+            "file": "python ${CLAUDE_PLUGIN_ROOT}/hooks/UserPromptSubmit/record.py",
+            "async": false
+          },
+          {
+            "type": "python",
+            "file": "${CLAUDE_PLUGIN_ROOT}/hooks/UserPromptSubmit/code_guidance.py",
+            "async": false
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/PreToolUse/log.sh\"",
+            "async": false
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "python",
+            "file": "${CLAUDE_PLUGIN_ROOT}/hooks/PostToolUse/logger.py",
+            "async": false
+          }
+        ]
+      }
+    ],
+    "SkillLoad": [
+      {
+        "hooks": [
+          {
+            "type": "python",
+            "file": "${CLAUDE_PLUGIN_ROOT}/hooks/SkillLoad/notify.py",
+            "async": false
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "python",
+            "file": "${CLAUDE_PLUGIN_ROOT}/hooks/Stop/cleanup.py",
+            "async": false
+          },
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/Stop/cleanup.sh\"",
+            "async": false
+          }
+        ]
+      }
+    ]
+  }
+}

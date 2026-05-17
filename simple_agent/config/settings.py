@@ -2,8 +2,8 @@ import os
 import yaml
 import json
 from pathlib import Path
-from typing import Optional, Dict, Any
-from pydantic import BaseModel, Field
+from typing import Optional, Dict, Any, Union
+from pydantic import BaseModel, Field, model_validator, ConfigDict
 
 
 class APIConfig(BaseModel):
@@ -15,13 +15,52 @@ class APIConfig(BaseModel):
 
 class PathsConfig(BaseModel):
     skills_dirs: list[str] = ["./plugins/default/skills"]
-    agents_dir: str = "./plugins/default/agents"
-    hooks_dir: str = "./plugins/default/hooks"
-    commands_dir: str = "./plugins/default/commands"
+    additional_skills_dir: Optional[Union[str, list[str]]] = Field(default=None, alias="skills_dir")
+    agents_dirs: list[str] = ["./plugins/default/agents"]
+    additional_agents_dir: Optional[Union[str, list[str]]] = Field(default=None, alias="agents_dir")
+    commands_dirs: list[str] = ["./plugins/default/commands"]
+    additional_commands_dir: Optional[Union[str, list[str]]] = Field(default=None, alias="commands_dir")
     tools_dir: str = "./.simple-agent/tools"
     memory_dir: str = "./.simple-agent/memory"
     logs_dir: str = "./.simple-agent/logs"
-    plugin_dir: str = "./plugins/default"  # 新增插件目录配置
+    plugin_dir: str = "./plugins/default"
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    @model_validator(mode='after')
+    def merge_additional_paths(self):
+        """Merge additional paths from config into the main path lists."""
+        # Merge skills
+        if self.additional_skills_dir is not None:
+            if isinstance(self.additional_skills_dir, str):
+                self.skills_dirs.append(self.additional_skills_dir)
+            else:
+                self.skills_dirs.extend(self.additional_skills_dir)
+
+        # Merge agents
+        if self.additional_agents_dir is not None:
+            if isinstance(self.additional_agents_dir, str):
+                self.agents_dirs.append(self.additional_agents_dir)
+            else:
+                self.agents_dirs.extend(self.additional_agents_dir)
+
+        # Merge commands
+        if self.additional_commands_dir is not None:
+            if isinstance(self.additional_commands_dir, str):
+                self.commands_dirs.append(self.additional_commands_dir)
+            else:
+                self.commands_dirs.extend(self.additional_commands_dir)
+
+        return self
+
+    # Backwards compatibility - allow accessing as singular names (returns first path)
+    @property
+    def agents_dir(self) -> str:
+        return self.agents_dirs[0] if self.agents_dirs else "./plugins/default/agents"
+
+    @property
+    def commands_dir(self) -> str:
+        return self.commands_dirs[0] if self.commands_dirs else "./plugins/default/commands"
 
 
 class UIConfig(BaseModel):
@@ -94,7 +133,7 @@ def _load_plugin_metadata(plugin_path: Path) -> Optional[Dict[str, Any]]:
 
 
 def load_config(plugin_dir: Optional[str] = None) -> Settings:
-    """Load configuration with priority: CLI args > ENV > local > plugin > user > defaults.
+    """Load configuration with priority: CLI args > ENV > local > user > plugin_config.yml > defaults.
 
     Args:
         plugin_dir: Path to the plugin directory (default: ./plugins/default)
@@ -125,100 +164,95 @@ def load_config(plugin_dir: Optional[str] = None) -> Settings:
 
         if "agents" in plugin_metadata:
             agents_path = plugin_metadata["agents"]
-            # Support both string and list for agents
+            agents_dirs = []
             if isinstance(agents_path, list):
-                agents_path = agents_path[0] if agents_path else "./agents"
-            # Convert to path relative to cwd
-            if agents_path.startswith("./") or agents_path.startswith("../"):
-                # Already relative
-                paths_data["agents_dir"] = str(plugin_relative / agents_path.lstrip("./"))
+                for ap in agents_path:
+                    if ap.startswith("~") or ap.startswith("/"):
+                        agents_dirs.append(ap)
+                    elif ap.startswith("./") or ap.startswith("../"):
+                        # Already relative - strip leading ./ and make relative to plugin
+                        agents_dirs.append(str(plugin_relative / ap.lstrip("./")))
+                    else:
+                        # Directory name only, under plugin
+                        agents_dirs.append(str(plugin_relative / ap))
             else:
-                # Directory name only, under plugin
-                paths_data["agents_dir"] = str(plugin_relative / agents_path)
+                if agents_path.startswith("~") or agents_path.startswith("/"):
+                    agents_dirs.append(agents_path)
+                elif agents_path.startswith("./") or agents_path.startswith("../"):
+                    # Already relative - strip leading ./ and make relative to plugin
+                    agents_dirs.append(str(plugin_relative / agents_path.lstrip("./")))
+                else:
+                    # Directory name only, under plugin
+                    agents_dirs.append(str(plugin_relative / agents_path))
+            paths_data["agents_dirs"] = agents_dirs
 
         if "skills" in plugin_metadata:
             skills_path = plugin_metadata["skills"]
             skills_dirs = []
             if isinstance(skills_path, list):
                 for sp in skills_path:
-                    # Handle absolute paths (~/) and relative paths
-                    if sp.startswith("~") or sp.startswith("/") or sp.startswith("./") or sp.startswith("../"):
+                    if sp.startswith("~") or sp.startswith("/"):
                         skills_dirs.append(sp)
+                    elif sp.startswith("./") or sp.startswith("../"):
+                        # Already relative - strip leading ./ and make relative to plugin
+                        skills_dirs.append(str(plugin_relative / sp.lstrip("./")))
                     else:
+                        # Directory name only, under plugin
                         skills_dirs.append(str(plugin_relative / sp))
-                # Also include user's global skills directory if not already present
-                if "~/.agents/skills" not in skills_dirs:
-                    skills_dirs.append("~/.agents/skills")
             else:
-                # Handle absolute paths (~/) and relative paths
-                if skills_path.startswith("~") or skills_path.startswith("/") or skills_path.startswith("./") or skills_path.startswith("../"):
+                if skills_path.startswith("~") or skills_path.startswith("/"):
                     skills_dirs.append(skills_path)
+                elif skills_path.startswith("./") or skills_path.startswith("../"):
+                    # Already relative - strip leading ./ and make relative to plugin
+                    skills_dirs.append(str(plugin_relative / skills_path.lstrip("./")))
                 else:
+                    # Directory name only, under plugin
                     skills_dirs.append(str(plugin_relative / skills_path))
-                # Also include user's global skills directory
-                skills_dirs.append("~/.agents/skills")
             paths_data["skills_dirs"] = skills_dirs
-
-        if "hooks" in plugin_metadata:
-            hooks_path = plugin_metadata["hooks"]
-            # Support both string and list for hooks
-            if isinstance(hooks_path, list):
-                hooks_path = hooks_path[0] if hooks_path else "./hooks"
-            if hooks_path.startswith("./") or hooks_path.startswith("../"):
-                paths_data["hooks_dir"] = str(plugin_relative / hooks_path.lstrip("./"))
-            else:
-                paths_data["hooks_dir"] = str(plugin_relative / hooks_path)
 
         if "commands" in plugin_metadata:
             commands_path = plugin_metadata["commands"]
-            # Support both string and list for commands
+            commands_dirs = []
             if isinstance(commands_path, list):
-                commands_path = commands_path[0] if commands_path else "./commands"
-            if commands_path.startswith("./") or commands_path.startswith("../"):
-                paths_data["commands_dir"] = str(plugin_relative / commands_path.lstrip("./"))
+                for cp in commands_path:
+                    if cp.startswith("~") or cp.startswith("/"):
+                        commands_dirs.append(cp)
+                    elif cp.startswith("./") or cp.startswith("../"):
+                        # Already relative - strip leading ./ and make relative to plugin
+                        commands_dirs.append(str(plugin_relative / cp.lstrip("./")))
+                    else:
+                        # Directory name only, under plugin
+                        commands_dirs.append(str(plugin_relative / cp))
             else:
-                paths_data["commands_dir"] = str(plugin_relative / commands_path)
+                if commands_path.startswith("~") or commands_path.startswith("/"):
+                    commands_dirs.append(commands_path)
+                elif commands_path.startswith("./") or commands_path.startswith("../"):
+                    # Already relative - strip leading ./ and make relative to plugin
+                    commands_dirs.append(str(plugin_relative / commands_path.lstrip("./")))
+                else:
+                    # Directory name only, under plugin
+                    commands_dirs.append(str(plugin_relative / commands_path))
+            paths_data["commands_dirs"] = commands_dirs
 
-    # Start with user config as base
+    # Start with plugins/config.yml as base (shared config for all plugins)
+    plugins_config = Path.cwd() / "plugins" / "config.yml"
+    if plugins_config.exists():
+        config_data = _deep_merge(config_data, _load_yaml_config(plugins_config))
+
+    # Then plugin-specific config (overrides plugins/config.yml)
+    plugin_config = plugin_path / "config.yml"
+    if plugin_config.exists():
+        config_data = _deep_merge(config_data, _load_yaml_config(plugin_config))
+
+    # Then user config (overrides plugin config)
     user_config = Path.home() / ".config" / "simple-agent" / "config.yml"
     if user_config.exists():
         config_data = _deep_merge(config_data, _load_yaml_config(user_config))
 
-    # Then plugin config (overrides user, but NOT resource paths from plugin.json)
-    plugin_config = plugin_path / "config.yml"
-    if plugin_config.exists():
-        # Load but filter out resource paths (from plugin.json)
-        plugin_yaml = _load_yaml_config(plugin_config)
-        if "paths" in plugin_yaml:
-            # Remove resource paths that came from plugin.json
-            # Keep: tools_dir, memory_dir, logs_dir
-            # Remove: agents_dir, skills_dirs, hooks_dir, commands_dir
-            paths_section = plugin_yaml["paths"]
-            for key in ["agents_dir", "skills_dirs", "hooks_dir", "commands_dir"]:
-                if key in paths_section:
-                    del paths_section[key]
-            # Clean up paths section if empty
-            if not plugin_yaml["paths"]:
-                del plugin_yaml["paths"]
-        # Use deep merge to preserve paths from plugin.json
-        config_data = _deep_merge(config_data, plugin_yaml)
-
-    # Then local config (highest priority, but NOT resource paths from plugin.json)
+    # Then local config (highest priority)
     local_config = Path.cwd() / ".simple-agent" / "config.yml"
     if local_config.exists():
-        # Load but filter out resource paths (from plugin.json)
-        local_yaml = _load_yaml_config(local_config)
-        if "paths" in local_yaml:
-            # Remove resource paths that came from plugin.json
-            paths_section = local_yaml["paths"]
-            for key in ["agents_dir", "skills_dirs", "hooks_dir", "commands_dir"]:
-                if key in paths_section:
-                    del paths_section[key]
-            # Clean up paths section if empty
-            if not local_yaml["paths"]:
-                del local_yaml["paths"]
-        # Use deep merge to preserve paths from plugin.json
-        config_data = _deep_merge(config_data, local_yaml)
+        config_data = _deep_merge(config_data, _load_yaml_config(local_config))
 
     # Set plugin_dir in config
     config_data.setdefault("paths", {})["plugin_dir"] = plugin_dir

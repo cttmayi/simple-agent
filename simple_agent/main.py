@@ -1,6 +1,7 @@
 import sys
 import argparse
 from pathlib import Path
+from typing import Optional
 from simple_agent.config.settings import load_config
 from simple_agent.core.runtime import Runtime
 from simple_agent.cli.view_logs import main as view_logs_main
@@ -51,19 +52,25 @@ def show_plugin_info(plugin_dir: Optional[str] = None):
             print(f"  agents:           {info['agents']}")
         if 'skills' in info:
             print(f"  skills:           {info['skills']}")
-        if 'hooks' in info:
-            print(f"  hooks:            {info['hooks']}")
         if 'commands' in info:
             print(f"  commands:         {info['commands']}")
 
     print(f"\n实际路径 (Resolved Paths):")
     print(f"  Plugin Dir:       {config.paths.plugin_dir}")
-    print(f"  Agents:           {base_dir / config.paths.agents_dir}")
+    # Get hooks config path
+    from simple_agent.resources.hooks import HookLoader
+    hook_loader = HookLoader()
+    print(f"  Hooks Config:     {hook_loader._config_path}")
+    print(f"  Hooks Dir:        ./plugins/default/hooks")
+    for agents_dir in config.paths.agents_dirs:
+        resolved = base_dir / agents_dir if not agents_dir.startswith("~") else Path(agents_dir).expanduser()
+        print(f"  Agents:           {resolved}")
     for skill_dir in config.paths.skills_dirs:
         resolved = base_dir / skill_dir if not skill_dir.startswith("~") else Path(skill_dir).expanduser()
         print(f"  Skills:           {resolved}")
-    print(f"  Hooks:            {base_dir / config.paths.hooks_dir}")
-    print(f"  Commands:         {base_dir / config.paths.commands_dir}")
+    for commands_dir in config.paths.commands_dirs:
+        resolved = base_dir / commands_dir if not commands_dir.startswith("~") else Path(commands_dir).expanduser()
+        print(f"  Commands:         {resolved}")
     print(f"{'='*50}\n")
 
 

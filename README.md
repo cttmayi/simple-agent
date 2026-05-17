@@ -25,11 +25,12 @@ Configuration can be set at multiple levels, with the following priority (highes
 
 1. **Environment variables** - Override all other settings
 2. **Local config** - `.simple-agent/config.yml` (project-specific)
-3. **Plugin config** - `plugins/default/config.yml` (plugin-level settings, except resource paths)
-4. **User config** - `~/.config/simple-agent/config.yml` (user-level settings)
-5. **Defaults** - Built-in default values
+3. **User config** - `~/.config/simple-agent/config.yml` (user-level settings)
+4. **Plugin-specific config** - `plugins/default/config.yml` (overrides shared config)
+5. **Shared plugin config** - `plugins/config.yml` (default for all plugins)
+6. **Defaults** - Built-in default values
 
-**Important**: Resource paths (agents, skills, hooks, commands) are controlled by `plugins/default/.claude-plugin/plugin.json` and cannot be overridden by YAML config files.
+**Important**: Resource paths (agents, skills, hooks, commands) are controlled by `plugins/default/.claude-plugin/plugin.json`, and additional paths can be added via YAML config files (merged, not replaced).
 
 ### Example Configuration
 
@@ -44,7 +45,7 @@ By default, the plugin metadata in `plugins/default/.claude-plugin/plugin.json` 
 }
 ```
 
-The `config.yml` file contains other settings like UI, logging, and internal paths:
+The `plugins/config.yml` file contains default settings like UI, logging, and internal paths:
 
 ```yaml
 paths:
@@ -60,7 +61,7 @@ logging:
   enabled: true
 ```
 
-You can create a `.simple-agent/config.yml` file in your project to override UI, logging, and other settings:
+You can optionally create a `.simple-agent/config.yml` file in your project to override settings:
 
 ```yaml
 api:
@@ -69,24 +70,65 @@ api:
   api_key: ${OPENAI_API_KEY}  # Can reference environment variables
   model: gpt-4o
 
-paths:
-  tools_dir: ./.simple-agent/tools
-  memory_dir: ./.simple-agent/memory
-    - ~/.agents/skills
-  agents_dir: ./plugins/default/agents
-  hooks_dir: ./plugins/default/hooks
-  commands_dir: ./plugins/default/commands
-  tools_dir: ./.simple-agent/tools
-  memory_dir: ./.simple-agent/memory
-
 ui:
-  theme: dark
-  show_thinking: true
+  theme: light  # Override the default 'dark' theme
 
 logging:
-  enabled: true
-  log_dir: ./logs/llm  # Optional, defaults to ./.simple-agent/logs
+  log_dir: ./logs/llm  # Override the default ./.simple-agent/logs
 ```
+
+**Note**: Resource paths (skills, agents, hooks, commands) can be configured in two places:
+1. `plugin.json` - Base paths for the plugin
+2. YAML config files - Additional paths that are merged with the base paths
+
+**Option 1: Add paths in plugin.json**
+
+```json
+{
+  "skills": ["./skills", "~/.agents/skills"],
+  "agents": ["./agents"],
+  "hooks": ["./hooks"],
+  "commands": ["./commands"]
+}
+```
+
+**Option 2: Add paths in YAML config (e.g., plugins/config.yml or .simple-agent/config.yml)**
+
+```yaml
+paths:
+  skills_dir: ["~/.agents/skills", "~/custom/skills"]
+  agents_dir: "~/custom/agents"
+  hooks_dir: "~/custom/hooks"
+  commands_dir: "~/custom/commands"
+```
+
+### Configuration Options Reference
+
+| Section | Option | Type | Default | Description |
+|---------|--------|------|---------|-------------|
+| **api** | `provider` | string | `openai` | API provider: `openai` or `anthropic` |
+| | `base_url` | string | `null` | API base URL |
+| | `api_key` | string | `null` | API key (supports `${VAR}`) |
+| | `model` | string | `gpt-4o` | Model name |
+| **paths** | `tools_dir` | string | `./.simple-agent/tools` | Tools directory |
+| | `memory_dir` | string | `./.simple-agent/memory` | Memory directory |
+| | `logs_dir` | string | `./.simple-agent/logs` | Logs directory |
+| | `skills_dir` | string/array | `null` | Additional skills paths (merged) |
+| | `agents_dir` | string/array | `null` | Additional agents paths (merged) |
+| | `hooks_dir` | string/array | `null` | Additional hooks paths (merged) |
+| | `commands_dir` | string/array | `null` | Additional commands paths (merged) |
+| **ui** | `theme` | string | `dark` | Theme: `dark` or `light` |
+| | `show_thinking` | boolean | `true` | Show AI thinking process |
+| **logging** | `enabled` | boolean | `true` | Enable logging |
+| | `log_dir` | string | `null` | Log directory |
+
+**Environment Variables:**
+- `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` - API keys
+- `OPENAI_BASE_URL` / `ANTHROPIC_BASE_URL` - API URLs
+- `SIMPLE_AGENT_LOG_DIR` - Log directory
+- `SIMPLE_AGENT_TODOS_PATH` - TODO data file path
+
+For detailed configuration documentation, see [Configuration Documentation](docs/configuration.md).
 
 ### Log Analysis
 
@@ -210,5 +252,6 @@ pytest
 
 ## Documentation
 
+- [Configuration Documentation](docs/configuration.md) - Configuration files, priority, and options
 - [Commands Documentation](docs/commands.md) - Creating and using custom slash commands
 - [Subagents Documentation](docs/subagents.md) - Creating and using isolated subagents

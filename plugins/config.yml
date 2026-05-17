@@ -1,0 +1,26 @@
+# Simple Agent Shared Default Configuration
+# This is the shared default configuration for all plugins.
+#
+# Configuration priority (highest to lowest):
+# 1. Environment variables
+# 2. Local config - .simple-agent/config.yml (project-specific, overrides this file)
+# 3. User config - ~/.config/simple-agent/config.yml (user-level, overrides this file)
+# 4. Plugin-specific config - plugins/default/config.yml (overrides this file)
+# 5. Shared plugin config - plugins/config.yml (this file, acts as default)
+# 6. Built-in default values
+#
+# Resource paths (agents, skills, hooks, commands):
+# - Base paths are defined in plugins/default/.claude-plugin/plugin.json
+# - Additional paths can be added here using skills_dir, agents_dir, hooks_dir, commands_dir
+# - These additional paths are merged with the base paths (not replaced)
+#
+
+paths:
+  tools_dir: ./.simple-agent/tools
+  memory_dir: ./.simple-agent/memory
+  logs_dir: ./.simple-agent/logs
+  skills_dir: ~/.agents/skills
+
+logging:
+  enabled: true
+  # log_dir: ./.simple-agent/logs  # Optional, defaults to ./.simple-agent/logs
