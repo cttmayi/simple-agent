@@ -32,7 +32,17 @@ class CommandLoader:
             if not base_dir.exists():
                 continue
 
-            for md_file in base_dir.rglob("*.md"):
+            # Skills directories: only load SKILL.md files from first level subdirectories
+            # Commands directories: scan recursively for all .md files
+            if "skill" in base_dir.name.lower() or any("skill" in d.lower() for d in base_dir.parts):
+                # Skills: only look for SKILL.md files in immediate subdirectories
+                md_files = base_dir.glob("*/SKILL.md")
+            else:
+                # Commands: recursive scan
+                md_files = base_dir.rglob("*.md")
+
+            for md_file in md_files:
+                # Skip README.md files (only in recursive command scanning)
                 if md_file.name == "README.md":
                     continue
 
