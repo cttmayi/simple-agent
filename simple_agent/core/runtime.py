@@ -161,13 +161,10 @@ class Runtime:
                         return
 
                     decision = result.get("decision")
+                    # Note: message is already displayed in _execute_hook
                     message = result.get("message", "")
                     additional_context = result.get("additionalContext", "")
                     updated_input = result.get("updatedInput")
-
-                    # Show message in CLI if provided
-                    if message:
-                        self._renderer.render_message("system", message)
 
                     # Handle block decision
                     if decision == "block":
@@ -441,6 +438,11 @@ class Runtime:
                     result = self._execute_markdown_hook(filepath, event)
 
                 if result:
+                    # Show message immediately if provided
+                    message = result.get("message", "")
+                    if message:
+                        self._renderer.render_message("system", message)
+
                     # If any hook returns block, immediately return the block result
                     if result.get("decision") == "block":
                         if _is_hook_debug():
