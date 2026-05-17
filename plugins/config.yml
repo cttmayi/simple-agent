@@ -24,3 +24,32 @@ paths:
 logging:
   enabled: true
   # log_dir: ./.simple-agent/logs  # Optional, defaults to ./.simple-agent/logs
+
+# 工具配置：控制哪些工具对 LLM 可用
+# 将工具设置为 false 可以禁用它，LLM 将看不到这个工具
+# 默认情况下所有工具都可用（true）
+tools:
+  # 文件操作工具
+  Read: true
+  Write: true
+  Edit: true
+
+  # 搜索工具
+  Grep: true
+  Glob: true
+
+  # 命令执行工具
+  Bash: true
+
+  # Skills 和 Agents
+  Skill: true
+  Agent: true
+
+  # 任务管理工具
+  TaskCreate: true
+  TaskGet: true
+  TaskUpdate: true
+  TaskList: true
+
+  # 示例：禁用 Bash 工具
+  # Bash: false

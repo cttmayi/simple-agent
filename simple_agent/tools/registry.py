@@ -46,8 +46,23 @@ class ToolRegistry:
             for t in self._tools.values()
         ]
 
-    def to_openai_format(self) -> List[Dict[str, Any]]:
-        """Export tools in OpenAI function calling format."""
+    def to_openai_format(self, allowed: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+        """Export tools in OpenAI function calling format.
+
+        Args:
+            allowed: Optional list of allowed tool names. If provided, only
+                    tools in this list will be exported. If None, all tools
+                    are exported.
+
+        Returns:
+            List of tools in OpenAI function calling format.
+        """
+        if allowed is not None:
+            allowed_set = set(allowed)
+            tools = [t for t in self._tools.values() if t.name in allowed_set]
+        else:
+            tools = self._tools.values()
+
         return [
             {
                 "type": "function",
@@ -57,7 +72,7 @@ class ToolRegistry:
                     "parameters": t.parameters,
                 },
             }
-            for t in self._tools.values()
+            for t in tools
         ]
 
     def snapshot(self) -> Dict[str, ToolDefinition]:

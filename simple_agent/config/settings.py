@@ -73,11 +73,64 @@ class LoggingConfig(BaseModel):
     log_dir: Optional[str] = None  # Defaults to ./.simple-agent/logs
 
 
+class ToolsConfig(BaseModel):
+    """配置哪些工具对 LLM 可用。
+
+    工具名称为键，布尔值为值。true 表示可用，false 表示禁用。
+    如果工具名未在配置中指定，默认为可用（true）。
+    """
+    # 内置工具默认全部可用
+    Bash: bool = True
+    Read: bool = True
+    Write: bool = True
+    Edit: bool = True
+    Grep: bool = True
+    Glob: bool = True
+    Skill: bool = True
+    # TODO 工具
+    TaskCreate: bool = True
+    TaskGet: bool = True
+    TaskUpdate: bool = True
+    TaskList: bool = True
+    # Agent 工具
+    Agent: bool = True
+    # 其他自定义工具可以在这里添加
+
+    def is_enabled(self, tool_name: str) -> bool:
+        """检查工具是否启用。
+
+        Args:
+            tool_name: 工具名称
+
+        Returns:
+            bool: 如果工具启用返回 True，否则返回 False
+        """
+        # 尝试匹配工具名（处理大小写变化）
+        # 例如工具注册表中的名称可能是 'bash'，但配置中的字段名是 'Bash'
+        # 首先尝试直接匹配
+        if hasattr(self, tool_name):
+            return getattr(self, tool_name)
+
+        # 尝试首字母大写的形式
+        capitalized = tool_name.capitalize()
+        if hasattr(self, capitalized):
+            return getattr(self, capitalized)
+
+        # 尝试全大写的形式
+        upper = tool_name.upper()
+        if hasattr(self, upper):
+            return getattr(self, upper)
+
+        # 默认启用
+        return True
+
+
 class Settings(BaseModel):
     api: APIConfig = Field(default_factory=APIConfig)
     paths: PathsConfig = Field(default_factory=PathsConfig)
     ui: UIConfig = Field(default_factory=UIConfig)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
+    tools: ToolsConfig = Field(default_factory=ToolsConfig)
     plugin_info: Optional[Dict[str, Any]] = None  # 插件元数据信息
 
 

@@ -163,6 +163,26 @@ class Runtime:
 
         return "\n".join(context_parts)
 
+    def _get_allowed_tools(self) -> Optional[List[str]]:
+        """Get list of allowed tools based on configuration.
+
+        Returns:
+            List of allowed tool names, or None if all tools are allowed.
+        """
+        all_tools = self._tool_registry.list_tools()
+        enabled_tools = []
+
+        for tool in all_tools:
+            tool_name = tool['name']
+            if self._config.tools.is_enabled(tool_name):
+                enabled_tools.append(tool_name)
+
+        # If all tools are enabled, return None to indicate no filtering
+        if len(enabled_tools) == len(all_tools):
+            return None
+
+        return enabled_tools
+
     def _load_hooks(self):
         """Load and register all hooks from hooks.json configuration."""
         # Get unique event names from hooks.json
@@ -1205,7 +1225,8 @@ class Runtime:
 
         # Send tool results back to API for next response
         messages = self._prepare_messages_with_context()
-        tools = self._tool_registry.to_openai_format()
+        allowed_tools = self._get_allowed_tools()
+        tools = self._tool_registry.to_openai_format(allowed_tools)
         next_response = self._api_client.send_message(messages, tools)
 
         for next_msg in next_response:
@@ -1348,7 +1369,8 @@ class Runtime:
                 elif result == "message_processed" or result == "command_processed":
                     # Process message with API
                     messages = self._prepare_messages_with_context()
-                    tools = self._tool_registry.to_openai_format()
+                    allowed_tools = self._get_allowed_tools()
+                    tools = self._tool_registry.to_openai_format(allowed_tools)
 
                     response = self._api_client.send_message(messages, tools)
                     for msg in response:
