@@ -50,6 +50,25 @@ def _resolve_env_var(value: str) -> str:
     return value
 
 
+def _deep_merge(base: dict, update: dict) -> dict:
+    """Deep merge two dictionaries.
+
+    Args:
+        base: Base dictionary to merge into
+        update: Dictionary to merge from (takes precedence)
+
+    Returns:
+        Merged dictionary
+    """
+    result = base.copy()
+    for key, value in update.items():
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            result[key] = _deep_merge(result[key], value)
+        else:
+            result[key] = value
+    return result
+
+
 def _load_yaml_config(path: Path) -> dict:
     """Load YAML config file."""
     if not path.exists():
@@ -122,17 +141,22 @@ def load_config(plugin_dir: Optional[str] = None) -> Settings:
             skills_dirs = []
             if isinstance(skills_path, list):
                 for sp in skills_path:
-                    if sp.startswith("./") or sp.startswith("../"):
-                        skills_dirs.append(str(plugin_relative / sp.lstrip("./")))
+                    # Handle absolute paths (~/) and relative paths
+                    if sp.startswith("~") or sp.startswith("/") or sp.startswith("./") or sp.startswith("../"):
+                        skills_dirs.append(sp)
                     else:
                         skills_dirs.append(str(plugin_relative / sp))
+                # Also include user's global skills directory if not already present
+                if "~/.agents/skills" not in skills_dirs:
+                    skills_dirs.append("~/.agents/skills")
             else:
-                if skills_path.startswith("./") or skills_path.startswith("../"):
-                    skills_dirs.append(str(plugin_relative / skills_path.lstrip("./")))
+                # Handle absolute paths (~/) and relative paths
+                if skills_path.startswith("~") or skills_path.startswith("/") or skills_path.startswith("./") or skills_path.startswith("../"):
+                    skills_dirs.append(skills_path)
                 else:
                     skills_dirs.append(str(plugin_relative / skills_path))
-            # Also include user's global skills directory
-            skills_dirs.append("~/.agents/skills")
+                # Also include user's global skills directory
+                skills_dirs.append("~/.agents/skills")
             paths_data["skills_dirs"] = skills_dirs
 
         if "hooks" in plugin_metadata:
@@ -158,21 +182,43 @@ def load_config(plugin_dir: Optional[str] = None) -> Settings:
     # Start with user config as base
     user_config = Path.home() / ".config" / "simple-agent" / "config.yml"
     if user_config.exists():
-        config_data.update(_load_yaml_config(user_config))
+        config_data = _deep_merge(config_data, _load_yaml_config(user_config))
 
-    # Then plugin config (overrides user)
+    # Then plugin config (overrides user, but NOT resource paths from plugin.json)
     plugin_config = plugin_path / "config.yml"
     if plugin_config.exists():
-        # Merge with plugin as base
-        merged = {**config_data, **_load_yaml_config(plugin_config)}
-        config_data = merged
+        # Load but filter out resource paths (from plugin.json)
+        plugin_yaml = _load_yaml_config(plugin_config)
+        if "paths" in plugin_yaml:
+            # Remove resource paths that came from plugin.json
+            # Keep: tools_dir, memory_dir, logs_dir
+            # Remove: agents_dir, skills_dirs, hooks_dir, commands_dir
+            paths_section = plugin_yaml["paths"]
+            for key in ["agents_dir", "skills_dirs", "hooks_dir", "commands_dir"]:
+                if key in paths_section:
+                    del paths_section[key]
+            # Clean up paths section if empty
+            if not plugin_yaml["paths"]:
+                del plugin_yaml["paths"]
+        # Use deep merge to preserve paths from plugin.json
+        config_data = _deep_merge(config_data, plugin_yaml)
 
-    # Then local config (highest priority, overrides everything)
+    # Then local config (highest priority, but NOT resource paths from plugin.json)
     local_config = Path.cwd() / ".simple-agent" / "config.yml"
     if local_config.exists():
-        # Merge with local as base
-        merged = {**config_data, **_load_yaml_config(local_config)}
-        config_data = merged
+        # Load but filter out resource paths (from plugin.json)
+        local_yaml = _load_yaml_config(local_config)
+        if "paths" in local_yaml:
+            # Remove resource paths that came from plugin.json
+            paths_section = local_yaml["paths"]
+            for key in ["agents_dir", "skills_dirs", "hooks_dir", "commands_dir"]:
+                if key in paths_section:
+                    del paths_section[key]
+            # Clean up paths section if empty
+            if not local_yaml["paths"]:
+                del local_yaml["paths"]
+        # Use deep merge to preserve paths from plugin.json
+        config_data = _deep_merge(config_data, local_yaml)
 
     # Set plugin_dir in config
     config_data.setdefault("paths", {})["plugin_dir"] = plugin_dir

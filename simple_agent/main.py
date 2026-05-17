@@ -53,6 +53,8 @@ def show_plugin_info(plugin_dir: Optional[str] = None):
             print(f"  skills:           {info['skills']}")
         if 'hooks' in info:
             print(f"  hooks:            {info['hooks']}")
+        if 'commands' in info:
+            print(f"  commands:         {info['commands']}")
 
     print(f"\n实际路径 (Resolved Paths):")
     print(f"  Plugin Dir:       {config.paths.plugin_dir}")

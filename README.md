@@ -24,23 +24,43 @@ pip install -e .
 Configuration can be set at multiple levels, with the following priority (highest to lowest):
 
 1. **Environment variables** - Override all other settings
-2. **Local config** - `.simple-agent/config.yml` (project-specific, highest priority)
-3. **Plugin config** - `plugins/default/config.yml` (plugin-level defaults)
+2. **Local config** - `.simple-agent/config.yml` (project-specific)
+3. **Plugin config** - `plugins/default/config.yml` (plugin-level settings, except resource paths)
 4. **User config** - `~/.config/simple-agent/config.yml` (user-level settings)
 5. **Defaults** - Built-in default values
 
+**Important**: Resource paths (agents, skills, hooks, commands) are controlled by `plugins/default/.claude-plugin/plugin.json` and cannot be overridden by YAML config files.
+
 ### Example Configuration
 
-By default, the plugin configuration in `plugins/default/config.yml` includes:
+By default, the plugin metadata in `plugins/default/.claude-plugin/plugin.json` defines resource paths:
+
+```json
+{
+  "agents": "./agents",
+  "skills": "./skills",
+  "hooks": "./hooks",
+  "commands": "./commands"
+}
+```
+
+The `config.yml` file contains other settings like UI, logging, and internal paths:
 
 ```yaml
 paths:
-  skills_dirs:
-    - ./plugins/default/skills      # Project-local skills
-    - ~/.agents/skills    # User's global skills directory
+  tools_dir: ./.simple-agent/tools
+  memory_dir: ./.simple-agent/memory
+  logs_dir: ./.simple-agent/logs
+
+ui:
+  theme: dark
+  show_thinking: true
+
+logging:
+  enabled: true
 ```
 
-You can create a `.simple-agent/config.yml` file in your project to override these settings:
+You can create a `.simple-agent/config.yml` file in your project to override UI, logging, and other settings:
 
 ```yaml
 api:
@@ -50,8 +70,8 @@ api:
   model: gpt-4o
 
 paths:
-  skills_dirs:
-    - ./plugins/default/skills
+  tools_dir: ./.simple-agent/tools
+  memory_dir: ./.simple-agent/memory
     - ~/.agents/skills
   agents_dir: ./plugins/default/agents
   hooks_dir: ./plugins/default/hooks

@@ -46,10 +46,16 @@ def test_config_priority_levels():
         with tempfile.TemporaryDirectory() as tmpdir:
             os.chdir(tmpdir)
 
-            # Create plugin config with ~/.agents/skills
-            plugin_config = Path(tmpdir) / "plugins/default" / "config.yml"
-            plugin_config.parent.mkdir(parents=True)
-            plugin_config.write_text("api:\n  model: gpt-3.5-turbo\npaths:\n  skills_dirs:\n    - ./plugins/default/skills\n    - ~/.agents/skills\n")
+            # Create plugin metadata (plugin.json controls resource paths)
+            plugin_dir = Path(tmpdir) / "plugins/default"
+            plugin_dir.mkdir(parents=True)
+            plugin_metadata = plugin_dir / ".claude-plugin" / "plugin.json"
+            plugin_metadata.parent.mkdir(parents=True)
+            plugin_metadata.write_text('{"name": "test", "skills": "./skills"}')
+
+            # Create plugin config (other settings like api.model)
+            plugin_config = plugin_dir / "config.yml"
+            plugin_config.write_text("api:\n  model: gpt-3.5-turbo\npaths:\n  tools_dir: ./.simple-agent/tools\n")
 
             # Create local config (should override plugin)
             local_config = Path(tmpdir) / ".simple-agent" / "config.yml"
@@ -60,7 +66,9 @@ def test_config_priority_levels():
 
             # Local config should have highest priority for api.model
             assert config.api.model == "gpt-4o-mini"
-            # skills_dirs should be from plugin config (local doesn't override it)
-            assert config.paths.skills_dirs == ["./plugins/default/skills", "~/.agents/skills"]
+            # skills_dirs from plugin.json with automatic ~/.agents/skills
+            assert config.paths.skills_dirs == ["./skills", "~/.agents/skills"]
+            # tools_dir from plugin config
+            assert config.paths.tools_dir == "./.simple-agent/tools"
     finally:
         os.chdir(old_cwd)

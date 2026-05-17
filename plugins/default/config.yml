@@ -1,14 +1,11 @@
 # Simple Agent Configuration (Plugin Level)
 # This configuration applies to all projects using this plugin.
 # Project-specific configuration in .simple-agent/config.yml overrides these settings.
+#
+# Note: Resource paths (agents, skills, hooks, commands) are controlled by
+# .claude-plugin/plugin.json, not by this file.
 
 paths:
-  skills_dirs:
-    - ./plugins/default/skills
-    - ~/.agents/skills
-  agents_dir: ./plugins/default/agents
-  hooks_dir: ./plugins/default/hooks
-  commands_dir: ./plugins/default/commands
   tools_dir: ./.simple-agent/tools
   memory_dir: ./.simple-agent/memory
   logs_dir: ./.simple-agent/logs

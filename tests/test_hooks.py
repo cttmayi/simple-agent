@@ -379,8 +379,8 @@ print("This is not JSON")
         runtime._renderer.render_message.assert_called()
 
 
-def test_python_hook_missing_decision_fails():
-    """Test Python hook without decision field fails."""
+def test_python_hook_missing_decision_defaults_to_allow():
+    """Test Python hook without decision field defaults to 'allow'."""
     with tempfile.TemporaryDirectory() as tmpdir:
         # Create a hook that outputs JSON without decision
         hook_file = Path(tmpdir) / "no_decision.py"
@@ -402,8 +402,9 @@ print(json.dumps({"message": "Hello"}))
 
         result = runtime._execute_python_hook(hook_file, hook_input_json)
 
-        assert result is None
-        runtime._renderer.render_message.assert_called()
+        assert result is not None
+        assert result["decision"] == "allow"
+        assert result["message"] == "Hello"
 
 
 def test_hook_with_updated_input():

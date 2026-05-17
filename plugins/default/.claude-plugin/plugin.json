@@ -5,7 +5,8 @@
   "author": {
     "name": "Simple Agent Team"
   },
-  "agents": "./agents",                                                                   
-  "skills": "./skills",                                                                  
-  "hooks": "./hooks"
+  "agents": "./agents",
+  "skills": "./skills",
+  "hooks": "./hooks",
+  "commands": "./commands"
 }

@@ -5,7 +5,7 @@ from simple_agent.resources.commands import CommandLoader
 
 def test_command_loader_scans_directory():
     """Test that CommandLoader can scan for commands."""
-    loader = CommandLoader('plugin/commands')
+    loader = CommandLoader('plugins/default/commands')
     commands = loader.list_commands()
 
     assert len(commands) > 0
@@ -22,7 +22,7 @@ def test_command_loader_scans_directory():
 
 def test_command_loader_has_metadata():
     """Test that commands have proper metadata."""
-    loader = CommandLoader('plugin/commands')
+    loader = CommandLoader('plugins/default/commands')
     commands = loader.list_commands()
 
     for cmd in commands:
@@ -35,7 +35,7 @@ def test_command_loader_has_metadata():
 
 def test_command_usage():
     """Test that commands have usage information (default is /name)."""
-    loader = CommandLoader('plugin/commands')
+    loader = CommandLoader('plugins/default/commands')
     commands = loader.list_commands()
 
     for cmd in commands:
@@ -47,7 +47,7 @@ def test_command_usage():
 
 def test_get_command():
     """Test that we can get a specific command."""
-    loader = CommandLoader('plugin/commands')
+    loader = CommandLoader('plugins/default/commands')
     version_cmd = loader.get_command('version')
 
     assert version_cmd is not None
@@ -56,7 +56,7 @@ def test_get_command():
 
 def test_command_usage_method():
     """Test that get_command_usage works."""
-    loader = CommandLoader('plugin/commands')
+    loader = CommandLoader('plugins/default/commands')
     usage = loader.get_command_usage('status')
 
     assert usage is not None
@@ -134,19 +134,19 @@ def test_command_with_template_variables():
 
 def test_command_get_nonexistent():
     """Test getting a non-existent command."""
-    loader = CommandLoader('plugin/commands')
+    loader = CommandLoader('plugins/default/commands')
     cmd = loader.get_command('nonexistent')
     assert cmd is None
 
 def test_command_get_usage_nonexistent():
     """Test get_command_usage for non-existent command."""
-    loader = CommandLoader('plugin/commands')
+    loader = CommandLoader('plugins/default/commands')
     usage = loader.get_command_usage('nonexistent')
     assert usage is None
 
 def test_command_path_attribute():
     """Test that command has path attribute."""
-    loader = CommandLoader('plugin/commands')
+    loader = CommandLoader('plugins/default/commands')
     commands = loader.list_commands()
 
     for cmd in commands:
