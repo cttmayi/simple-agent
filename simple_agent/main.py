@@ -43,10 +43,20 @@ def show_plugin_info(plugin_dir: Optional[str] = None):
         if 'author' in info:
             author = info['author']
             print(f"作者 (Author):      {author.get('name', 'N/A')}")
-        print(f"\n资源路径 (Resource Paths):")
-        print(f"  Agents:           {info.get('agents', 'N/A')}")
-        print(f"  Skills:           {info.get('skills', 'N/A')}")
-        print(f"  Hooks:            {info.get('hooks', 'N/A')}")
+
+        # 显示自定义资源路径（如果有）
+        custom_paths = []
+        if 'agents' in info and info['agents'] != './agents':
+            custom_paths.append(f"  Agents:           {info['agents']}")
+        if 'skills' in info and info['skills'] != './skills':
+            custom_paths.append(f"  Skills:           {info['skills']}")
+        if 'hooks' in info and info['hooks'] != './hooks':
+            custom_paths.append(f"  Hooks:            {info['hooks']}")
+
+        if custom_paths:
+            print(f"\n自定义资源路径 (Custom Resource Paths):")
+            for path in custom_paths:
+                print(path)
 
     print(f"\n配置路径 (Config Path):")
     print(f"  Plugin Dir:       {config.paths.plugin_dir}")
