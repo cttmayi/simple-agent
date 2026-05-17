@@ -324,8 +324,8 @@ class Runtime:
         hook_input_json = json.dumps(hook_input, ensure_ascii=False)
 
         if _is_hook_debug():
-            sys.stderr.write(f"[DEBUG] Hook triggered: {event.name} @ {hook_dir.name}")
-            sys.stderr.write(f"[DEBUG] Hook input: {hook_input_json[:200]}..." if len(hook_input_json) > 200 else f"[DEBUG] Hook input: {hook_input_json}")
+            sys.stderr.write(f"[DEBUG] Hook triggered: {event.name} @ {hook_dir.name}\n")
+            sys.stderr.write(f"[DEBUG] Hook input: {hook_input_json[:200]}..." if len(hook_input_json) > 200 else f"[DEBUG] Hook input: {hook_input_json}\n")
 
         for filename in hook["files"]:
             filepath = hook_dir / filename
@@ -344,7 +344,7 @@ class Runtime:
                     # If any hook returns block, immediately return the block result
                     if result.get("decision") == "block":
                         if _is_hook_debug():
-                            sys.stderr.write(f"[DEBUG] Hook BLOCKED by {filename}: {result}")
+                            sys.stderr.write(f"[DEBUG] Hook BLOCKED by {filename}: {result}\n")
                         return result
                     # Combine results: allow merges additionalContext and updatedInput
                     if combined_result is None:
@@ -363,11 +363,11 @@ class Runtime:
                 self._renderer.render_message("system", f"Hook {filename} failed: {str(e)}")
                 if _is_hook_debug():
                     import traceback
-                    sys.stderr.write(f"[DEBUG] Hook exception traceback:")
+                    sys.stderr.write(f"[DEBUG] Hook exception traceback:\n")
                     traceback.print_exc()
 
         if _is_hook_debug() and combined_result:
-            sys.stderr.write(f"[DEBUG] Combined hook result: {combined_result}")
+            sys.stderr.write(f"[DEBUG] Combined hook result: {combined_result}\n")
         return combined_result
 
     def _execute_python_hook(self, filepath: Path, hook_input_json: str) -> Optional[dict]:
@@ -398,11 +398,11 @@ class Runtime:
             )
 
             if _is_hook_debug():
-                sys.stderr.write(f"[DEBUG] Python hook {filepath.name} executed, returncode={result.returncode}")
+                sys.stderr.write(f"[DEBUG] Python hook {filepath.name} executed, returncode={result.returncode}\n")
                 if result.stdout.strip():
-                    sys.stderr.write(f"[DEBUG] Hook output: {result.stdout.strip()[:200]}..." if len(result.stdout.strip()) > 200 else f"[DEBUG] Hook output: {result.stdout.strip()}")
+                    sys.stderr.write(f"[DEBUG] Hook output: {result.stdout.strip()[:200]}..." if len(result.stdout.strip()) > 200 else f"[DEBUG] Hook output: {result.stdout.strip()}\n")
                 if result.stderr.strip():
-                    sys.stderr.write(f"[DEBUG] Hook stderr: {result.stderr.strip()}")
+                    sys.stderr.write(f"[DEBUG] Hook stderr: {result.stderr.strip()}\n")
 
             if result.returncode != 0:
                 if result.stderr:
@@ -421,7 +421,7 @@ class Runtime:
                         self._renderer.render_message("system", f"Hook {filepath.name} invalid 'decision': {hook_result['decision']}")
                         return None
                     if _is_hook_debug():
-                        sys.stderr.write(f"[DEBUG] Hook parsed result: {hook_result}")
+                        sys.stderr.write(f"[DEBUG] Hook parsed result: {hook_result}\n")
                     return hook_result
                 except json.JSONDecodeError as e:
                     self._renderer.render_message("system", f"Hook {filepath.name} invalid JSON: {e}")
@@ -462,11 +462,11 @@ class Runtime:
             )
 
             if _is_hook_debug():
-                sys.stderr.write(f"[DEBUG] Shell hook {filepath.name} executed, returncode={result.returncode}")
+                sys.stderr.write(f"[DEBUG] Shell hook {filepath.name} executed, returncode={result.returncode}\n")
                 if result.stdout.strip():
-                    sys.stderr.write(f"[DEBUG] Hook output: {result.stdout.strip()[:200]}..." if len(result.stdout.strip()) > 200 else f"[DEBUG] Hook output: {result.stdout.strip()}")
+                    sys.stderr.write(f"[DEBUG] Hook output: {result.stdout.strip()[:200]}..." if len(result.stdout.strip()) > 200 else f"[DEBUG] Hook output: {result.stdout.strip()}\n")
                 if result.stderr.strip():
-                    sys.stderr.write(f"[DEBUG] Hook stderr: {result.stderr.strip()}")
+                    sys.stderr.write(f"[DEBUG] Hook stderr: {result.stderr.strip()}\n")
 
             if result.returncode != 0:
                 if result.stderr:
@@ -484,7 +484,7 @@ class Runtime:
                         self._renderer.render_message("system", f"Hook {filepath.name} invalid 'decision': {hook_result['decision']}")
                         return None
                     if _is_hook_debug():
-                        sys.stderr.write(f"[DEBUG] Hook parsed result: {hook_result}")
+                        sys.stderr.write(f"[DEBUG] Hook parsed result: {hook_result}\n")
                     return hook_result
                 except json.JSONDecodeError as e:
                     self._renderer.render_message("system", f"Hook {filepath.name} invalid JSON: {e}")
