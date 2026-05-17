@@ -89,3 +89,18 @@ class SkillLoader:
                     metadata=r["metadata"],
                 )
         raise ValueError(f"Resource not found: {name}")
+
+    def get_skill(self, name: str) -> Optional[Dict[str, Any]]:
+        """Get skill information by name.
+
+        Args:
+            name: Skill name
+
+        Returns:
+            Dict with keys: name, description, path, metadata, content
+        """
+        resources = self.scan()
+        for r in resources:
+            if r["name"] == name:
+                return r
+        return None
