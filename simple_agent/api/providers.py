@@ -268,7 +268,8 @@ class AnthropicProvider(BaseProvider):
         # Retry logic
         response = None
         last_error = None
-        for attempt in range(1, RetryConfig.max_retries + 1):
+        attempt = 1
+        while True:
             try:
                 response = self.client.chat.completions.create(
                     model=self.model,
@@ -284,6 +285,7 @@ class AnthropicProvider(BaseProvider):
                     delay_str = RetryConfig.format_delay(delay)
                     print(f"[dim]连接错误，{delay_str}后重试... (第 {attempt} 次)[/dim]")
                     time.sleep(delay)
+                    attempt += 1
                 else:
                     raise
 
