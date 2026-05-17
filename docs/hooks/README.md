@@ -12,12 +12,22 @@ Hooks 允许您在特定事件发生时执行自定义脚本，扩展 simple-age
 
 | 事件名称 | 描述 | 可阻止 | 触发时机 |
 |---------|------|-------|---------|
-| `SessionStart` | 会话开始 | 否 | agent 启动时 |
-| `Stop` | 会话结束 | 否 | agent 退出时（包括 `/exit` 和 `Ctrl+C`） |
-| `UserPromptSubmit` | 消息发送 | 否 | 用户发送消息后，发送给 LLM 前 |
-| `PreToolUse` | 工具调用前 | **是** | LLM 生成工具调用指令，执行工具之前 |
-| `PostToolUse` | 工具调用后 | 否 | 工具执行完成，结果回传给 LLM 之前 |
-| `SkillLoad` | Skill 加载 | 否 | `load_skill` 工具加载 skill 时 |
+| `SessionStart` | 全新会话初始化启动 | 否 | agent 启动时 |
+| `Stop` | 主代理本轮回答结束、本轮会话轮次终止 | 否 | agent 退出时（包括 `/exit` 和 `Ctrl+C`） |
+| `UserPromptSubmit` | 用户输入内容提交，送入 LLM 前 | 否 | 用户发送消息后，发送给 LLM 前 |
+| `PreToolUse` | LLM 生成工具调用指令，本地执行工具之前 | **是** | 工具执行之前 |
+| `PostToolUse` | 工具执行完成，结果回传给 LLM 之前（成功 / 失败都走此事件） | 否 | 工具执行完成后 |
+| `BeforeBash` | 执行 Bash 命令前置钩子 | 否 | Bash 命令执行前 |
+| `AfterBash` | Bash 命令执行完毕后置钩子 | 否 | Bash 命令执行后 |
+| `BeforeEdit` | 文件编辑 / 写入操作执行前 | 否 | 文件编辑前 |
+| `AfterEdit` | 文件编辑完成后 | 否 | 文件编辑后 |
+| `PreCompact` | 对话上下文压缩合并之前 | 否 | 上下文压缩前（预留） |
+| `PostCompact` | 上下文压缩完成之后 | 否 | 上下文压缩后（预留） |
+| `SubagentStart` | 子代理 / 子任务正式启动 | 否 | 子代理启动时 |
+| `SubagentStop` | 子代理运行结束销毁 | 否 | 子代理停止时 |
+| `Notification` | 系统通知弹窗 / 权限提示触发 | 否 | 系统通知时（预留） |
+| `PluginLoad` | 会话加载外部插件时 | 否 | 插件加载时（预留） |
+| `SkillLoad` | 加载 .skill 技能文档时 | 否 | `load_skill` 工具加载 skill 时 |
 
 ## 目录结构
 
@@ -90,6 +100,35 @@ plugin/hooks/
 | | `result` | object | 工具执行结果 |
 | | `success` | boolean | 执行是否成功 |
 | | `error` | string (可选) | 错误信息 |
+| `BeforeBash` | `command` | string | 执行命令 |
+| | `cwd` | string | 工作目录 |
+| | `timeout` | int | 超时秒数 |
+| `AfterBash` | `command` | string | 执行命令 |
+| | `stdout` | string | 标准输出 |
+| | `stderr` | string | 标准错误 |
+| | `exitCode` | int | 退出码 |
+| | `success` | boolean | 是否成功 |
+| `BeforeEdit` | `filePath` | string | 文件路径 |
+| | `oldContent` | string | 原文件内容 |
+| | `newContent` | string | 待写入内容 |
+| `AfterEdit` | `filePath` | string | 文件路径 |
+| | `finalContent` | string | 最终文件内容 |
+| | `success` | boolean | 是否成功 |
+| `PreCompact` | `rawContext` | string | 压缩前完整上下文文本 |
+| `PostCompact` | `compressedContext` | string | 压缩后文本 |
+| | `savedTokens` | int | 节省token数量 |
+| `SubagentStart` | `subagentId` | string | 子代理ID |
+| | `taskTitle` | string | 任务标题 |
+| | `parentSessionId` | string | 父会话ID |
+| `SubagentStop` | `subagentId` | string | 子代理ID |
+| | `finishReason` | string | 结束原因 |
+| | `duration` | float | 运行时长(秒) |
+| `Notification` | `type` | string | 通知类型 |
+| | `message` | string | 通知文案 |
+| | `scope` | string | 作用域 |
+| `PluginLoad` | `pluginName` | string | 插件名 |
+| | `pluginVersion` | string | 版本号 |
+| | `pluginRoot` | string | 插件目录路径 |
 | `SkillLoad` | `skillName` | string | Skill 名称 |
 | | `skillPath` | string | Skill 路径 |
 | | `rawContent` | string | Skill 原始内容 |
@@ -162,6 +201,145 @@ plugin/hooks/
       "content": "# README\n..."
     },
     "success": true
+  }
+}
+```
+
+**BeforeBash**
+```json
+{
+  "event": "BeforeBash",
+  "session": {"id": "abc123"},
+  "project": {"path": "/path/to/project"},
+  "payload": {
+    "command": "ls -la",
+    "cwd": "/path/to/project",
+    "timeout": 30
+  }
+}
+```
+
+**AfterBash**
+```json
+{
+  "event": "AfterBash",
+  "session": {"id": "abc123"},
+  "project": {"path": "/path/to/project"},
+  "payload": {
+    "command": "ls -la",
+    "stdout": "drwxr-xr-x  ...",
+    "stderr": "",
+    "exitCode": 0,
+    "success": true
+  }
+}
+```
+
+**BeforeEdit**
+```json
+{
+  "event": "BeforeEdit",
+  "session": {"id": "abc123"},
+  "project": {"path": "/path/to/project"},
+  "payload": {
+    "filePath": "README.md",
+    "oldContent": "# Old content",
+    "newContent": "# New content"
+  }
+}
+```
+
+**AfterEdit**
+```json
+{
+  "event": "AfterEdit",
+  "session": {"id": "abc123"},
+  "project": {"path": "/path/to/project"},
+  "payload": {
+    "filePath": "README.md",
+    "finalContent": "# New content",
+    "success": true
+  }
+}
+```
+
+**PreCompact**
+```json
+{
+  "event": "PreCompact",
+  "session": {"id": "abc123"},
+  "project": {"path": "/path/to/project"},
+  "payload": {
+    "rawContext": "Full conversation context..."
+  }
+}
+```
+
+**PostCompact**
+```json
+{
+  "event": "PostCompact",
+  "session": {"id": "abc123"},
+  "project": {"path": "/path/to/project"},
+  "payload": {
+    "compressedContext": "Compressed summary...",
+    "savedTokens": 1500
+  }
+}
+```
+
+**SubagentStart**
+```json
+{
+  "event": "SubagentStart",
+  "session": {"id": "abc123"},
+  "project": {"path": "/path/to/project"},
+  "payload": {
+    "subagentId": "sub-xyz789",
+    "taskTitle": "Analyze the codebase",
+    "parentSessionId": "abc123"
+  }
+}
+```
+
+**SubagentStop**
+```json
+{
+  "event": "SubagentStop",
+  "session": {"id": "abc123"},
+  "project": {"path": "/path/to/project"},
+  "payload": {
+    "subagentId": "sub-xyz789",
+    "finishReason": "completed",
+    "duration": 12.5
+  }
+}
+```
+
+**Notification**
+```json
+{
+  "event": "Notification",
+  "session": {"id": "abc123"},
+  "project": {"path": "/path/to/project"},
+  "payload": {
+    "type": "info",
+    "message": "Task completed successfully",
+    "scope": "global"
+  }
+}
+```
+
+**PluginLoad**
+```json
+{
+  "event": "PluginLoad",
+  "session": {"id": "abc123"},
+  "project": {"path": "/path/to/project"},
+  "payload": {
+    "pluginName": "my-plugin",
+    "pluginVersion": "1.0.0",
+    "pluginRoot": "/path/to/plugin"
   }
 }
 ```
