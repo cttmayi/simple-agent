@@ -11,7 +11,14 @@ SKIP_DIRS = {
     '.git', '.venv', 'venv', 'env', '__pycache__',
     '.pytest_cache', 'node_modules', '.mypy_cache',
     '.tox', '.eggs', 'build', 'dist',
+    '.simple-agent',  # Skip .simple-agent directory (contains logs/state)
 }
+
+# Maximum matches to return (prevent memory issues)
+MAX_MATCHES = 1000
+
+# Maximum file size to search (in bytes, 10MB)
+MAX_FILE_SIZE = 10 * 1024 * 1024
 
 
 class GREP:
@@ -79,6 +86,10 @@ class GREP:
                 """Search for pattern in a single file."""
                 nonlocal matches
                 try:
+                    # Check file size before reading
+                    if fpath.stat().st_size > MAX_FILE_SIZE:
+                        return  # Skip large files
+
                     with open(fpath, 'r', encoding='utf-8') as f:
                         for line_num, line in enumerate(f, 1):
                             try:
@@ -89,6 +100,9 @@ class GREP:
                                         "content": line.rstrip('\n\r'),
                                         "match": match.group(),
                                     })
+                                    # Stop if we have too many matches
+                                    if len(matches) >= MAX_MATCHES:
+                                        return
                             except (re.error, Exception):
                                 # Skip problematic lines to prevent ReDoS
                                 continue
@@ -123,10 +137,16 @@ class GREP:
                     "error": "Path is not a file or directory"
                 }
 
-            return {
+            result = {
                 "success": True,
                 "matches": matches,
             }
+
+            # Add warning if we hit the match limit
+            if len(matches) >= MAX_MATCHES:
+                result["warning"] = f"Search stopped at {MAX_MATCHES} matches (more may exist)"
+
+            return result
         except Exception as e:
             return {
                 "success": False,
