@@ -93,7 +93,10 @@ class GREP:
                     with open(fpath, 'r', encoding='utf-8') as f:
                         for line_num, line in enumerate(f, 1):
                             try:
-                                for match in regex.finditer(line):
+                                # Check if pattern matches at all
+                                match = regex.search(line)
+                                if match:
+                                    # Only record each line once, even if there are multiple matches
                                     matches.append({
                                         "file": str(fpath),
                                         "line": line_num,
