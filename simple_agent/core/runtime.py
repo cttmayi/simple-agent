@@ -21,6 +21,9 @@ from simple_agent.ui.renderer import UIRenderer
 from prompt_toolkit.shortcuts import PromptSession
 from prompt_toolkit.history import InMemoryHistory
 
+# Enable debug output for hooks via environment variable
+HOOK_DEBUG = os.getenv("HOOK_DEBUG", "0") == "1"
+
 # Import builtin tools to auto-register them
 from simple_agent.tools import builtin  # noqa: F401
 from simple_agent.tools.builtin.load_skill import LoadSkill
@@ -313,6 +316,10 @@ class Runtime:
         hook_input = self._build_hook_input(event)
         hook_input_json = json.dumps(hook_input, ensure_ascii=False)
 
+        if HOOK_DEBUG:
+            print(f"[DEBUG] Hook triggered: {event.name} @ {hook_dir.name}")
+            print(f"[DEBUG] Hook input: {hook_input_json[:200]}..." if len(hook_input_json) > 200 else f"[DEBUG] Hook input: {hook_input_json}")
+
         for filename in hook["files"]:
             filepath = hook_dir / filename
             ext = filepath.suffix.lower()
@@ -329,6 +336,8 @@ class Runtime:
                 if result:
                     # If any hook returns block, immediately return the block result
                     if result.get("decision") == "block":
+                        if HOOK_DEBUG:
+                            print(f"[DEBUG] Hook BLOCKED by {filename}: {result}")
                         return result
                     # Combine results: allow merges additionalContext and updatedInput
                     if combined_result is None:
@@ -345,7 +354,13 @@ class Runtime:
 
             except Exception as e:
                 self._renderer.render_message("system", f"Hook {filename} failed: {str(e)}")
+                if HOOK_DEBUG:
+                    import traceback
+                    print(f"[DEBUG] Hook exception traceback:")
+                    traceback.print_exc()
 
+        if HOOK_DEBUG and combined_result:
+            print(f"[DEBUG] Combined hook result: {combined_result}")
         return combined_result
 
     def _execute_python_hook(self, filepath: Path, hook_input_json: str) -> Optional[dict]:
@@ -375,6 +390,13 @@ class Runtime:
                 timeout=10,
             )
 
+            if HOOK_DEBUG:
+                print(f"[DEBUG] Python hook {filepath.name} executed, returncode={result.returncode}")
+                if result.stdout.strip():
+                    print(f"[DEBUG] Hook output: {result.stdout.strip()[:200]}..." if len(result.stdout.strip()) > 200 else f"[DEBUG] Hook output: {result.stdout.strip()}")
+                if result.stderr.strip():
+                    print(f"[DEBUG] Hook stderr: {result.stderr.strip()}")
+
             if result.returncode != 0:
                 if result.stderr:
                     self._renderer.render_message("system", f"Hook {filepath.name} error: {result.stderr.strip()}")
@@ -391,6 +413,8 @@ class Runtime:
                     if hook_result["decision"] not in ["allow", "block"]:
                         self._renderer.render_message("system", f"Hook {filepath.name} invalid 'decision': {hook_result['decision']}")
                         return None
+                    if HOOK_DEBUG:
+                        print(f"[DEBUG] Hook parsed result: {hook_result}")
                     return hook_result
                 except json.JSONDecodeError as e:
                     self._renderer.render_message("system", f"Hook {filepath.name} invalid JSON: {e}")
@@ -430,6 +454,13 @@ class Runtime:
                 timeout=10,
             )
 
+            if HOOK_DEBUG:
+                print(f"[DEBUG] Shell hook {filepath.name} executed, returncode={result.returncode}")
+                if result.stdout.strip():
+                    print(f"[DEBUG] Hook output: {result.stdout.strip()[:200]}..." if len(result.stdout.strip()) > 200 else f"[DEBUG] Hook output: {result.stdout.strip()}")
+                if result.stderr.strip():
+                    print(f"[DEBUG] Hook stderr: {result.stderr.strip()}")
+
             if result.returncode != 0:
                 if result.stderr:
                     self._renderer.render_message("system", f"Hook {filepath.name} error: {result.stderr.strip()}")
@@ -445,6 +476,8 @@ class Runtime:
                     if hook_result["decision"] not in ["allow", "block"]:
                         self._renderer.render_message("system", f"Hook {filepath.name} invalid 'decision': {hook_result['decision']}")
                         return None
+                    if HOOK_DEBUG:
+                        print(f"[DEBUG] Hook parsed result: {hook_result}")
                     return hook_result
                 except json.JSONDecodeError as e:
                     self._renderer.render_message("system", f"Hook {filepath.name} invalid JSON: {e}")
