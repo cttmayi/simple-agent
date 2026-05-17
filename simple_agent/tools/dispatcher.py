@@ -51,20 +51,6 @@ class ToolDispatcher:
 
             return result
         except TypeError as e:
-            # Publish ToolUseFailed event
-            if self._event_bus:
-                self._event_bus.publish(Event("ToolUseFailed", {
-                    "tool_name": name,
-                    "arguments": arguments,
-                    "error": str(e)
-                }))
             return {"success": False, "error": f"Invalid arguments: {e}"}
         except Exception as e:
-            # Publish ToolUseFailed event
-            if self._event_bus:
-                self._event_bus.publish(Event("ToolUseFailed", {
-                    "tool_name": name,
-                    "arguments": arguments,
-                    "error": str(e)
-                }))
             return {"success": False, "error": str(e)}

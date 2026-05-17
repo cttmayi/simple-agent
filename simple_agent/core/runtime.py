@@ -204,17 +204,13 @@ class Runtime:
     def _build_hook_input(self, event: Event) -> dict:
         """Build hook input JSON in official format.
 
-        Official format varies by event type:
-        - PreToolUse: {event, session, project, payload: {tool, parameters}}
-        - PostToolUse: {event, session, project, payload: {tool, parameters, result, error, success}}
-        - UserPromptSubmit: {event, session, project, payload: {userPrompt}}
-        - SessionStart: {event, session, project, payload: {}}
+        Official format varies by event type - see _OFFICIAL_HOOK_EVENTS docstring below.
 
         Args:
             event: Event object with name and data
 
         Returns:
-            dict: Hook input JSON
+            dict: Hook input JSON with structure: {event, session, project, payload}
         """
         event_name = event.name
         event_data = event.data if event.data else {}
@@ -232,8 +228,20 @@ class Runtime:
         # Build payload based on event type
         payload = {}
 
-        if event_name == "PreToolUse":
-            # PreToolUse: tool_name -> tool, arguments -> parameters
+        # Official Hook Events
+        if event_name == "SessionStart":
+            # SessionStart: 全新会话初始化启动, payload is empty
+            payload = {}
+
+        elif event_name == "UserPromptSubmit":
+            # UserPromptSubmit: 用户输入内容提交，送入 LLM 前
+            content = event_data.get("content", "")
+            payload = {
+                "userPrompt": content
+            }
+
+        elif event_name == "PreToolUse":
+            # PreToolUse: LLM 生成工具调用指令，本地执行工具之前
             tool_name = event_data.get("tool_name", "")
             arguments = event_data.get("arguments", {})
             payload = {
@@ -242,7 +250,7 @@ class Runtime:
             }
 
         elif event_name == "PostToolUse":
-            # PostToolUse: include tool, parameters, result, error, success
+            # PostToolUse: 工具执行完成，结果回传给 LLM 之前（成功 / 失败都走此事件）
             tool_name = event_data.get("tool_name", "")
             arguments = event_data.get("arguments", {})
             result = event_data.get("result", {})
@@ -257,64 +265,37 @@ class Runtime:
                 "success": success
             }
 
-        elif event_name == "UserPromptSubmit":
-            # UserPromptSubmit: content -> userPrompt
-            content = event_data.get("content", "")
-            payload = {
-                "userPrompt": content
-            }
-
-        elif event_name == "SessionStart":
-            # SessionStart: payload is empty
-            payload = {}
-
-        elif event_name == "PostMessage":
-            # PostMessage: content -> userPrompt (similar to UserPromptSubmit)
-            role = event_data.get("role", "")
-            content = event_data.get("content", "")
-            payload = {
-                "role": role,
-                "userPrompt": content  # Use userPrompt field for consistency
-            }
-
         elif event_name == "Stop":
-            # Stop: session_id in payload
+            # Stop: 主代理本轮回答结束、本轮会话轮次终止
+            # Note: responseLength and usedTools would be tracked during the turn
+            response_length = event_data.get("responseLength", 0)
+            used_tools = event_data.get("usedTools", [])
             payload = {
-                "sessionId": event_data.get("session_id", self._session_id or "")
+                "responseLength": response_length,
+                "usedTools": used_tools
             }
 
-        elif event_name == "Error":
-            # Error: error_type, error_message
+        elif event_name == "SkillLoad":
+            # SkillLoad: 加载 .skill 技能文档时
+            skill_name = event_data.get("skill_name", "")
+            skill_path = event_data.get("skill_path", "")
+            raw_content = event_data.get("raw_content", "")
             payload = {
-                "errorType": event_data.get("error_type", ""),
-                "errorMessage": event_data.get("error_message", "")
+                "skillName": skill_name,
+                "skillPath": skill_path,
+                "rawContent": raw_content
             }
 
-        elif event_name == "ToolUseFailed":
-            # ToolUseFailed: tool_name, arguments, error
-            tool_name = event_data.get("tool_name", "")
-            arguments = event_data.get("arguments", {})
-            error = event_data.get("error", "")
-            payload = {
-                "tool": tool_name,
-                "parameters": arguments,
-                "error": error
-            }
-
-        elif event_name == "SkillLoaded":
-            # SkillLoaded: skill_name
-            payload = {
-                "skillName": event_data.get("skill_name", "")
-            }
-
-        elif event_name == "SubagentLoaded":
-            # SubagentLoaded: agent_name
-            payload = {
-                "agentName": event_data.get("agent_name", "")
-            }
+        # Future/Not-Implemented Events (reserved for future development)
+        # These events are in the official spec but not yet implemented
+        elif event_name in ("BeforeBash", "AfterBash", "BeforeEdit", "AfterEdit",
+                            "PreCompact", "PostCompact", "SubagentStart", "SubagentStop",
+                            "Notification", "PluginLoad"):
+            # Use raw event data as payload (will be refined when implemented)
+            payload = event_data
 
         else:
-            # Unknown event type, use raw event data
+            # Unknown event type, use raw event data as fallback
             payload = event_data
 
         return {
@@ -884,13 +865,6 @@ class Runtime:
                     content = "(工具执行完成，AI 无额外响应)"
                 self._renderer.render_message(next_msg["role"], content)
 
-                # Publish PostMessage event
-                if content:
-                    self._event_bus.publish(Event("PostMessage", {
-                        "role": next_msg["role"],
-                        "content": content
-                    }))
-
     def _prepare_messages_with_context(self) -> List[Dict[str, str]]:
         """Prepare messages with agent context, skills, and agents."""
         messages = self._session.get_messages()
@@ -1034,7 +1008,8 @@ class Runtime:
 
                 # Publish Stop event
                 self._event_bus.publish(Event("Stop", {
-                    "session_id": self._session_id
+                    "responseLength": 0,  # TODO: Track actual response length
+                    "usedTools": []  # TODO: Track used tools in current turn
                 }))
                 break
             except HookBlockedException:
@@ -1042,9 +1017,3 @@ class Runtime:
                 continue
             except Exception as e:
                 self._renderer.render_error(str(e))
-
-                # Publish Error event
-                self._event_bus.publish(Event("Error", {
-                    "error_type": type(e).__name__,
-                    "error_message": str(e)
-                }))

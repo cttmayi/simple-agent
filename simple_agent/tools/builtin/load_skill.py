@@ -56,10 +56,14 @@ class LoadSkill:
             if LoadSkill._runtime:
                 LoadSkill._runtime._logger.log_skill_loaded(skill_name)
 
-            # Publish SkillLoaded event
+            # Publish SkillLoad event (official name)
             if LoadSkill._event_bus:
-                LoadSkill._event_bus.publish(Event("SkillLoaded", {
-                    "skill_name": skill_name
+                skill_info = LoadSkill._skill_loader.get_skill(skill_name)
+                skill_path = skill_info.get("path", "") if skill_info else ""
+                LoadSkill._event_bus.publish(Event("SkillLoad", {
+                    "skill_name": skill_name,
+                    "skill_path": skill_path,
+                    "raw_content": content
                 }))
 
             return {

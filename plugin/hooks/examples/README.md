@@ -49,22 +49,46 @@ Python 脚本示例，展示更复杂的业务逻辑判断。
 2. **输出只能是一行干净 JSON**，不能有任何其他 print/log
 3. **返回结构必须是上述 JSON 格式**
 
-## 常见事件
+## 官方 Hook 事件列表
 
-| 事件名称 | 说明 | payload 结构 |
-|---------|------|-------------|
-| SessionStart | 会话开始 | {} |
-| Stop | 会话结束 | {sessionId} |
-| UserPromptSubmit | 用户提交消息 | {userPrompt} |
-| PostMessage | AI 返回消息 | {role, userPrompt} |
-| PreToolUse | 工具调用前 | {tool, parameters} |
-| PostToolUse | 工具调用后 | {tool, parameters, result, error, success} |
-| ToolUseFailed | 工具调用失败 | {tool, parameters, error} |
-| Error | 发生错误 | {errorType, errorMessage} |
+| 事件名称 | 触发时机 | payload 结构 |
+|---------|---------|-------------|
+| SessionStart | 全新会话初始化启动 | {} |
+| UserPromptSubmit | 用户输入内容提交，送入 LLM 前 | {"userPrompt": "用户输入原始文本"} |
+| PreToolUse | LLM 生成工具调用指令，本地执行工具之前 | {"tool": "工具名", "parameters": {}} |
+| PostToolUse | 工具执行完成，结果回传给 LLM 之前 | {"tool": "工具名", "parameters": {}, "result": 任意类型, "error": "错误信息/null", "success": 布尔值} |
+| Stop | 主代理本轮回答结束、本轮会话轮次终止 | {"responseLength": "本轮回复长度", "usedTools": "本轮调用工具数组"} |
+| SkillLoad | 加载 .skill 技能文档时 | {"skillName": "技能标识名", "skillPath": "文件路径", "rawContent": "技能完整原文"} |
+
+**未实现事件（预留）**：
+- BeforeBash, AfterBash, BeforeEdit, AfterEdit, PreCompact, PostCompact
+- SubagentStart, SubagentStop, Notification, PluginLoad
 
 ## 输入 JSON 完整格式
 
-### 1) PreToolUse（工具调用前）
+### 1) SessionStart（会话启动）
+```json
+{
+  "event": "SessionStart",
+  "session": {"id": "..."},
+  "project": {"path": "..."},
+  "payload": {}
+}
+```
+
+### 2) UserPromptSubmit（用户提交消息前）
+```json
+{
+  "event": "UserPromptSubmit",
+  "session": {"id": "..."},
+  "project": {"path": "..."},
+  "payload": {
+    "userPrompt": "用户输入的内容"
+  }
+}
+```
+
+### 3) PreToolUse（工具调用前）
 ```json
 {
   "event": "PreToolUse",
@@ -77,7 +101,7 @@ Python 脚本示例，展示更复杂的业务逻辑判断。
 }
 ```
 
-### 2) PostToolUse（工具执行后）
+### 4) PostToolUse（工具执行后）
 ```json
 {
   "event": "PostToolUse",
@@ -90,27 +114,5 @@ Python 脚本示例，展示更复杂的业务逻辑判断。
     "error": null,
     "success": true
   }
-}
-```
-
-### 3) UserPromptSubmit（用户提交消息前）
-```json
-{
-  "event": "UserPromptSubmit",
-  "session": {"id": "..."},
-  "project": {"path": "..."},
-  "payload": {
-    "userPrompt": "用户输入的内容"
-  }
-}
-```
-
-### 4) SessionStart（会话启动）
-```json
-{
-  "event": "SessionStart",
-  "session": {"id": "..."},
-  "project": {"path": "..."},
-  "payload": {}
 }
 ```
