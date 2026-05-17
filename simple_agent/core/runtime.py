@@ -766,8 +766,7 @@ class Runtime:
                 if content:
                     self._event_bus.publish(Event("PostMessage", {
                         "role": next_msg["role"],
-                        "content": content,
-                        "hook_context": self._hook_context
+                        "content": content
                     }))
 
     def _prepare_messages_with_context(self) -> List[Dict[str, str]]:
@@ -825,8 +824,7 @@ class Runtime:
         # Publish UserPromptSubmit event
         self._event_bus.publish(Event("UserPromptSubmit", {
             "role": "user",
-            "content": input,
-            "hook_context": self._hook_context
+            "content": input
         }))
         return "message_processed"
 
@@ -848,10 +846,9 @@ class Runtime:
         if self._logger:
             self._logger.log_session_start(self._session_id)
 
-        # Publish SessionStart event with hook_context
+        # Publish SessionStart event
         self._event_bus.publish(Event("SessionStart", {
-            "session_id": self._session_id,
-            "hook_context": self._hook_context
+            "session_id": self._session_id
         }))
 
         self._renderer.render_message("system", "Simple Agent started. Type /help for commands.")
@@ -915,8 +912,7 @@ class Runtime:
 
                 # Publish Stop event
                 self._event_bus.publish(Event("Stop", {
-                    "session_id": self._session_id,
-                    "hook_context": self._hook_context
+                    "session_id": self._session_id
                 }))
                 break
             except HookBlockedException:
@@ -928,6 +924,5 @@ class Runtime:
                 # Publish Error event
                 self._event_bus.publish(Event("Error", {
                     "error_type": type(e).__name__,
-                    "error_message": str(e),
-                    "hook_context": self._hook_context
+                    "error_message": str(e)
                 }))
