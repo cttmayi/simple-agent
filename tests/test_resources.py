@@ -105,39 +105,54 @@ def test_agent_get_tools():
         assert tools == ["Read", "Glob", "Grep"]
 
 
-def test_hook_loader_scan():
+def test_hook_loader_loads_json_config():
+    """HookLoader loads hooks from JSON configuration file."""
     from simple_agent.resources.hooks import HookLoader
+    import json
+
     with tempfile.TemporaryDirectory() as tmpdir:
-        # Create test hook directory structure
-        event_dir = Path(tmpdir) / "message_send_before"
-        event_dir.mkdir()
-        (event_dir / "hook.py").write_text("def on_message_send_before(): pass")
+        # Create hooks.json
+        hooks_file = Path(tmpdir) / "hooks.json"
+        hooks_file.write_text('''
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo 'Session started'",
+            "async": false
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "markdown",
+            "content": "Processing..."
+          }
+        ]
+      }
+    ]
+  }
+}
+''')
 
-        loader = HookLoader(Path(tmpdir))
+        loader = HookLoader(hooks_file)
         hooks = loader.list_hooks()
-        assert len(hooks) == 1
-        assert hooks[0]["event_name"] == "message_send_before"
-        assert "hook.py" in hooks[0]["files"]
 
-
-def test_hook_get_events():
-    from simple_agent.resources.hooks import HookLoader
-    with tempfile.TemporaryDirectory() as tmpdir:
-        # Create multiple event directories
-        event1 = Path(tmpdir) / "message_send_before"
-        event1.mkdir()
-        (event1 / "hook.py").write_text("def on_message_send_before(): pass")
-
-        event2 = Path(tmpdir) / "tool_call_after"
-        event2.mkdir()
-        (event2 / "hook.py").write_text("def on_tool_call_after(): pass")
-
-        loader = HookLoader(Path(tmpdir))
-        hooks = loader.list_hooks()
         assert len(hooks) == 2
-        event_names = [h["event_name"] for h in hooks]
-        assert "message_send_before" in event_names
-        assert "tool_call_after" in event_names
+        assert hooks[0]["event_name"] == "SessionStart"
+        assert hooks[1]["event_name"] == "UserPromptSubmit"
+
+        # Test getting hooks for specific event
+        session_hooks = loader.get_hooks_for_event("SessionStart")
+        assert len(session_hooks) == 1
+        assert session_hooks[0]["matcher"] == ""
+        assert len(session_hooks[0]["hooks"]) == 1
 
 
 def test_command_loader_scan():

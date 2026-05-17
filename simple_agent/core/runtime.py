@@ -961,7 +961,6 @@ class Runtime:
         # Paths
         skills_dirs = ", ".join(self._config.paths.skills_dirs)
         agents_dirs = ", ".join(self._config.paths.agents_dirs)
-        hooks_dirs = ", ".join(self._config.paths.hooks_dirs)
         commands_dirs = ", ".join(self._config.paths.commands_dirs)
 
         # UI
@@ -1002,7 +1001,6 @@ class Runtime:
             # Paths
             '{skills_dirs}': skills_dirs,
             '{agents_dirs}': agents_dirs,
-            '{hooks_dirs}': hooks_dirs,
             '{commands_dirs}': commands_dirs,
 
             # UI
