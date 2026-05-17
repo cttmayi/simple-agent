@@ -129,7 +129,8 @@ class RunSubAgent:
             config=RunSubAgent._api_config,
             logger=RunSubAgent._logger,
             event_bus=RunSubAgent._event_bus,
-            tool_callback=tool_callback
+            tool_callback=tool_callback,
+            parent_session_id=RunSubAgent._runtime._session_id if RunSubAgent._runtime else None
         )
 
         # Track loaded agent

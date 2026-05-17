@@ -1,5 +1,6 @@
 """Subagent execution system for running agents in isolated contexts."""
 
+import time
 from typing import Dict, Any, Optional, List, Callable
 from simple_agent.core.session import Session
 from simple_agent.api.client import APIClient
@@ -22,7 +23,8 @@ class SubAgentRunner:
         config: Optional[APIConfig] = None,
         logger: Optional[LLMLogger] = None,
         event_bus=None,
-        tool_callback: Optional[Callable[[str, Dict[str, Any], Dict[str, Any]], None]] = None
+        tool_callback: Optional[Callable[[str, Dict[str, Any], Dict[str, Any]], None]] = None,
+        parent_session_id: Optional[str] = None
     ):
         """Initialize subagent runner.
 
@@ -34,6 +36,7 @@ class SubAgentRunner:
             logger: LLM logger
             event_bus: Event bus for publishing events
             tool_callback: Optional callback for tool execution (tool_name, result, arguments)
+            parent_session_id: Parent session ID for tracking
         """
         self._agent_name = agent_name
         self._agent_content = agent_content
@@ -42,6 +45,7 @@ class SubAgentRunner:
         self._logger = logger
         self._event_bus = event_bus
         self._tool_callback = tool_callback
+        self._parent_session_id = parent_session_id
 
         # Generate a unique call ID for tracking this subagent execution
         self._subagent_call_id = str(uuid.uuid4())
@@ -80,16 +84,19 @@ class SubAgentRunner:
                 "error": "API client not configured for subagent"
             }
 
+        # Track start time for duration calculation
+        start_time = time.time()
+
         # Log subagent invocation
         if self._logger:
             self._logger.log_subagent_invoked(self._agent_name, user_message)
 
-        # Publish SubAgentStart event
+        # Publish SubagentStart event (official event name)
         if self._event_bus:
-            self._event_bus.publish(Event("SubAgentStart", {
-                "agent_name": self._agent_name,
+            self._event_bus.publish(Event("SubagentStart", {
+                "subagent_call_id": self._subagent_call_id,
                 "user_message": user_message,
-                "subagent_call_id": self._subagent_call_id
+                "parent_session_id": self._parent_session_id or ""
             }))
 
         try:
@@ -163,6 +170,14 @@ class SubAgentRunner:
                     "turns_used": turn + 1
                 }))
 
+            # Publish SubagentStop event (official event name)
+            if self._event_bus:
+                self._event_bus.publish(Event("SubagentStop", {
+                    "subagent_call_id": self._subagent_call_id,
+                    "finish_reason": "completed",
+                    "duration": time.time() - start_time
+                }))
+
             # Log subagent completion
             if self._logger:
                 self._logger.log_subagent_complete(
@@ -190,6 +205,14 @@ class SubAgentRunner:
                 self._event_bus.publish(Event("SubAgentError", {
                     "agent_name": self._agent_name,
                     "error": str(e)
+                }))
+
+            # Publish SubagentStop event (official event name) - error case
+            if self._event_bus:
+                self._event_bus.publish(Event("SubagentStop", {
+                    "subagent_call_id": self._subagent_call_id,
+                    "finish_reason": f"error: {str(e)}",
+                    "duration": time.time() - start_time
                 }))
 
             # Log subagent completion with failure

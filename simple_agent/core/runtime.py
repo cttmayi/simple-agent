@@ -296,13 +296,113 @@ class Runtime:
                 "rawContent": raw_content
             }
 
-        # Future/Not-Implemented Events (reserved for future development)
-        # These events are in the official spec but not yet implemented
-        elif event_name in ("BeforeBash", "AfterBash", "BeforeEdit", "AfterEdit",
-                            "PreCompact", "PostCompact", "SubagentStart", "SubagentStop",
-                            "Notification", "PluginLoad"):
-            # Use raw event data as payload (will be refined when implemented)
-            payload = event_data
+        elif event_name == "BeforeBash":
+            # BeforeBash: 执行 Bash 命令前置钩子
+            command = event_data.get("command", "")
+            cwd = event_data.get("cwd", "")
+            timeout = event_data.get("timeout", 30)
+            payload = {
+                "command": command,
+                "cwd": cwd,
+                "timeout": timeout
+            }
+
+        elif event_name == "AfterBash":
+            # AfterBash: Bash 命令执行完毕后置钩子
+            command = event_data.get("command", "")
+            stdout = event_data.get("stdout", "")
+            stderr = event_data.get("stderr", "")
+            exit_code = event_data.get("returncode", 0)
+            success = exit_code == 0
+            payload = {
+                "command": command,
+                "stdout": stdout,
+                "stderr": stderr,
+                "exitCode": exit_code,
+                "success": success
+            }
+
+        elif event_name == "BeforeEdit":
+            # BeforeEdit: 文件编辑/写入操作执行前
+            file_path = event_data.get("file_path", "")
+            old_content = event_data.get("old_content", "")
+            new_content = event_data.get("new_content", "")
+            payload = {
+                "filePath": file_path,
+                "oldContent": old_content,
+                "newContent": new_content
+            }
+
+        elif event_name == "AfterEdit":
+            # AfterEdit: 文件编辑完成后
+            file_path = event_data.get("file_path", "")
+            final_content = event_data.get("final_content", "")
+            success = event_data.get("success", True)
+            payload = {
+                "filePath": file_path,
+                "finalContent": final_content,
+                "success": success
+            }
+
+        elif event_name == "PreCompact":
+            # PreCompact: 对话上下文压缩合并之前
+            raw_context = event_data.get("raw_context", "")
+            payload = {
+                "rawContext": raw_context
+            }
+
+        elif event_name == "PostCompact":
+            # PostCompact: 上下文压缩完成之后
+            compressed_context = event_data.get("compressed_context", "")
+            saved_tokens = event_data.get("saved_tokens", 0)
+            payload = {
+                "compressedContext": compressed_context,
+                "savedTokens": saved_tokens
+            }
+
+        elif event_name == "SubagentStart":
+            # SubagentStart: 子代理/子任务正式启动
+            subagent_id = event_data.get("subagent_call_id", "")
+            task_title = event_data.get("user_message", "")
+            parent_session_id = event_data.get("parent_session_id", self._session_id)
+            payload = {
+                "subagentId": subagent_id,
+                "taskTitle": task_title,
+                "parentSessionId": parent_session_id
+            }
+
+        elif event_name == "SubagentStop":
+            # SubagentStop: 子代理运行结束销毁
+            subagent_id = event_data.get("subagent_call_id", "")
+            finish_reason = event_data.get("finish_reason", "completed")
+            duration = event_data.get("duration", 0)
+            payload = {
+                "subagentId": subagent_id,
+                "finishReason": finish_reason,
+                "duration": duration
+            }
+
+        elif event_name == "Notification":
+            # Notification: 系统通知弹窗/权限提示触发
+            notif_type = event_data.get("type", "")
+            message = event_data.get("message", "")
+            scope = event_data.get("scope", "global")
+            payload = {
+                "type": notif_type,
+                "message": message,
+                "scope": scope
+            }
+
+        elif event_name == "PluginLoad":
+            # PluginLoad: 会话加载外部插件时
+            plugin_name = event_data.get("plugin_name", "")
+            plugin_version = event_data.get("plugin_version", "")
+            plugin_root = event_data.get("plugin_root", "")
+            payload = {
+                "pluginName": plugin_name,
+                "pluginVersion": plugin_version,
+                "pluginRoot": plugin_root
+            }
 
         else:
             # Unknown event type, use raw event data as fallback
