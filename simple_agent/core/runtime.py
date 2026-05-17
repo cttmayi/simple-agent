@@ -146,6 +146,9 @@ class Runtime:
         """Load and register all hooks."""
         hooks = self._hook_loader.list_hooks()
 
+        if _is_hook_debug():
+            sys.stderr.write(f"[DEBUG] Loading {len(hooks)} hooks...\n")
+
         for hook in hooks:
             event_name = hook["event_name"]
 
@@ -189,6 +192,8 @@ class Runtime:
 
                 return handler
 
+            if _is_hook_debug():
+                sys.stderr.write(f"[DEBUG] Registered hook: {event_name} -> {hook['files']}\n")
             self._event_bus.subscribe(event_name, make_handler(hook, event_name))
 
     def _execute_hook(self, hook: Dict[str, Any], event: Event) -> Optional[dict]:
@@ -953,6 +958,8 @@ class Runtime:
         # Regular message - add to session (don't render, it's shown in prompt)
         self._session.add_message("user", input)
         # Publish UserPromptSubmit event
+        if _is_hook_debug():
+            sys.stderr.write(f"[DEBUG] Publishing UserPromptSubmit event\n")
         self._event_bus.publish(Event("UserPromptSubmit", {
             "role": "user",
             "content": input
@@ -978,6 +985,8 @@ class Runtime:
             self._logger.log_session_start(self._session_id)
 
         # Publish SessionStart event
+        if _is_hook_debug():
+            sys.stderr.write(f"[DEBUG] Publishing SessionStart event\n")
         self._event_bus.publish(Event("SessionStart", {
             "session_id": self._session_id
         }))
