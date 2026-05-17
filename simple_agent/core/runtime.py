@@ -513,13 +513,13 @@ class Runtime:
             if result.stdout.strip():
                 try:
                     hook_result = json.loads(result.stdout.strip())
-                    # Validate required fields
+                    # Default decision to allow if not specified
                     if "decision" not in hook_result:
-                        self._renderer.render_message("system", f"Hook {filepath.name} missing 'decision' field")
-                        return None
+                        hook_result["decision"] = "allow"
+                    # Validate decision value if specified
                     if hook_result["decision"] not in ["allow", "block"]:
-                        self._renderer.render_message("system", f"Hook {filepath.name} invalid 'decision': {hook_result['decision']}")
-                        return None
+                        self._renderer.render_message("system", f"Hook {filepath.name} invalid 'decision': {hook_result['decision']}, defaulting to allow")
+                        hook_result["decision"] = "allow"
                     if _is_hook_debug():
                         sys.stderr.write(f"[DEBUG] Hook parsed result: {hook_result}\n")
                     return hook_result
@@ -577,12 +577,13 @@ class Runtime:
             if result.stdout.strip():
                 try:
                     hook_result = json.loads(result.stdout.strip())
+                    # Default decision to allow if not specified
                     if "decision" not in hook_result:
-                        self._renderer.render_message("system", f"Hook {filepath.name} missing 'decision' field")
-                        return None
+                        hook_result["decision"] = "allow"
+                    # Validate decision value if specified
                     if hook_result["decision"] not in ["allow", "block"]:
-                        self._renderer.render_message("system", f"Hook {filepath.name} invalid 'decision': {hook_result['decision']}")
-                        return None
+                        self._renderer.render_message("system", f"Hook {filepath.name} invalid 'decision': {hook_result['decision']}, defaulting to allow")
+                        hook_result["decision"] = "allow"
                     if _is_hook_debug():
                         sys.stderr.write(f"[DEBUG] Hook parsed result: {hook_result}\n")
                     return hook_result

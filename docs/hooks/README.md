@@ -364,7 +364,7 @@ plugin/hooks/
 
 ```json
 {
-  "decision": "allow",           // 必填：allow 或 block
+  "decision": "allow",           // 可选：allow 或 block，默认 allow
   "message": "显示在CLI的内容",  // 可选
   "updatedInput": {},            // 可选：修改输入数据
   "additionalContext": "发送给AI的内容"  // 可选
@@ -373,7 +373,7 @@ plugin/hooks/
 
 | 字段 | 必填 | 说明 |
 |------|------|------|
-| `decision` | 是 | `"allow"` 或 `"block"` |
+| `decision` | 否 | `"allow"` 或 `"block"`，默认为 `"allow"` |
 | `message` | 否 | 显示在 CLI 的内容 |
 | `updatedInput` | 否 | 修改输入数据（如工具参数） |
 | `additionalContext` | 否 | 发送给 AI 的额外内容 |
@@ -394,9 +394,9 @@ SESSION_ID=$(echo "$INPUT_JSON" | grep -o '"id"[^,}]*' | sed 's/.*: *"\([^"]*\)"
 SHORT_ID=${SESSION_ID:0:8}
 
 # 输出 JSON（必须使用 heredoc 避免转义问题）
+# decision 是可选的，默认为 allow
 cat <<EOF
 {
-  "decision": "allow",
   "message": "🚀 会话已启动! ID: $SHORT_ID"
 }
 EOF
@@ -425,9 +425,8 @@ log_file = ".simple-agent/messages.log"
 with open(log_file, "a") as f:
     f.write(f"{session_id}: {user_prompt[:50]}...\n")
 
-# 输出 JSON
+# 输出 JSON（decision 是可选的，默认为 allow）
 output = {
-    "decision": "allow",
     "message": f"📤 消息已发送: {user_prompt[:30]}..."
 }
 print(json.dumps(output, ensure_ascii=False))
@@ -458,10 +457,8 @@ process.stdin.on('end', () => {
         return;
     }
 
-    // 放行
-    console.log(JSON.stringify({
-        decision: "allow"
-    }));
+    // 放行（decision 是可选的，默认为 allow）
+    console.log(JSON.stringify({}));
 });
 ```
 
