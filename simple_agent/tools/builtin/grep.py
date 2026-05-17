@@ -140,9 +140,21 @@ class GREP:
                     "error": "Path is not a file or directory"
                 }
 
+            # Build output string for CLI/Web display
+            output_lines = []
+            if matches:
+                output_lines.append(f"Found {len(matches)} matches:")
+                for m in matches[:100]:  # Limit to 100 matches in output
+                    output_lines.append(f"  Line {m['line']}: {m['content']}")
+                if len(matches) > 100:
+                    output_lines.append(f"  ... and {len(matches) - 100} more matches")
+            else:
+                output_lines.append("No matches found")
+
             result = {
                 "success": True,
-                "matches": matches,
+                "output": "\n".join(output_lines),  # For CLI/Web display
+                "matches": matches,  # For AI
             }
 
             # Add warning if we hit the match limit

@@ -173,9 +173,18 @@ class BASH:
                 else:
                     stderr = f"(Command exited with code {result.returncode} and no output)"
 
+            # Build output string for CLI/Web display
+            output_parts = []
+            if stdout:
+                output_parts.append(stdout)
+            if stderr:
+                output_parts.append(f"Error: {stderr}")
+            output = "\n".join(output_parts) if output_parts else "(Command completed with no output)"
+
             return {
                 "success": result.returncode == 0,
-                "stdout": stdout,
+                "output": output,  # For CLI/Web display
+                "stdout": stdout,  # For AI (legacy)
                 "stderr": stderr,
                 "returncode": result.returncode,
             }

@@ -49,7 +49,22 @@ def list_tasks() -> Dict[str, Any]:
         return {"success": False, "error": "TodoManager not initialized"}
 
     tasks = _todo_manager.get_all_tasks()
-    return {"success": True, "tasks": tasks}
+
+    # Build output string for CLI/Web display
+    output_lines = []
+    if tasks:
+        output_lines.append(f"Found {len(tasks)} tasks:")
+        for t in tasks:
+            status_icon = {"pending": "⏳", "in_progress": "⚙️", "completed": "✓", "blocked": "🚫", "deleted": "🗑️"}.get(t.get("status", "pending"), "⏳")
+            output_lines.append(f"  {status_icon} [{t.get('id', '?')[:8]}] {t.get('subject', 'N/A')}")
+    else:
+        output_lines.append("No tasks found")
+
+    return {
+        "success": True,
+        "output": "\n".join(output_lines),  # For CLI/Web display
+        "tasks": tasks  # For AI
+    }
 
 
 task_list_def = ToolDefinition(
@@ -82,7 +97,38 @@ def get_task(task_id: str) -> Dict[str, Any]:
     if task is None:
         return {"success": False, "error": "Task not found"}
 
-    return {"success": True, "task": task}
+    # Build output string for CLI/Web display
+    # task may already be a dict or an object with to_dict()
+    if hasattr(task, 'to_dict'):
+        task_dict = task.to_dict()
+    else:
+        task_dict = task
+
+    status_icon = {"pending": "⏳", "in_progress": "⚙️", "completed": "✓", "blocked": "🚫", "deleted": "🗑️"}.get(task_dict.get("status", "pending"), "⏳")
+
+    output_lines = [
+        f"{status_icon} Task: {task_dict.get('subject', 'N/A')}",
+        f"  ID: {task_dict.get('id', '?')}",
+        f"  Status: {task_dict.get('status', 'pending')}",
+        f"  Priority: {task_dict.get('priority', 'normal')}",
+        f"  Progress: {task_dict.get('progress', 0)}%",
+    ]
+    if task_dict.get('description'):
+        output_lines.append(f"  Description: {task_dict['description']}")
+
+    # Show subtasks
+    children = task_dict.get('children', [])
+    if children:
+        output_lines.append(f"  Subtasks ({len(children)}):")
+        for child in children:
+            child_status = {"pending": "⏳", "in_progress": "⚙️", "completed": "✓", "blocked": "🚫", "deleted": "🗑️"}.get(child.get("status", "pending"), "⏳")
+            output_lines.append(f"    {child_status} [{child.get('id', '?')[:8]}] {child.get('subject', 'N/A')}")
+
+    return {
+        "success": True,
+        "output": "\n".join(output_lines),  # For CLI/Web display
+        "task": task_dict  # For AI
+    }
 
 
 task_get_def = ToolDefinition(
@@ -143,7 +189,15 @@ def create_task(
     if not success:
         return {"success": False, "error": message}
 
-    return {"success": True, "task_id": task.id, "task": task.to_dict()}
+    task_dict = task.to_dict()
+    status_icon = {"pending": "⏳", "in_progress": "⚙️", "completed": "✓", "blocked": "🚫", "deleted": "🗑️"}.get(status, "⏳")
+
+    return {
+        "success": True,
+        "output": f"{status_icon} Task created: [{task.id[:8]}] {subject}",  # For CLI/Web display
+        "task_id": task.id,
+        "task": task_dict  # For AI
+    }
 
 
 task_create_def = ToolDefinition(
@@ -230,7 +284,14 @@ def update_task(
     if not success:
         return {"success": False, "error": message}
 
-    return {"success": True, "task": task.to_dict()}
+    task_dict = task.to_dict()
+    status_icon = {"pending": "⏳", "in_progress": "⚙️", "completed": "✓", "blocked": "🚫", "deleted": "🗑️"}.get(task_dict.get("status", "pending"), "⏳")
+
+    return {
+        "success": True,
+        "output": f"{status_icon} Task updated: [{task.id[:8]}] {task_dict.get('subject', 'N/A')} (status: {task_dict.get('status', 'pending')}, progress: {task_dict.get('progress', 0)}%)",  # For CLI/Web display
+        "task": task_dict  # For AI
+    }
 
 
 task_update_def = ToolDefinition(

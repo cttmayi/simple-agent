@@ -167,7 +167,8 @@ class READ:
 
             return {
                 "success": True,
-                "content": result_content,
+                "output": result_content,  # For CLI/Web display
+                "content": result_content,  # For AI (legacy)
                 "total_lines": total_lines,
                 "lines_shown": len(selected_lines),
                 "start_line": start_line,

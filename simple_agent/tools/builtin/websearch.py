@@ -114,9 +114,27 @@ class WebSearch:
             # Ensure we don't return more than requested
             results = results[:max_results]
 
+            # Build output string for CLI/Web display
+            output_lines = []
+            if results:
+                output_lines.append(f"Found {len(results)} results:")
+                for i, r in enumerate(results[:10], start=1):
+                    output_lines.append(f"{i}. {r.get('title', '')}")
+                    url = r.get('url', '')
+                    if url:
+                        output_lines.append(f"   URL: {url}")
+                    snippet = r.get('snippet', '')
+                    if snippet and len(snippet) < 150:
+                        output_lines.append(f"   {snippet}")
+                if len(results) > 10:
+                    output_lines.append(f"... and {len(results) - 10} more results")
+            else:
+                output_lines.append("No results found")
+
             return {
                 "success": True,
-                "results": results,
+                "output": "\n".join(output_lines),  # For CLI/Web display
+                "results": results,  # For AI
             }
         except Exception as e:
             return {

@@ -120,6 +120,7 @@ class WRITE:
 
             return {
                 "success": True,
+                "output": f"File written: {file_path}",  # For CLI/Web display
                 "path": str(file_path),
             }
         except PermissionError:

@@ -77,13 +77,25 @@ class UIRenderer:
 
             # Skip status line - it's now shown by caller (runtime.py)
 
-            # Show detailed output (not truncated for user feedback)
+            # Use unified 'output' field if available, otherwise fall back to legacy fields
             if "error" in tool_result:
                 # Show full error message
                 error_msg = tool_result['error']
                 self.console.print(f"  │  [red]Error:[/red] {escape(error_msg)}")
+            elif "output" in tool_result:
+                # Use unified output field (limit to first 10 lines for display)
+                output = tool_result["output"]
+                if output:
+                    lines = output.split('\n')
+                    # Limit to first 10 lines for display
+                    display_lines = lines[:10]
+                    if len(lines) > 10:
+                        display_lines.append(f"... and {len(lines) - 10} more lines")
+                    for line in display_lines:
+                        if line.strip():  # Skip empty lines
+                            self.console.print(f"  │  {escape(line)}", overflow="ignore")
             elif "content" in tool_result:
-                # Show file content with indentation and line limiting
+                # Legacy: File read - show content with indentation and line limiting
                 content = tool_result["content"]
                 if content:
                     # Limit to first 5 lines, but always show truncation message if present
@@ -102,7 +114,7 @@ class UIRenderer:
                         if line.strip():  # Skip empty lines
                             self.console.print(f"  │  {line}", overflow="ignore")
             elif "stdout" in tool_result:
-                # Show stdout with visual separator
+                # Legacy: Shell command - show stdout/stderr
                 stdout = tool_result.get("stdout", "").strip()
                 if stdout:
                     for line in stdout.split('\n'):
@@ -118,7 +130,7 @@ class UIRenderer:
                 if returncode and returncode != 0:
                     self.console.print(f"  │  [dim]Exit code: {returncode}[/dim]")
             elif "matches" in tool_result:
-                # Show match details
+                # Legacy: Grep - show match details
                 matches = tool_result["matches"]
                 if matches:
                     self.console.print(f"  │  [dim]Found {len(matches)} matches:[/dim]")
@@ -127,7 +139,7 @@ class UIRenderer:
                 else:
                     self.console.print(f"  │  [dim]No matches found[/dim]")
             elif "results" in tool_result:
-                # Show web search results
+                # Legacy: Web search - show result count
                 results = tool_result.get("results", [])
                 if results:
                     self.console.print(f"  │  [dim]Found {len(results)} results:[/dim]")
@@ -255,13 +267,25 @@ class UIRenderer:
             # Handle both direct result and wrapped result formats
             tool_result = result.get("result", result)
 
-            # Show detailed output (not truncated for user feedback)
+            # Use unified 'output' field if available, otherwise fall back to legacy fields
             if "error" in tool_result:
                 # Show full error message
                 error_msg = tool_result['error']
                 self.console.print(f"  │    [red]Error:[/red] {escape(error_msg)}")
+            elif "output" in tool_result:
+                # Use unified output field (limit to first 10 lines for display)
+                output = tool_result["output"]
+                if output:
+                    lines = output.split('\n')
+                    # Limit to first 10 lines for display
+                    display_lines = lines[:10]
+                    if len(lines) > 10:
+                        display_lines.append(f"... and {len(lines) - 10} more lines")
+                    for line in display_lines:
+                        if line.strip():  # Skip empty lines
+                            self.console.print(f"  │    {escape(line)}", overflow="ignore")
             elif "content" in tool_result:
-                # Show file content with indentation and line limiting
+                # Legacy: File read - show content with indentation and line limiting
                 content = tool_result["content"]
                 if content:
                     # Limit to first 5 lines, but always show truncation message if present
@@ -280,7 +304,7 @@ class UIRenderer:
                         if line.strip():  # Skip empty lines
                             self.console.print(f"  │    {line}", overflow="ignore")
             elif "stdout" in tool_result:
-                # Show stdout with visual separator
+                # Legacy: Shell command - show stdout/stderr
                 stdout = tool_result.get("stdout", "").strip()
                 if stdout:
                     for line in stdout.split('\n'):
@@ -296,7 +320,7 @@ class UIRenderer:
                 if returncode and returncode != 0:
                     self.console.print(f"  │    [dim]Exit code: {returncode}[/dim]")
             elif "matches" in tool_result:
-                # Show match details
+                # Legacy: Grep - show match details
                 matches = tool_result["matches"]
                 if matches:
                     self.console.print(f"  │    [dim]Found {len(matches)} matches:[/dim]")
@@ -305,7 +329,7 @@ class UIRenderer:
                 else:
                     self.console.print(f"  │    [dim]No matches found[/dim]")
             elif "results" in tool_result:
-                # Show web search results
+                # Legacy: Web search - show result count
                 results = tool_result.get("results", [])
                 if results:
                     self.console.print(f"  │    [dim]Found {len(results)} results:[/dim]")
