@@ -234,6 +234,23 @@ def load_config(plugin_dir: Optional[str] = None) -> Settings:
                     commands_dirs.append(str(plugin_relative / commands_path))
             paths_data["commands_dirs"] = commands_dirs
 
+        # Auto-discover default resource directories if not specified in plugin.json
+        # This allows plugins like superpowers to work without explicit path configuration
+        if "skills_dirs" not in paths_data:
+            skills_dir = plugin_path / "skills"
+            if skills_dir.exists() and skills_dir.is_dir():
+                paths_data["skills_dirs"] = [str(plugin_relative / "skills")]
+
+        if "agents_dirs" not in paths_data:
+            agents_dir = plugin_path / "agents"
+            if agents_dir.exists() and agents_dir.is_dir():
+                paths_data["agents_dirs"] = [str(plugin_relative / "agents")]
+
+        if "commands_dirs" not in paths_data:
+            commands_dir = plugin_path / "commands"
+            if commands_dir.exists() and commands_dir.is_dir():
+                paths_data["commands_dirs"] = [str(plugin_relative / "commands")]
+
     # Start with plugins/config.yml as base (shared config for all plugins)
     plugins_config = Path.cwd() / "plugins" / "config.yml"
     if plugins_config.exists():
