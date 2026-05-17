@@ -86,6 +86,12 @@ def load_config(plugin_dir: Optional[str] = None) -> Settings:
 
     # Resolve plugin directory relative to current directory
     plugin_path = Path.cwd() / plugin_dir
+    # Get relative path from cwd to plugin (e.g., "plugins/default")
+    try:
+        plugin_relative = plugin_path.relative_to(Path.cwd())
+    except ValueError:
+        # plugin_path is not under cwd, use full path
+        plugin_relative = str(plugin_path)
 
     config_data = {}
 
@@ -93,6 +99,61 @@ def load_config(plugin_dir: Optional[str] = None) -> Settings:
     plugin_metadata = _load_plugin_metadata(plugin_path)
     if plugin_metadata:
         config_data["plugin_info"] = plugin_metadata
+
+        # Apply resource paths from plugin.json if specified
+        # These paths are relative to the plugin directory
+        paths_data = config_data.setdefault("paths", {})
+
+        if "agents" in plugin_metadata:
+            agents_path = plugin_metadata["agents"]
+            # Support both string and list for agents
+            if isinstance(agents_path, list):
+                agents_path = agents_path[0] if agents_path else "./agents"
+            # Convert to path relative to cwd
+            if agents_path.startswith("./") or agents_path.startswith("../"):
+                # Already relative
+                paths_data["agents_dir"] = str(plugin_relative / agents_path.lstrip("./"))
+            else:
+                # Directory name only, under plugin
+                paths_data["agents_dir"] = str(plugin_relative / agents_path)
+
+        if "skills" in plugin_metadata:
+            skills_path = plugin_metadata["skills"]
+            skills_dirs = []
+            if isinstance(skills_path, list):
+                for sp in skills_path:
+                    if sp.startswith("./") or sp.startswith("../"):
+                        skills_dirs.append(str(plugin_relative / sp.lstrip("./")))
+                    else:
+                        skills_dirs.append(str(plugin_relative / sp))
+            else:
+                if skills_path.startswith("./") or skills_path.startswith("../"):
+                    skills_dirs.append(str(plugin_relative / skills_path.lstrip("./")))
+                else:
+                    skills_dirs.append(str(plugin_relative / skills_path))
+            # Also include user's global skills directory
+            skills_dirs.append("~/.agents/skills")
+            paths_data["skills_dirs"] = skills_dirs
+
+        if "hooks" in plugin_metadata:
+            hooks_path = plugin_metadata["hooks"]
+            # Support both string and list for hooks
+            if isinstance(hooks_path, list):
+                hooks_path = hooks_path[0] if hooks_path else "./hooks"
+            if hooks_path.startswith("./") or hooks_path.startswith("../"):
+                paths_data["hooks_dir"] = str(plugin_relative / hooks_path.lstrip("./"))
+            else:
+                paths_data["hooks_dir"] = str(plugin_relative / hooks_path)
+
+        if "commands" in plugin_metadata:
+            commands_path = plugin_metadata["commands"]
+            # Support both string and list for commands
+            if isinstance(commands_path, list):
+                commands_path = commands_path[0] if commands_path else "./commands"
+            if commands_path.startswith("./") or commands_path.startswith("../"):
+                paths_data["commands_dir"] = str(plugin_relative / commands_path.lstrip("./"))
+            else:
+                paths_data["commands_dir"] = str(plugin_relative / commands_path)
 
     # Start with user config as base
     user_config = Path.home() / ".config" / "simple-agent" / "config.yml"

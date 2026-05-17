@@ -30,6 +30,7 @@ def show_plugin_info(plugin_dir: Optional[str] = None):
         plugin_dir: Path to the plugin directory
     """
     config = load_config(plugin_dir=plugin_dir)
+    base_dir = Path.cwd()
 
     print(f"\n{'='*50}")
     print(f"插件信息 (Plugin Info)")
@@ -44,26 +45,23 @@ def show_plugin_info(plugin_dir: Optional[str] = None):
             author = info['author']
             print(f"作者 (Author):      {author.get('name', 'N/A')}")
 
-        # 显示自定义资源路径（如果有）
-        custom_paths = []
-        if 'agents' in info and info['agents'] != './agents':
-            custom_paths.append(f"  Agents:           {info['agents']}")
-        if 'skills' in info and info['skills'] != './skills':
-            custom_paths.append(f"  Skills:           {info['skills']}")
-        if 'hooks' in info and info['hooks'] != './hooks':
-            custom_paths.append(f"  Hooks:            {info['hooks']}")
+        # 显示原始配置（来自 plugin.json）
+        print(f"\n插件配置 (Plugin Config):")
+        if 'agents' in info:
+            print(f"  agents:           {info['agents']}")
+        if 'skills' in info:
+            print(f"  skills:           {info['skills']}")
+        if 'hooks' in info:
+            print(f"  hooks:            {info['hooks']}")
 
-        if custom_paths:
-            print(f"\n自定义资源路径 (Custom Resource Paths):")
-            for path in custom_paths:
-                print(path)
-
-    print(f"\n配置路径 (Config Path):")
+    print(f"\n实际路径 (Resolved Paths):")
     print(f"  Plugin Dir:       {config.paths.plugin_dir}")
-    print(f"  Agents Dir:       {config.paths.agents_dir}")
-    print(f"  Skills Dir:       {', '.join(config.paths.skills_dirs)}")
-    print(f"  Hooks Dir:        {config.paths.hooks_dir}")
-    print(f"  Commands Dir:     {config.paths.commands_dir}")
+    print(f"  Agents:           {base_dir / config.paths.agents_dir}")
+    for skill_dir in config.paths.skills_dirs:
+        resolved = base_dir / skill_dir if not skill_dir.startswith("~") else Path(skill_dir).expanduser()
+        print(f"  Skills:           {resolved}")
+    print(f"  Hooks:            {base_dir / config.paths.hooks_dir}")
+    print(f"  Commands:         {base_dir / config.paths.commands_dir}")
     print(f"{'='*50}\n")
 
 
