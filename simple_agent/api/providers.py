@@ -3,6 +3,7 @@ from typing import Any, Generator, Dict, List, Optional
 from openai import OpenAI, Stream
 from openai.types.chat import ChatCompletion, ChatCompletionChunk
 import time
+import re
 from simple_agent.core.llm_logger import LLMLogger
 
 
@@ -79,8 +80,8 @@ class BaseProvider(ABC):
         if "429" in error_msg or "rate limit" in error_msg:
             return True
 
-        # Server errors (5xx)
-        if "5" + "00" in error_msg or "internal server error" in error_msg:
+        # Server errors (5xx) - use regex to match any 5xx code
+        if re.search(r'5\d\d', error_msg) or "internal server error" in error_msg:
             return True
 
         # Specific OpenAI error types
@@ -122,7 +123,8 @@ class OpenAIProvider(BaseProvider):
         # Retry logic for API calls
         response = None
         last_error = None
-        for attempt in range(1, RetryConfig.max_retries + 1):
+        attempt = 1
+        while True:
             try:
                 response = self.client.chat.completions.create(
                     model=self.model,
@@ -137,6 +139,7 @@ class OpenAIProvider(BaseProvider):
                     delay_str = RetryConfig.format_delay(delay)
                     print(f"[dim]连接错误，{delay_str}后重试... (第 {attempt} 次)[/dim]")
                     time.sleep(delay)
+                    attempt += 1
                 else:
                     raise
 
@@ -195,7 +198,8 @@ class OpenAIProvider(BaseProvider):
     ) -> Generator[str, None]:
         """Stream messages from the API with proper resource cleanup."""
         stream = None
-        for attempt in range(1, RetryConfig.max_retries + 1):
+        attempt = 1
+        while True:
             try:
                 stream = self.client.chat.completions.create(
                     model=self.model,
@@ -210,6 +214,7 @@ class OpenAIProvider(BaseProvider):
                     delay_str = RetryConfig.format_delay(delay)
                     print(f"[dim]连接错误，{delay_str}后重试... (第 {attempt} 次)[/dim]")
                     time.sleep(delay)
+                    attempt += 1
                 else:
                     raise
 
@@ -343,7 +348,8 @@ class AnthropicProvider(BaseProvider):
             extra_headers["anthropic-version"] = "2023-06-01"
 
         stream = None
-        for attempt in range(1, RetryConfig.max_retries + 1):
+        attempt = 1
+        while True:
             try:
                 stream = self.client.chat.completions.create(
                     model=self.model,
@@ -359,6 +365,7 @@ class AnthropicProvider(BaseProvider):
                     delay_str = RetryConfig.format_delay(delay)
                     print(f"[dim]连接错误，{delay_str}后重试... (第 {attempt} 次)[/dim]")
                     time.sleep(delay)
+                    attempt += 1
                 else:
                     raise
 
