@@ -1,4 +1,5 @@
 import os
+import sys
 import yaml
 import json
 from pathlib import Path
@@ -378,6 +379,7 @@ def load_config(plugin_dir: Optional[str] = None) -> Settings:
     # Validate plugin directory exists for non-default plugins
     if plugin_dir is not None and plugin_dir != "./plugins/default":
         if not plugin_path.exists():
-            raise ValueError(f"Plugin directory not found: {plugin_dir}")
+            print(f"Error: Plugin directory not found: {plugin_dir}")
+            sys.exit(1)
 
     return Settings(**config_data)
