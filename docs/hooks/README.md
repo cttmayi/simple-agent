@@ -13,10 +13,10 @@ Hooks 允许您在特定事件发生时执行自定义脚本，扩展 simple-age
 | 事件名称 | 描述 | 可阻止 | 触发时机 |
 |---------|------|-------|---------|
 | `SessionStart` | 会话开始 | 否 | agent 启动时 |
-| `Stop` | 会话结束 | 否 | agent 退出时 |
-| `UserPromptSubmit` | 消息发送 | 否 | 用户发送消息后 |
-| `PreToolUse` | 工具调用前 | **是** | 工具执行之前 |
-| `PostToolUse` | 工具调用后 | 否 | 工具执行之后 |
+| `Stop` | 会话结束 | 否 | agent 退出时（包括 `/exit` 和 `Ctrl+C`） |
+| `UserPromptSubmit` | 消息发送 | 否 | 用户发送消息后，发送给 LLM 前 |
+| `PreToolUse` | 工具调用前 | **是** | LLM 生成工具调用指令，执行工具之前 |
+| `PostToolUse` | 工具调用后 | 否 | 工具执行完成，结果回传给 LLM 之前 |
 | `SkillLoad` | Skill 加载 | 否 | `load_skill` 工具加载 skill 时 |
 
 ## 目录结构
@@ -77,60 +77,105 @@ plugin/hooks/
 
 ### 各事件 payload 结构
 
-#### SessionStart
+| 事件名称 | Payload 字段 | 类型 | 说明 |
+|---------|-------------|------|------|
+| `SessionStart` | (无) | - | 空 payload |
+| `Stop` | `responseLength` | int | 响应长度 |
+| | `usedTools` | array | 使用的工具列表 |
+| `UserPromptSubmit` | `userPrompt` | string | 用户消息内容 |
+| `PreToolUse` | `tool` | string | 工具名称 |
+| | `parameters` | object | 工具参数 |
+| `PostToolUse` | `tool` | string | 工具名称 |
+| | `parameters` | object | 工具参数 |
+| | `result` | object | 工具执行结果 |
+| | `success` | boolean | 执行是否成功 |
+| | `error` | string (可选) | 错误信息 |
+| `SkillLoad` | `skillName` | string | Skill 名称 |
+| | `skillPath` | string | Skill 路径 |
+| | `rawContent` | string | Skill 原始内容 |
+
+#### Payload 示例
+
+**SessionStart**
 ```json
 {
+  "event": "SessionStart",
+  "session": {"id": "abc123"},
+  "project": {"path": "/path/to/project"},
   "payload": {}
 }
 ```
 
-#### Stop
+**Stop**
 ```json
 {
-  "payload": {}
-}
-```
-
-#### UserPromptSubmit
-```json
-{
+  "event": "Stop",
+  "session": {"id": "abc123"},
+  "project": {"path": "/path/to/project"},
   "payload": {
-    "userPrompt": "用户消息内容"
+    "responseLength": 1000,
+    "usedTools": ["read", "bash"]
   }
 }
 ```
 
-#### PreToolUse
+**UserPromptSubmit**
 ```json
 {
+  "event": "UserPromptSubmit",
+  "session": {"id": "abc123"},
+  "project": {"path": "/path/to/project"},
   "payload": {
-    "tool": "工具名称",
+    "userPrompt": "帮我读取 README 文件"
+  }
+}
+```
+
+**PreToolUse**
+```json
+{
+  "event": "PreToolUse",
+  "session": {"id": "abc123"},
+  "project": {"path": "/path/to/project"},
+  "payload": {
+    "tool": "read",
     "parameters": {
-      // 工具参数
+      "file_path": "README.md"
     }
   }
 }
 ```
 
-#### PostToolUse
+**PostToolUse**
 ```json
 {
+  "event": "PostToolUse",
+  "session": {"id": "abc123"},
+  "project": {"path": "/path/to/project"},
   "payload": {
-    "tool": "工具名称",
-    "parameters": {},
-    "result": {},
+    "tool": "read",
+    "parameters": {
+      "file_path": "README.md"
+    },
+    "result": {
+      "success": true,
+      "content": "# README\n..."
+    },
     "success": true
   }
 }
 ```
 
-#### SkillLoad
+**SkillLoad**
 ```json
 {
+  "event": "SkillLoad",
+  "session": {"id": "abc123"},
+  "project": {"path": "/path/to/project"},
   "payload": {
-    "skillName": "skill名称",
+    "skillName": "code-review",
     "skillPath": "/path/to/skill",
-    "rawContent": "skill内容"
+    "rawContent": "# Code Review\n..."
   }
 }
 ```
