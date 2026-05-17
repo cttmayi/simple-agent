@@ -131,6 +131,45 @@ logging:
 | `logging.enabled` | boolean | `true` | 是否启用日志记录 |
 | `logging.log_dir` | string | `null` | 日志目录，默认使用 `.simple-agent/logs` |
 
+### 工具配置 (tools)
+
+配置哪些工具对 LLM 可用。将工具设置为 `false` 可以禁用它，LLM 将看不到这个工具。
+
+| 选项 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `tools.Bash` | boolean | `true` | Bash 命令执行工具 |
+| `tools.Read` | boolean | `true` | 读取文件内容工具 |
+| `tools.Write` | boolean | `true` | 写入文件工具 |
+| `tools.Edit` | boolean | `true` | 编辑文件工具 |
+| `tools.Grep` | boolean | `true` | 正则表达式搜索工具 |
+| `tools.Glob` | boolean | `true` | 文件模式匹配工具 |
+| `tools.Skill` | boolean | `true` | Skill 工具 |
+| `tools.Agent` | boolean | `true` | Agent 工具 |
+| `tools.TaskCreate` | boolean | `true` | 任务创建工具 |
+| `tools.TaskGet` | boolean | `true` | 任务获取工具 |
+| `tools.TaskUpdate` | boolean | `true` | 任务更新工具 |
+| `tools.TaskList` | boolean | `true` | 任务列表工具 |
+
+**示例配置：**
+
+```yaml
+# 禁用 Bash 工具（只读模式）
+tools:
+  Bash: false
+
+# 只启用文件读取工具
+tools:
+  Read: true
+  Write: false
+  Edit: false
+  Bash: false
+```
+
+**注意：**
+- 工具名称匹配支持大小写不敏感（例如 `bash`、`Bash`、`BASH` 都匹配）
+- 未在配置中指定的工具默认为可用（`true`）
+- 如果所有工具都启用，不会进行过滤
+
 ### plugin.json 配置
 
 | 选项 | 类型 | 默认值 | 说明 |
