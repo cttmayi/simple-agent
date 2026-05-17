@@ -172,8 +172,15 @@ class Runtime:
         for event_name in event_names:
             def make_handler(evt_name):
                 def handler(event_obj):
+                    # Get context string for matcher matching
+                    # For SessionStart, use "startup" as default context
+                    # This matches superpowers plugin's matcher pattern
+                    context = None
+                    if evt_name == "SessionStart":
+                        context = event_obj.data.get("context", "startup")
+
                     # Get all hooks that should be triggered for this event
-                    matching_hooks = self._hook_loader.get_hooks_for_event(evt_name)
+                    matching_hooks = self._hook_loader.get_hooks_for_event(evt_name, context)
 
                     if not matching_hooks:
                         return
@@ -1295,7 +1302,8 @@ class Runtime:
         if _is_hook_debug():
             sys.stderr.write(f"[DEBUG] Publishing SessionStart event\n")
         self._event_bus.publish(Event("SessionStart", {
-            "session_id": self._session_id
+            "session_id": self._session_id,
+            "context": "startup"
         }))
 
         self._renderer.render_message("system", "Simple Agent started. Type /help for commands.")
