@@ -94,6 +94,10 @@ class Runtime:
         commands_dirs = config.paths.commands_dirs
         if isinstance(commands_dirs, str):
             commands_dirs = [commands_dirs]
+        # Also load skills as commands - skills can be invoked as /skill-name
+        for skills_dir in skills_dirs:
+            if skills_dir not in commands_dirs:
+                commands_dirs.append(skills_dir)
         resolved_commands_dirs = [base_dir / d if not d.startswith("~") else d for d in commands_dirs]
         self._command_loader = CommandLoader(resolved_commands_dirs)
 
