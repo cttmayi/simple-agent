@@ -25,18 +25,18 @@ Configuration can be set at multiple levels, with the following priority (highes
 
 1. **Environment variables** - Override all other settings
 2. **Local config** - `.simple-agent/config.yml` (project-specific, highest priority)
-3. **Plugin config** - `plugin/config.yml` (plugin-level defaults)
+3. **Plugin config** - `plugins/default/config.yml` (plugin-level defaults)
 4. **User config** - `~/.config/simple-agent/config.yml` (user-level settings)
 5. **Defaults** - Built-in default values
 
 ### Example Configuration
 
-By default, the plugin configuration in `plugin/config.yml` includes:
+By default, the plugin configuration in `plugins/default/config.yml` includes:
 
 ```yaml
 paths:
   skills_dirs:
-    - ./plugin/skills      # Project-local skills
+    - ./plugins/default/skills      # Project-local skills
     - ~/.agents/skills    # User's global skills directory
 ```
 
@@ -51,11 +51,11 @@ api:
 
 paths:
   skills_dirs:
-    - ./plugin/skills
+    - ./plugins/default/skills
     - ~/.agents/skills
-  agents_dir: ./plugin/agents
-  hooks_dir: ./plugin/hooks
-  commands_dir: ./plugin/commands
+  agents_dir: ./plugins/default/agents
+  hooks_dir: ./plugins/default/hooks
+  commands_dir: ./plugins/default/commands
   tools_dir: ./.simple-agent/tools
   memory_dir: ./.simple-agent/memory
 
@@ -116,12 +116,13 @@ simple-agent
 ```
 simple-agent/
 ├── simple_agent/          # Core package
-├── plugin/                # Plugins (skills, agents, hooks, commands)
-│   ├── skills/            # Skill definitions
-│   ├── agents/            # Agent definitions
-│   ├── hooks/             # Hook definitions
-│   ├── commands/          # Command definitions
-│   └── AGENT.md           # Project-specific instructions
+├── plugins/               # Plugins directory
+│   └── default/           # Default plugin
+│       ├── skills/        # Skill definitions
+│       ├── agents/        # Agent definitions
+│       ├── hooks/         # Hook definitions
+│       ├── commands/      # Command definitions
+│       └── AGENT.md       # Project-specific instructions
 ├── .simple-agent/         # Configuration and runtime data
 │   ├── tools/             # Tool implementations
 │   ├── memory/            # Auto-generated memory
@@ -161,13 +162,21 @@ Custom commands support powerful features:
 
 ### Plugin System
 
-The `plugin/` directory houses all custom extensions:
+The `plugins/` directory houses custom extensions:
 
-- **skills/** - Markdown-based knowledge documents
-- **agents/** - Specialized AI agents
-- **hooks/** - Event-driven plugins
-- **commands/** - Custom slash commands
-- **AGENT.md** - Project-specific instructions
+- **plugins/default/** - Default plugin containing:
+  - **skills/** - Markdown-based knowledge documents
+  - **agents/** - Specialized AI agents
+  - **hooks/** - Event-driven plugins
+  - **commands/** - Custom slash commands
+  - **AGENT.md** - Project-specific instructions
+
+Use the `-p` or `--plugin` flag to specify a different plugin:
+
+```bash
+simple-agent -p ./plugins/custom
+simple-agent --plugin ~/my-plugins/awesome-plugin
+```
 
 See [Commands Documentation](docs/commands.md) for creating custom commands.
 

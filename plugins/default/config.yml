@@ -4,11 +4,11 @@
 
 paths:
   skills_dirs:
-    - ./plugin/skills
+    - ./plugins/default/skills
     - ~/.agents/skills
-  agents_dir: ./plugin/agents
-  hooks_dir: ./plugin/hooks
-  commands_dir: ./plugin/commands
+  agents_dir: ./plugins/default/agents
+  hooks_dir: ./plugins/default/hooks
+  commands_dir: ./plugins/default/commands
   tools_dir: ./.simple-agent/tools
   memory_dir: ./.simple-agent/memory
   logs_dir: ./.simple-agent/logs

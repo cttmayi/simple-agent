@@ -13,13 +13,14 @@ class APIConfig(BaseModel):
 
 
 class PathsConfig(BaseModel):
-    skills_dirs: list[str] = ["./plugin/skills"]
-    agents_dir: str = "./plugin/agents"
-    hooks_dir: str = "./plugin/hooks"
-    commands_dir: str = "./plugin/commands"
+    skills_dirs: list[str] = ["./plugins/default/skills"]
+    agents_dir: str = "./plugins/default/agents"
+    hooks_dir: str = "./plugins/default/hooks"
+    commands_dir: str = "./plugins/default/commands"
     tools_dir: str = "./.simple-agent/tools"
     memory_dir: str = "./.simple-agent/memory"
     logs_dir: str = "./.simple-agent/logs"
+    plugin_dir: str = "./plugins/default"  # 新增插件目录配置
 
 
 class UIConfig(BaseModel):
@@ -55,8 +56,19 @@ def _load_yaml_config(path: Path) -> dict:
         return yaml.safe_load(f) or {}
 
 
-def load_config() -> Settings:
-    """Load configuration with priority: CLI args > ENV > local > plugin > user > defaults."""
+def load_config(plugin_dir: Optional[str] = None) -> Settings:
+    """Load configuration with priority: CLI args > ENV > local > plugin > user > defaults.
+
+    Args:
+        plugin_dir: Path to the plugin directory (default: ./plugins/default)
+    """
+    # Set default plugin directory
+    if plugin_dir is None:
+        plugin_dir = "./plugins/default"
+
+    # Resolve plugin directory relative to current directory
+    plugin_path = Path.cwd() / plugin_dir
+
     config_data = {}
 
     # Start with user config as base
@@ -65,7 +77,7 @@ def load_config() -> Settings:
         config_data.update(_load_yaml_config(user_config))
 
     # Then plugin config (overrides user)
-    plugin_config = Path.cwd() / "plugin" / "config.yml"
+    plugin_config = plugin_path / "config.yml"
     if plugin_config.exists():
         # Merge with plugin as base
         merged = {**config_data, **_load_yaml_config(plugin_config)}
@@ -77,6 +89,9 @@ def load_config() -> Settings:
         # Merge with local as base
         merged = {**config_data, **_load_yaml_config(local_config)}
         config_data = merged
+
+    # Set plugin_dir in config
+    config_data.setdefault("paths", {})["plugin_dir"] = plugin_dir
 
     # Apply environment variable overrides
     api_key = os.environ.get("OPENAI_API_KEY") or os.environ.get("ANTHROPIC_API_KEY")

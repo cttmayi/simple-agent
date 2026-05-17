@@ -1,4 +1,5 @@
 import sys
+import argparse
 from pathlib import Path
 from simple_agent.config.settings import load_config
 from simple_agent.core.runtime import Runtime
@@ -41,23 +42,25 @@ def main():
         run_web_server()
         return
 
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description='Simple Agent - Claude Code-like CLI tool')
+    parser.add_argument('-p', '--plugin', type=str,
+                        help='Plugin directory (default: ./plugins/default)')
+    parser.add_argument('--resume', nargs='?', const='auto',
+                        help='Resume from latest log file or specified log file')
+    args = parser.parse_args()
+
     # Check for --resume flag
     resume_log = None
-    if "--resume" in sys.argv:
-        try:
-            resume_index = sys.argv.index("--resume")
-            if resume_index + 1 < len(sys.argv) and not sys.argv[resume_index + 1].startswith("-"):
-                resume_log = sys.argv[resume_index + 1]
-        except ValueError:
-            pass
-
-    # If --resume without argument, use latest log file
-    if "--resume" in sys.argv and not resume_log:
+    if args.resume == 'auto':
         latest = get_latest_log_file()
         if latest:
             resume_log = str(latest)
+    elif args.resume:
+        resume_log = args.resume
 
-    config = load_config()
+    # Load config with plugin directory
+    config = load_config(plugin_dir=args.plugin)
 
     if not config.api.api_key:
         print("Error: No API key found. Set OPENAI_API_KEY or ANTHROPIC_API_KEY environment variable.")
