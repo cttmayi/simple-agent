@@ -4,14 +4,15 @@ A Claude Code-like CLI tool with support for hooks, skills, subagents, and slash
 
 ## Features
 
-- **Built-in Tools**: File operations (READ, WRITE), shell execution (BASH), pattern search (GREP), web search (WebSearch)
+- **Built-in Tools**: File operations (Read, Write, Edit), shell execution (Bash), pattern search (Grep), file matching (Glob), web search (WebSearch)
 - **Custom Tools**: Register Python functions as tools for LLM function calling
 - **Skills**: Markdown-based knowledge documents that guide AI behavior
 - **Subagents**: Specialized AI agents for specific tasks
-- **Hooks**: Event-driven plugins for custom behavior
-- **Commands**: Built-in and custom slash commands
+- **Hooks**: Event-driven plugins for custom behavior (JSON-based configuration)
+- **Commands**: Built-in and custom slash commands (skills can be invoked as commands)
 - **Multi-Provider**: Support for OpenAI and Anthropic/Claude APIs
 - **Request Logging**: Track LLM requests and responses for analysis
+- **Tool Filtering**: Disable specific tools via configuration
 
 ## Installation
 
@@ -45,7 +46,7 @@ By default, the plugin metadata in `plugins/default/.claude-plugin/plugin.json` 
 }
 ```
 
-The `plugins/config.yml` file contains default settings like UI, logging, and internal paths:
+The `plugins/config.yml` file contains default settings like UI, logging, tools, and internal paths:
 
 ```yaml
 paths:
@@ -59,6 +60,15 @@ ui:
 
 logging:
   enabled: true
+
+# Tool configuration - disable specific tools as needed
+tools:
+  Bash: true
+  Read: true
+  Write: true
+  Edit: true
+  Grep: true
+  Glob: true
 ```
 
 You can optionally create a `.simple-agent/config.yml` file in your project to override settings:
@@ -121,6 +131,18 @@ paths:
 | | `show_thinking` | boolean | `true` | Show AI thinking process |
 | **logging** | `enabled` | boolean | `true` | Enable logging |
 | | `log_dir` | string | `null` | Log directory |
+| **tools** | `Bash` | boolean | `true` | Enable Bash command execution |
+| | `Read` | boolean | `true` | Enable file reading |
+| | `Write` | boolean | `true` | Enable file writing |
+| | `Edit` | boolean | `true` | Enable file editing |
+| | `Grep` | boolean | `true` | Enable pattern search |
+| | `Glob` | boolean | `true` | Enable file pattern matching |
+| | `Skill` | boolean | `true` | Enable Skill tool |
+| | `Agent` | boolean | `true` | Enable Agent tool |
+| | `TaskCreate` | boolean | `true` | Enable task creation |
+| | `TaskGet` | boolean | `true` | Enable task retrieval |
+| | `TaskUpdate` | boolean | `true` | Enable task updates |
+| | `TaskList` | boolean | `true` | Enable task listing |
 
 **Environment Variables:**
 - `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` - API keys
@@ -129,6 +151,25 @@ paths:
 - `SIMPLE_AGENT_TODOS_PATH` - TODO data file path
 
 For detailed configuration documentation, see [Configuration Documentation](docs/configuration.md).
+
+### Tool Filtering
+
+You can disable specific tools to prevent the LLM from using them:
+
+```yaml
+# Example: Disable Bash for read-only mode
+tools:
+  Bash: false
+
+# Example: Disable all TODO tools
+tools:
+  TaskCreate: false
+  TaskGet: false
+  TaskUpdate: false
+  TaskList: false
+```
+
+Tools not listed in the configuration default to `true` (enabled). Tool name matching is case-insensitive (`bash`, `Bash`, `BASH` all work).
 
 ### Log Analysis
 
@@ -179,17 +220,22 @@ simple-agent
 simple-agent/
 ├── simple_agent/          # Core package
 ├── plugins/               # Plugins directory
+│   ├── config.yml         # Shared default configuration
 │   └── default/           # Default plugin
-│       ├── skills/        # Skill definitions
-│       ├── agents/        # Agent definitions
-│       ├── hooks/         # Hook definitions
-│       ├── commands/      # Command definitions
-│       └── AGENT.md       # Project-specific instructions
+│       ├── .claude-plugin/
+│       │   └── plugin.json    # Plugin metadata & resource paths
+│       ├── skills/            # Skill definitions (SKILL.md)
+│       ├── agents/            # Agent definitions (AGENT.md)
+│       ├── hooks/             # Hook definitions (hooks.json)
+│       ├── commands/          # Command definitions (.md files)
+│       └── config.yml         # Plugin-specific configuration
 ├── .simple-agent/         # Configuration and runtime data
+│   ├── config.yml         # Project-specific configuration
 │   ├── tools/             # Tool implementations
 │   ├── memory/            # Auto-generated memory
 │   └── logs/              # LLM request/response logs
-└── AGENT.md               # Project-specific instructions (optional, deprecated)
+├── docs/                  # Documentation
+└── tests/                 # Test suite
 ```
 
 ## Usage
@@ -226,12 +272,19 @@ Custom commands support powerful features:
 
 The `plugins/` directory houses custom extensions:
 
+- **plugins/config.yml** - Shared default configuration for all plugins
 - **plugins/default/** - Default plugin containing:
-  - **skills/** - Markdown-based knowledge documents
-  - **agents/** - Specialized AI agents
-  - **hooks/** - Event-driven plugins
-  - **commands/** - Custom slash commands
-  - **AGENT.md** - Project-specific instructions
+  - **skills/** - Markdown-based knowledge documents (SKILL.md files)
+  - **agents/** - Specialized AI agents (AGENT.md files)
+  - **hooks/** - Event-driven plugins (hooks.json)
+  - **commands/** - Custom slash commands (Markdown files)
+  - **.claude-plugin/plugin.json** - Plugin metadata and resource paths
+  - **config.yml** - Plugin-specific configuration
+
+**Features:**
+- Skills are automatically loaded as commands - use `/skill-name` to invoke them
+- Resource directories are auto-discovered if not specified in plugin.json
+- Hooks use JSON configuration with event matching (e.g., `matcher: "startup|clear|compact"`)
 
 Use the `-p` or `--plugin` flag to specify a different plugin:
 
