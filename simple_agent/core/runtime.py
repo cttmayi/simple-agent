@@ -87,7 +87,7 @@ class Runtime:
         self._agent_loader = AgentLoader(resolved_agents_dirs)
 
         # Hooks loader - loads from hooks.json in plugin directory
-        hooks_json_path = base_dir / "plugins/default/hooks/hooks.json"
+        hooks_json_path = base_dir / config.paths.plugin_dir / "hooks/hooks.json"
         self._hook_loader = HookLoader(hooks_json_path)
 
         # Commands loader supports multiple directories
@@ -584,6 +584,13 @@ class Runtime:
             # Parse command safely using shlex
             cmd_parts = split(expanded_command)
 
+            # Handle .cmd files on Unix/macOS - need bash to execute them
+            if cmd_parts and cmd_parts[0].endswith('.cmd'):
+                import platform
+                if platform.system() != 'Windows':
+                    # On Unix/macOS, prepend bash to execute .cmd files
+                    cmd_parts = ['bash'] + cmd_parts
+
             # Prepare hook input as JSON via stdin
             result = subprocess.run(
                 cmd_parts,
@@ -611,7 +618,27 @@ class Runtime:
 
             if result.stdout.strip():
                 try:
-                    return json.loads(result.stdout.strip())
+                    hook_result = json.loads(result.stdout.strip())
+
+                    # Handle superpowers hook format: {hookSpecificOutput: {additionalContext: "..."}}
+                    if "hookSpecificOutput" in hook_result and "additionalContext" in hook_result["hookSpecificOutput"]:
+                        return {
+                            "decision": "allow",
+                            "additionalContext": hook_result["hookSpecificOutput"]["additionalContext"]
+                        }
+
+                    # Handle Cursor format: {additional_context: "..."}
+                    if "additional_context" in hook_result:
+                        return {
+                            "decision": "allow",
+                            "additionalContext": hook_result["additional_context"]
+                        }
+
+                    # Default decision to allow if not specified
+                    if "decision" not in hook_result:
+                        hook_result["decision"] = "allow"
+
+                    return hook_result
                 except json.JSONDecodeError:
                     # If output is not valid JSON, default to allow
                     return {"decision": "allow"}
