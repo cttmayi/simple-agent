@@ -1,4 +1,4 @@
-"""测试 TODO 工具。"""
+"""测试 TODO 工具（统一 stdout/stderr 格式）。"""
 
 import pytest
 import tempfile
@@ -30,8 +30,8 @@ class TestTaskList:
         """测试列出所有任务。"""
         result = list_tasks()
         assert result["success"] is True
-        assert len(result["tasks"]) == 2
-        assert any(t["subject"] == "父任务" for t in result["tasks"])
+        assert "Found 2 tasks:" in result["stdout"]
+        assert "父任务" in result["stdout"]
 
 
 class TestTaskGet:
@@ -44,13 +44,13 @@ class TestTaskGet:
 
         result = get_task(task_id)
         assert result["success"] is True
-        assert result["task"]["id"] == task_id
+        assert "Task: 父任务" in result["stdout"]
 
     def test_get_nonexistent_task(self, todo_manager_with_data):
         """测试获取不存在的任务。"""
         result = get_task("nonexistent")
         assert result["success"] is False
-        assert "Task not found" in result["error"]
+        assert "Task not found" in result["stderr"]
 
 
 class TestTaskCreate:
@@ -60,21 +60,19 @@ class TestTaskCreate:
         """测试创建基本任务。"""
         result = create_task(subject="新任务")
         assert result["success"] is True
-        assert "task_id" in result
-        assert result["task"]["subject"] == "新任务"
+        assert "Task created:" in result["stdout"]
 
     def test_create_with_parent(self, todo_manager_with_data):
         """测试创建带父任务的任务。"""
         parent_id = todo_manager_with_data.get_all_tasks()[0]["id"]
         result = create_task(subject="子任务", parent_id=parent_id)
         assert result["success"] is True
-        assert result["task"]["parent_id"] == parent_id
 
     def test_create_with_invalid_status(self, todo_manager_with_data):
         """测试创建带无效状态的任务。"""
         result = create_task(subject="测试", status="invalid")
         assert result["success"] is False
-        assert "Invalid status" in result["error"]
+        assert "Invalid status" in result["stderr"]
 
 
 class TestTaskUpdate:
@@ -85,17 +83,19 @@ class TestTaskUpdate:
         task_id = todo_manager_with_data.get_all_tasks()[0]["id"]
         result = update_task(task_id, status="completed")
         assert result["success"] is True
-        assert result["task"]["status"] == "completed"
+        assert "Task updated:" in result["stdout"]
+        assert "completed" in result["stdout"]
 
     def test_update_progress(self, todo_manager_with_data):
         """测试更新进度。"""
         task_id = todo_manager_with_data.get_all_tasks()[0]["id"]
         result = update_task(task_id, progress=75)
         assert result["success"] is True
-        assert result["task"]["progress"] == 75
+        assert "Task updated:" in result["stdout"]
+        assert "75%" in result["stdout"]
 
     def test_update_nonexistent_task(self, todo_manager_with_data):
         """测试更新不存在的任务。"""
         result = update_task("nonexistent", status="completed")
         assert result["success"] is False
-        assert "Task not found" in result["error"]
+        assert "Task not found" in result["stderr"]

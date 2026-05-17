@@ -21,7 +21,7 @@ class WebSearch:
             max_results: Maximum number of results (default 10)
 
         Returns:
-            Dict with success, results list, and optional error
+            Dict with success, stdout, and stderr
         """
         try:
             # DuckDuckGo Instant Answer API (no API key required)
@@ -34,8 +34,8 @@ class WebSearch:
             except ImportError:
                 return {
                     "success": False,
-                    "results": [],
-                    "error": "Required modules not available"
+                    "stdout": "",
+                    "stderr": "Required modules not available"
                 }
 
             try:
@@ -51,28 +51,28 @@ class WebSearch:
                     if response.status != 200:
                         return {
                             "success": False,
-                            "results": [],
-                            "error": f"HTTP error: {response.status}"
+                            "stdout": "",
+                            "stderr": f"HTTP error: {response.status}"
                         }
 
                     data = json.loads(response.read().decode('utf-8'))
             except urllib.error.URLError as e:
                 return {
                     "success": False,
-                    "results": [],
-                    "error": f"Network error: {e.reason}"
+                    "stdout": "",
+                    "stderr": f"Network error: {e.reason}"
                 }
             except TimeoutError:
                 return {
                     "success": False,
-                    "results": [],
-                    "error": "Request timed out"
+                    "stdout": "",
+                    "stderr": "Request timed out"
                 }
             except Exception as e:
                 return {
                     "success": False,
-                    "results": [],
-                    "error": f"Request failed: {str(e)}"
+                    "stdout": "",
+                    "stderr": f"Request failed: {str(e)}"
                 }
 
             # Parse DuckDuckGo response
@@ -114,33 +114,33 @@ class WebSearch:
             # Ensure we don't return more than requested
             results = results[:max_results]
 
-            # Build output string for CLI/Web display
-            output_lines = []
+            # Build stdout string for display
+            stdout_lines = []
             if results:
-                output_lines.append(f"Found {len(results)} results:")
+                stdout_lines.append(f"Found {len(results)} results:")
                 for i, r in enumerate(results[:10], start=1):
-                    output_lines.append(f"{i}. {r.get('title', '')}")
+                    stdout_lines.append(f"{i}. {r.get('title', '')}")
                     url = r.get('url', '')
                     if url:
-                        output_lines.append(f"   URL: {url}")
+                        stdout_lines.append(f"   URL: {url}")
                     snippet = r.get('snippet', '')
                     if snippet and len(snippet) < 150:
-                        output_lines.append(f"   {snippet}")
+                        stdout_lines.append(f"   {snippet}")
                 if len(results) > 10:
-                    output_lines.append(f"... and {len(results) - 10} more results")
+                    stdout_lines.append(f"... and {len(results) - 10} more results")
             else:
-                output_lines.append("No results found")
+                stdout_lines.append("No results found")
 
             return {
                 "success": True,
-                "output": "\n".join(output_lines),  # For CLI/Web display
-                "results": results,  # For AI
+                "stdout": "\n".join(stdout_lines),
+                "stderr": "",
             }
         except Exception as e:
             return {
                 "success": False,
-                "results": [],
-                "error": f"Search failed: {str(e)}"
+                "stdout": "",
+                "stderr": f"Search failed: {str(e)}"
             }
 
     @staticmethod
@@ -152,7 +152,7 @@ class WebSearch:
             max_results: Maximum number of results (default 10)
 
         Returns:
-            Dict with success, results list, and optional error
+            Dict with success, stdout, and stderr
         """
         return WebSearch._search(query, max_results)
 

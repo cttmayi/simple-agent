@@ -1,4 +1,4 @@
-"""Tests for GREP tool."""
+"""Tests for GREP tool（统一 stdout/stderr 格式）。"""
 
 import pytest
 import tempfile
@@ -14,9 +14,8 @@ def test_grep_searches_file():
 
         result = GREP.execute(str(test_file), "foo")
         assert result["success"] is True
-        assert len(result["matches"]) == 1
-        assert result["matches"][0]["line"] == 2
-        assert result["matches"][0]["match"] == "foo"
+        assert "Found 1 matches" in result["stdout"]
+        assert "Line 2: foo bar" in result["stdout"]
 
 
 def test_grep_searches_directory():
@@ -30,10 +29,7 @@ def test_grep_searches_directory():
 
         result = GREP.execute(str(tmpdir), "foo")
         assert result["success"] is True
-        assert len(result["matches"]) == 2
-        # Check that matches are from different files
-        files = {m["file"] for m in result["matches"]}
-        assert len(files) == 2
+        assert "Found 2 matches" in result["stdout"]
 
 
 def test_grep_skips_hidden_dirs():
@@ -46,7 +42,7 @@ def test_grep_skips_hidden_dirs():
 
         result = GREP.execute(str(tmpdir), "foo")
         assert result["success"] is True
-        assert len(result["matches"]) == 0
+        assert "No matches found" in result["stdout"]
 
 
 def test_grep_skips_venv_dir():
@@ -59,7 +55,7 @@ def test_grep_skips_venv_dir():
 
         result = GREP.execute(str(tmpdir), "foo")
         assert result["success"] is True
-        assert len(result["matches"]) == 0
+        assert "No matches found" in result["stdout"]
 
 
 def test_grep_case_sensitive():
@@ -71,27 +67,26 @@ def test_grep_case_sensitive():
         # Case insensitive (default)
         result = GREP.execute(str(test_file), "foo", case_sensitive=False)
         assert result["success"] is True
-        assert len(result["matches"]) == 2
+        assert "Found 2 matches" in result["stdout"]
 
         # Case sensitive
         result = GREP.execute(str(test_file), "foo", case_sensitive=True)
         assert result["success"] is True
-        assert len(result["matches"]) == 1
-        assert result["matches"][0]["line"] == 3
+        assert "Found 1 matches" in result["stdout"]
 
 
 def test_grep_invalid_pattern():
     """Test GREP with invalid regex pattern."""
     result = GREP.execute(".", "[invalid(")
     assert result["success"] is False
-    assert "Invalid pattern" in result.get("error", "")
+    assert "Invalid pattern" in result["stderr"]
 
 
 def test_grep_path_not_found():
     """Test GREP with non-existent path."""
     result = GREP.execute("/nonexistent/path", "foo")
     assert result["success"] is False
-    assert "Path not found" in result.get("error", "")
+    assert "Path not found" in result["stderr"]
 
 
 def test_grep_empty_directory():
@@ -99,4 +94,4 @@ def test_grep_empty_directory():
     with tempfile.TemporaryDirectory() as tmpdir:
         result = GREP.execute(tmpdir, "foo")
         assert result["success"] is True
-        assert len(result["matches"]) == 0
+        assert "No matches found" in result["stdout"]

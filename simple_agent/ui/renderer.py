@@ -77,85 +77,31 @@ class UIRenderer:
 
             # Skip status line - it's now shown by caller (runtime.py)
 
-            # Use unified 'output' field if available, otherwise fall back to legacy fields
-            if "error" in tool_result:
-                # Show full error message
-                error_msg = tool_result['error']
+            # Unified display logic: use stdout/stderr based on success field
+            success = tool_result.get("success", True)
+
+            if not success:
+                # Show error from stderr (or stdout if stderr is empty)
+                error_msg = tool_result.get("stderr") or tool_result.get("stdout") or "Unknown error"
                 self.console.print(f"  │  [red]Error:[/red] {escape(error_msg)}")
-            elif "output" in tool_result:
-                # Use unified output field (limit to first 10 lines for display)
-                output = tool_result["output"]
-                if output:
-                    lines = output.split('\n')
-                    # Limit to first 10 lines for display
+            else:
+                # Show stdout (limit to first 10 lines for display)
+                stdout = tool_result.get("stdout", "").strip()
+                if stdout:
+                    lines = stdout.split('\n')
                     display_lines = lines[:10]
                     if len(lines) > 10:
                         display_lines.append(f"... and {len(lines) - 10} more lines")
                     for line in display_lines:
                         if line.strip():  # Skip empty lines
                             self.console.print(f"  │  {escape(line)}", overflow="ignore")
-            elif "content" in tool_result:
-                # Legacy: File read - show content with indentation and line limiting
-                content = tool_result["content"]
-                if content:
-                    # Limit to first 5 lines, but always show truncation message if present
-                    lines = content.split('\n')
-                    has_truncation_msg = any('[文件已被截断' in line for line in lines)
-                    if has_truncation_msg:
-                        # Find and keep truncation message
-                        truncation_start = next(i for i, line in enumerate(lines) if '[文件已被截断' in line)
-                        content_lines = lines[:5] + lines[truncation_start:]
-                        content = '\n'.join(content_lines)
-                    elif len(lines) > 5:
-                        content = '\n'.join(lines[:5])
-                    # Escape rich markup and print with visual separator
-                    escaped = escape(content)
-                    for line in escaped.split('\n'):
-                        if line.strip():  # Skip empty lines
-                            self.console.print(f"  │  {line}", overflow="ignore")
-            elif "stdout" in tool_result:
-                # Legacy: Shell command - show stdout/stderr
-                stdout = tool_result.get("stdout", "").strip()
-                if stdout:
-                    for line in stdout.split('\n'):
-                        if line.strip():  # Skip empty lines
-                            self.console.print(f"  │  {line}", overflow="ignore")
-                # Show stderr if present
+
+                # Show stderr (warnings) if present
                 stderr = tool_result.get("stderr", "").strip()
                 if stderr:
                     for line in stderr.split('\n'):
-                        self.console.print(f"  │  [red]{escape(line)}[/red]", overflow="ignore")
-                # Show return code if non-zero
-                returncode = tool_result.get("returncode")
-                if returncode and returncode != 0:
-                    self.console.print(f"  │  [dim]Exit code: {returncode}[/dim]")
-            elif "matches" in tool_result:
-                # Legacy: Grep - show match details
-                matches = tool_result["matches"]
-                if matches:
-                    self.console.print(f"  │  [dim]Found {len(matches)} matches:[/dim]")
-                    for m in matches:
-                        self.console.print(f"  │      [cyan]Line {m['line']}:[/cyan] {escape(m['content'])}")
-                else:
-                    self.console.print(f"  │  [dim]No matches found[/dim]")
-            elif "results" in tool_result:
-                # Legacy: Web search - show result count
-                results = tool_result.get("results", [])
-                if results:
-                    self.console.print(f"  │  [dim]Found {len(results)} results:[/dim]")
-                    for i, r in enumerate(results[:5], start=1):
-                        title = r.get("title", "")
-                        url = r.get("url", "")
-                        snippet = r.get("snippet", "")
-                        self.console.print(f"  │  [{i}] [link]{escape(title)}[/link]")
-                        if url:
-                            self.console.print(f"  │      URL: {url}")
-                        if snippet and len(snippet) < 150:
-                            self.console.print(f"  │      {escape(snippet)}")
-                    if len(results) > 5:
-                        self.console.print(f"  │  ... and {len(results) - 5} more results")
-                else:
-                    self.console.print(f"  │  [dim]No results found[/dim]")
+                        if line.strip():
+                            self.console.print(f"  │  [yellow]{escape(line)}[/yellow]", overflow="ignore")
         except Exception as e:
             # Fallback to simple output if rendering fails
             self.console.print(f"  Error rendering tool result: {escape(str(e))}")
@@ -267,85 +213,31 @@ class UIRenderer:
             # Handle both direct result and wrapped result formats
             tool_result = result.get("result", result)
 
-            # Use unified 'output' field if available, otherwise fall back to legacy fields
-            if "error" in tool_result:
-                # Show full error message
-                error_msg = tool_result['error']
+            # Unified display logic: use stdout/stderr based on success field
+            success = tool_result.get("success", True)
+
+            if not success:
+                # Show error from stderr (or stdout if stderr is empty)
+                error_msg = tool_result.get("stderr") or tool_result.get("stdout") or "Unknown error"
                 self.console.print(f"  │    [red]Error:[/red] {escape(error_msg)}")
-            elif "output" in tool_result:
-                # Use unified output field (limit to first 10 lines for display)
-                output = tool_result["output"]
-                if output:
-                    lines = output.split('\n')
-                    # Limit to first 10 lines for display
+            else:
+                # Show stdout (limit to first 10 lines for display)
+                stdout = tool_result.get("stdout", "").strip()
+                if stdout:
+                    lines = stdout.split('\n')
                     display_lines = lines[:10]
                     if len(lines) > 10:
                         display_lines.append(f"... and {len(lines) - 10} more lines")
                     for line in display_lines:
                         if line.strip():  # Skip empty lines
                             self.console.print(f"  │    {escape(line)}", overflow="ignore")
-            elif "content" in tool_result:
-                # Legacy: File read - show content with indentation and line limiting
-                content = tool_result["content"]
-                if content:
-                    # Limit to first 5 lines, but always show truncation message if present
-                    lines = content.split('\n')
-                    has_truncation_msg = any('[文件已被截断' in line for line in lines)
-                    if has_truncation_msg:
-                        # Find and keep truncation message
-                        truncation_start = next(i for i, line in enumerate(lines) if '[文件已被截断' in line)
-                        content_lines = lines[:5] + lines[truncation_start:]
-                        content = '\n'.join(content_lines)
-                    elif len(lines) > 5:
-                        content = '\n'.join(lines[:5])
-                    # Escape rich markup and print with visual separator (extra indent for subagent)
-                    escaped = escape(content)
-                    for line in escaped.split('\n'):
-                        if line.strip():  # Skip empty lines
-                            self.console.print(f"  │    {line}", overflow="ignore")
-            elif "stdout" in tool_result:
-                # Legacy: Shell command - show stdout/stderr
-                stdout = tool_result.get("stdout", "").strip()
-                if stdout:
-                    for line in stdout.split('\n'):
-                        if line.strip():  # Skip empty lines
-                            self.console.print(f"  │    {line}", overflow="ignore")
-                # Show stderr if present
+
+                # Show stderr (warnings) if present
                 stderr = tool_result.get("stderr", "").strip()
                 if stderr:
                     for line in stderr.split('\n'):
-                        self.console.print(f"  │    [red]{escape(line)}[/red]", overflow="ignore")
-                # Show return code if non-zero
-                returncode = tool_result.get("returncode")
-                if returncode and returncode != 0:
-                    self.console.print(f"  │    [dim]Exit code: {returncode}[/dim]")
-            elif "matches" in tool_result:
-                # Legacy: Grep - show match details
-                matches = tool_result["matches"]
-                if matches:
-                    self.console.print(f"  │    [dim]Found {len(matches)} matches:[/dim]")
-                    for m in matches:
-                        self.console.print(f"  │        [cyan]Line {m['line']}:[/cyan] {escape(m['content'])}")
-                else:
-                    self.console.print(f"  │    [dim]No matches found[/dim]")
-            elif "results" in tool_result:
-                # Legacy: Web search - show result count
-                results = tool_result.get("results", [])
-                if results:
-                    self.console.print(f"  │    [dim]Found {len(results)} results:[/dim]")
-                    for i, r in enumerate(results[:5], start=1):
-                        title = r.get("title", "")
-                        url = r.get("url", "")
-                        snippet = r.get("snippet", "")
-                        self.console.print(f"  │    [{i}] [link]{escape(title)}[/link]")
-                        if url:
-                            self.console.print(f"  │        URL: {url}")
-                        if snippet and len(snippet) < 150:
-                            self.console.print(f"  │        {escape(snippet)}")
-                    if len(results) > 5:
-                        self.console.print(f"  │    ... and {len(results) - 5} more results")
-                else:
-                    self.console.print(f"  │    [dim]No results found[/dim]")
+                        if line.strip():
+                            self.console.print(f"  │    [yellow]{escape(line)}[/yellow]", overflow="ignore")
         except Exception as e:
             # Fallback to simple output if rendering fails
             self.console.print(f"  Error rendering tool result: {escape(str(e))}")

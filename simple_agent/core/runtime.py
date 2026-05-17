@@ -670,13 +670,8 @@ class Runtime:
                 # Regular tool - normal processing
                 tool_result = result.get("result", result)
 
-                # Format tool result for AI understanding
-                # Builtin tools return structured dicts with 'success' field
-                # Dispatcher may wrap results: {"success": True, "result": ...}
-                # or return builtin result directly when it already has 'success' field
-
-                # Build concise content for API (to avoid Extra data errors)
-                # Include tool name and arguments for better AI understanding
+                # Format tool result for AI understanding (using unified stdout/stderr format)
+                # Build tool header for context
                 args_parts = []
                 for k, v in arguments.items():
                     if k not in ["cwd", "timeout", "case_sensitive"]:
@@ -686,46 +681,21 @@ class Runtime:
                         args_parts.append(f"{k}={v_str}")
                 tool_header = f"{tool_name}({', '.join(args_parts)})"
 
+                # All tools now return stdout/stderr format
+                stdout = tool_result.get("stdout", "").strip()
+                stderr = tool_result.get("stderr", "").strip()
+
                 if not tool_result.get("success", True):
-                    # Tool failed - send error message
-                    error_msg = tool_result.get("error", "Unknown error")
-                    tool_content = f"{tool_header}\nError: {error_msg}"
-                elif "stdout" in tool_result:
-                    # Shell command - show stdout/stderr
-                    stdout = tool_result.get("stdout", "").strip()
-                    stderr = tool_result.get("stderr", "").strip()
-                    if stderr:
-                        tool_content = f"{tool_header}\nOutput:\n{stdout}\nErrors:\n{stderr}"
-                    else:
-                        tool_content = f"{tool_header}\nOutput:\n{stdout}"
-                elif "content" in tool_result:
-                    # File read - show content
-                    content = tool_result.get("content", "")
-                    # Always include truncation message if present
-                    has_truncation_msg = '[文件已被截断' in content
-                    if has_truncation_msg:
-                        # Find truncation message and ensure it's included
-                        lines = content.split('\n')
-                        truncation_start = next((i for i, line in enumerate(lines) if '[文件已被截断' in line), len(lines))
-                        # Show first part of content + truncation message
-                        content_lines = lines[:5] + lines[truncation_start:]
-                        content = '\n'.join(content_lines)
-                    # No length limit - send full content for read tool
-                    # The read.py already limits to 200 lines, so content is reasonably sized
-                    tool_content = f"{tool_header}\nContent:\n{content}"
-                elif "matches" in tool_result:
-                    # Grep - show match count and samples
-                    matches = tool_result.get("matches", [])
-                    if matches:
-                        tool_content = f"{tool_header}\nFound {len(matches)} matches. First few:\n{matches[:3]}"
-                    else:
-                        tool_content = f"{tool_header}\nNo matches found"
-                elif "results" in tool_result:
-                    # Web search - show result count
-                    results = tool_result.get("results", [])
-                    tool_content = f"{tool_header}\nFound {len(results)} results"
+                    # Tool failed - combine header and error
+                    tool_content = f"{tool_header}\nError: {stderr or stdout}"
                 else:
-                    tool_content = f"{tool_header}\n{str(tool_result)}"
+                    # Tool succeeded - combine header and output
+                    parts = [tool_header]
+                    if stdout:
+                        parts.append(f"Output:\n{stdout}")
+                    if stderr:
+                        parts.append(f"Warnings:\n{stderr}")
+                    tool_content = "\n".join(parts)
 
                 # Add tool result to session with tool_call_id
                 self._session.add_message("tool", tool_content, tool_call_id=tool_call["id"])

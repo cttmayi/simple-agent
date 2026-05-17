@@ -38,7 +38,7 @@ class GREP:
             cwd: Working directory for relative paths (defaults to current directory)
 
         Returns:
-            Dict with success, matches list, and optional error
+            Dict with success, stdout, and stderr
         """
         try:
             # Resolve the file path
@@ -55,16 +55,16 @@ class GREP:
             except (OSError, RuntimeError):
                 return {
                     "success": False,
-                    "matches": [],
-                    "error": "Invalid path"
+                    "stdout": "",
+                    "stderr": "Invalid path"
                 }
 
             # Check if path exists
             if not file_path.exists():
                 return {
                     "success": False,
-                    "matches": [],
-                    "error": "Path not found"
+                    "stdout": "",
+                    "stderr": "Path not found"
                 }
 
             # Compile the pattern with safety limits
@@ -75,8 +75,8 @@ class GREP:
             except re.error as e:
                 return {
                     "success": False,
-                    "matches": [],
-                    "error": f"Invalid pattern: {e}"
+                    "stdout": "",
+                    "stderr": f"Invalid pattern: {e}"
                 }
 
             # Read file and search for matches
@@ -136,37 +136,36 @@ class GREP:
             else:
                 return {
                     "success": False,
-                    "matches": [],
-                    "error": "Path is not a file or directory"
+                    "stdout": "",
+                    "stderr": "Path is not a file or directory"
                 }
 
-            # Build output string for CLI/Web display
-            output_lines = []
+            # Build stdout string for display
+            stdout_lines = []
             if matches:
-                output_lines.append(f"Found {len(matches)} matches:")
+                stdout_lines.append(f"Found {len(matches)} matches:")
                 for m in matches[:100]:  # Limit to 100 matches in output
-                    output_lines.append(f"  Line {m['line']}: {m['content']}")
+                    stdout_lines.append(f"  Line {m['line']}: {m['content']}")
                 if len(matches) > 100:
-                    output_lines.append(f"  ... and {len(matches) - 100} more matches")
+                    stdout_lines.append(f"  ... and {len(matches) - 100} more matches")
             else:
-                output_lines.append("No matches found")
+                stdout_lines.append("No matches found")
 
-            result = {
-                "success": True,
-                "output": "\n".join(output_lines),  # For CLI/Web display
-                "matches": matches,  # For AI
-            }
-
-            # Add warning if we hit the match limit
+            # Build stderr string for warnings
+            stderr_lines = []
             if len(matches) >= MAX_MATCHES:
-                result["warning"] = f"Search stopped at {MAX_MATCHES} matches (more may exist)"
+                stderr_lines.append(f"Search stopped at {MAX_MATCHES} matches (more may exist)")
 
-            return result
+            return {
+                "success": True,
+                "stdout": "\n".join(stdout_lines),
+                "stderr": "\n".join(stderr_lines),
+            }
         except Exception as e:
             return {
                 "success": False,
-                "matches": [],
-                "error": str(e)
+                "stdout": "",
+                "stderr": str(e)
             }
 
     @staticmethod
@@ -180,7 +179,7 @@ class GREP:
             cwd: Working directory for relative paths (defaults to current directory)
 
         Returns:
-            Dict with success, matches list, and optional error
+            Dict with success, stdout, and stderr
         """
         return GREP._grep(path, pattern, case_sensitive, cwd)
 

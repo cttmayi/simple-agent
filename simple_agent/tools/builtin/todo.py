@@ -39,6 +39,17 @@ class TaskUpdate:
     description = "更新任务状态、进度、描述、标题、父任务等字段"
 
 
+def _get_status_icon(status: str) -> str:
+    """获取状态图标。"""
+    return {
+        "pending": "⏳",
+        "in_progress": "⚙️",
+        "completed": "✓",
+        "blocked": "🚫",
+        "deleted": "🗑️"
+    }.get(status, "⏳")
+
+
 def list_tasks() -> Dict[str, Any]:
     """列出所有任务及其状态。
 
@@ -46,24 +57,24 @@ def list_tasks() -> Dict[str, Any]:
         包含任务列表的字典
     """
     if _todo_manager is None:
-        return {"success": False, "error": "TodoManager not initialized"}
+        return {"success": False, "stdout": "", "stderr": "TodoManager not initialized"}
 
     tasks = _todo_manager.get_all_tasks()
 
-    # Build output string for CLI/Web display
-    output_lines = []
+    # Build stdout string for display
+    stdout_lines = []
     if tasks:
-        output_lines.append(f"Found {len(tasks)} tasks:")
+        stdout_lines.append(f"Found {len(tasks)} tasks:")
         for t in tasks:
-            status_icon = {"pending": "⏳", "in_progress": "⚙️", "completed": "✓", "blocked": "🚫", "deleted": "🗑️"}.get(t.get("status", "pending"), "⏳")
-            output_lines.append(f"  {status_icon} [{t.get('id', '?')[:8]}] {t.get('subject', 'N/A')}")
+            status_icon = _get_status_icon(t.get("status", "pending"))
+            stdout_lines.append(f"  {status_icon} [{t.get('id', '?')[:8]}] {t.get('subject', 'N/A')}")
     else:
-        output_lines.append("No tasks found")
+        stdout_lines.append("No tasks found")
 
     return {
         "success": True,
-        "output": "\n".join(output_lines),  # For CLI/Web display
-        "tasks": tasks  # For AI
+        "stdout": "\n".join(stdout_lines),
+        "stderr": "",
     }
 
 
@@ -91,22 +102,22 @@ def get_task(task_id: str) -> Dict[str, Any]:
         包含任务详情的字典
     """
     if _todo_manager is None:
-        return {"success": False, "error": "TodoManager not initialized"}
+        return {"success": False, "stdout": "", "stderr": "TodoManager not initialized"}
 
     task = _todo_manager.get_task_with_subtasks(task_id)
     if task is None:
-        return {"success": False, "error": "Task not found"}
+        return {"success": False, "stdout": "", "stderr": "Task not found"}
 
-    # Build output string for CLI/Web display
+    # Build stdout string for display
     # task may already be a dict or an object with to_dict()
     if hasattr(task, 'to_dict'):
         task_dict = task.to_dict()
     else:
         task_dict = task
 
-    status_icon = {"pending": "⏳", "in_progress": "⚙️", "completed": "✓", "blocked": "🚫", "deleted": "🗑️"}.get(task_dict.get("status", "pending"), "⏳")
+    status_icon = _get_status_icon(task_dict.get("status", "pending"))
 
-    output_lines = [
+    stdout_lines = [
         f"{status_icon} Task: {task_dict.get('subject', 'N/A')}",
         f"  ID: {task_dict.get('id', '?')}",
         f"  Status: {task_dict.get('status', 'pending')}",
@@ -114,20 +125,20 @@ def get_task(task_id: str) -> Dict[str, Any]:
         f"  Progress: {task_dict.get('progress', 0)}%",
     ]
     if task_dict.get('description'):
-        output_lines.append(f"  Description: {task_dict['description']}")
+        stdout_lines.append(f"  Description: {task_dict['description']}")
 
     # Show subtasks
     children = task_dict.get('children', [])
     if children:
-        output_lines.append(f"  Subtasks ({len(children)}):")
+        stdout_lines.append(f"  Subtasks ({len(children)}):")
         for child in children:
-            child_status = {"pending": "⏳", "in_progress": "⚙️", "completed": "✓", "blocked": "🚫", "deleted": "🗑️"}.get(child.get("status", "pending"), "⏳")
-            output_lines.append(f"    {child_status} [{child.get('id', '?')[:8]}] {child.get('subject', 'N/A')}")
+            child_status = _get_status_icon(child.get("status", "pending"))
+            stdout_lines.append(f"    {child_status} [{child.get('id', '?')[:8]}] {child.get('subject', 'N/A')}")
 
     return {
         "success": True,
-        "output": "\n".join(output_lines),  # For CLI/Web display
-        "task": task_dict  # For AI
+        "stdout": "\n".join(stdout_lines),
+        "stderr": "",
     }
 
 
@@ -174,7 +185,7 @@ def create_task(
         包含新任务信息的字典
     """
     if _todo_manager is None:
-        return {"success": False, "error": "TodoManager not initialized"}
+        return {"success": False, "stdout": "", "stderr": "TodoManager not initialized"}
 
     success, message, task = _todo_manager.create_task(
         subject=subject,
@@ -187,16 +198,13 @@ def create_task(
     )
 
     if not success:
-        return {"success": False, "error": message}
+        return {"success": False, "stdout": "", "stderr": message}
 
-    task_dict = task.to_dict()
-    status_icon = {"pending": "⏳", "in_progress": "⚙️", "completed": "✓", "blocked": "🚫", "deleted": "🗑️"}.get(status, "⏳")
-
+    status_icon = _get_status_icon(status)
     return {
         "success": True,
-        "output": f"{status_icon} Task created: [{task.id[:8]}] {subject}",  # For CLI/Web display
-        "task_id": task.id,
-        "task": task_dict  # For AI
+        "stdout": f"{status_icon} Task created: [{task.id[:8]}] {subject}",
+        "stderr": "",
     }
 
 
@@ -269,7 +277,7 @@ def update_task(
         包含更新后任务信息的字典
     """
     if _todo_manager is None:
-        return {"success": False, "error": "TodoManager not initialized"}
+        return {"success": False, "stdout": "", "stderr": "TodoManager not initialized"}
 
     success, message, task = _todo_manager.update_task(
         task_id=task_id,
@@ -282,15 +290,15 @@ def update_task(
     )
 
     if not success:
-        return {"success": False, "error": message}
+        return {"success": False, "stdout": "", "stderr": message}
 
     task_dict = task.to_dict()
-    status_icon = {"pending": "⏳", "in_progress": "⚙️", "completed": "✓", "blocked": "🚫", "deleted": "🗑️"}.get(task_dict.get("status", "pending"), "⏳")
+    status_icon = _get_status_icon(task_dict.get("status", "pending"))
 
     return {
         "success": True,
-        "output": f"{status_icon} Task updated: [{task.id[:8]}] {task_dict.get('subject', 'N/A')} (status: {task_dict.get('status', 'pending')}, progress: {task_dict.get('progress', 0)}%)",  # For CLI/Web display
-        "task": task_dict  # For AI
+        "stdout": f"{status_icon} Task updated: [{task.id[:8]}] {task_dict.get('subject', 'N/A')} (status: {task_dict.get('status', 'pending')}, progress: {task_dict.get('progress', 0)}%)",
+        "stderr": "",
     }
 
 

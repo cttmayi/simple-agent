@@ -52,7 +52,7 @@ class WRITE:
             cwd: Working directory for relative paths (defaults to current directory)
 
         Returns:
-            Dict with success, path, and optional error
+            Dict with success, stdout, and stderr
         """
         try:
             # Resolve the file path
@@ -70,16 +70,16 @@ class WRITE:
             except (OSError, RuntimeError):
                 return {
                     "success": False,
-                    "path": str(path),
-                    "error": "Invalid path"
+                    "stdout": "",
+                    "stderr": "Invalid path"
                 }
 
             # Path traversal check: ensure file is within base_dir
             if not WRITE._is_safe_path(file_path, base_dir):
                 return {
                     "success": False,
-                    "path": str(path),
-                    "error": "Path traversal detected: cannot write files outside the working directory"
+                    "stdout": "",
+                    "stderr": "Path traversal detected: cannot write files outside the working directory"
                 }
 
             # Additional check: prevent writing to sensitive system files
@@ -90,8 +90,8 @@ class WRITE:
             if any(pattern in path_str for pattern in sensitive_patterns):
                 return {
                     "success": False,
-                    "path": str(path),
-                    "error": "Writing to sensitive system files is not allowed"
+                    "stdout": "",
+                    "stderr": "Writing to sensitive system files is not allowed"
                 }
 
             # Check content size
@@ -99,8 +99,8 @@ class WRITE:
             if content_size > MAX_FILE_SIZE:
                 return {
                     "success": False,
-                    "path": str(path),
-                    "error": f"Content too large (max {MAX_FILE_SIZE} bytes, got {content_size})"
+                    "stdout": "",
+                    "stderr": f"Content too large (max {MAX_FILE_SIZE} bytes, got {content_size})"
                 }
 
             # Create parent directories if they don't exist
@@ -109,8 +109,8 @@ class WRITE:
             if not WRITE._is_safe_path(parent_dir, base_dir):
                 return {
                     "success": False,
-                    "path": str(path),
-                    "error": "Cannot create directories outside the working directory"
+                    "stdout": "",
+                    "stderr": "Cannot create directories outside the working directory"
                 }
 
             parent_dir.mkdir(parents=True, exist_ok=True)
@@ -120,20 +120,20 @@ class WRITE:
 
             return {
                 "success": True,
-                "output": f"File written: {file_path}",  # For CLI/Web display
-                "path": str(file_path),
+                "stdout": f"File written: {file_path}",
+                "stderr": "",
             }
         except PermissionError:
             return {
                 "success": False,
-                "path": str(path),
-                "error": "Permission denied"
+                "stdout": "",
+                "stderr": "Permission denied"
             }
         except Exception as e:
             return {
                 "success": False,
-                "path": str(path),
-                "error": str(e)
+                "stdout": "",
+                "stderr": str(e)
             }
 
     @staticmethod
@@ -146,7 +146,7 @@ class WRITE:
             cwd: Working directory for relative paths (defaults to current directory)
 
         Returns:
-            Dict with success, path, and optional error
+            Dict with success, stdout, and stderr
         """
         return WRITE._write(path, content, cwd)
 

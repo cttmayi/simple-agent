@@ -55,7 +55,7 @@ class READ:
             start_line: Line number to start reading from (1-indexed, defaults to 1)
 
         Returns:
-            Dict with success, content, and optional error
+            Dict with success, stdout, and stderr
         """
         try:
             # Resolve the file path
@@ -73,16 +73,16 @@ class READ:
             except (OSError, RuntimeError):
                 return {
                     "success": False,
-                    "content": "",
-                    "error": "Invalid path"
+                    "stdout": "",
+                    "stderr": "Invalid path"
                 }
 
             # Path traversal check: ensure file is within base_dir
             if not READ._is_safe_path(file_path, base_dir):
                 return {
                     "success": False,
-                    "content": "",
-                    "error": "Path traversal detected: cannot access files outside the working directory"
+                    "stdout": "",
+                    "stderr": "Path traversal detected: cannot access files outside the working directory"
                 }
 
             # Additional check: prevent accessing sensitive system files
@@ -93,23 +93,23 @@ class READ:
             if any(pattern in path_str for pattern in sensitive_patterns):
                 return {
                     "success": False,
-                    "content": "",
-                    "error": "Access to sensitive system files is not allowed"
+                    "stdout": "",
+                    "stderr": "Access to sensitive system files is not allowed"
                 }
 
             # Check if file exists
             if not file_path.exists():
                 return {
                     "success": False,
-                    "content": "",
-                    "error": "File not found"
+                    "stdout": "",
+                    "stderr": "File not found"
                 }
 
             if not file_path.is_file():
                 return {
                     "success": False,
-                    "content": "",
-                    "error": "Path is not a file"
+                    "stdout": "",
+                    "stderr": "Path is not a file"
                 }
 
             # Check file size
@@ -117,8 +117,8 @@ class READ:
             if file_size > MAX_FILE_SIZE:
                 return {
                     "success": False,
-                    "content": "",
-                    "error": f"File too large (max {MAX_FILE_SIZE} bytes, got {file_size})"
+                    "stdout": "",
+                    "stderr": f"File too large (max {MAX_FILE_SIZE} bytes, got {file_size})"
                 }
 
             # Read file content
@@ -133,8 +133,8 @@ class READ:
             elif start_line < 1:
                 return {
                     "success": False,
-                    "content": "",
-                    "error": f"start_line must be at least 1 (got {start_line})"
+                    "stdout": "",
+                    "stderr": f"start_line must be at least 1 (got {start_line})"
                 }
 
             # Get requested lines
@@ -144,8 +144,8 @@ class READ:
             if start_index >= len(lines):
                 return {
                     "success": False,
-                    "content": "",
-                    "error": f"start_line {start_line} exceeds file length ({len(lines)} lines)"
+                    "stdout": "",
+                    "stderr": f"start_line {start_line} exceeds file length ({len(lines)} lines)"
                 }
 
             # Get lines from start_line to start_line + MAX_LINES
@@ -167,30 +167,26 @@ class READ:
 
             return {
                 "success": True,
-                "output": result_content,  # For CLI/Web display
-                "content": result_content,  # For AI (legacy)
-                "total_lines": total_lines,
-                "lines_shown": len(selected_lines),
-                "start_line": start_line,
-                "is_truncated": is_truncated,
+                "stdout": result_content,
+                "stderr": "",
             }
         except PermissionError:
             return {
                 "success": False,
-                "content": "",
-                "error": "Permission denied"
+                "stdout": "",
+                "stderr": "Permission denied"
             }
         except UnicodeDecodeError:
             return {
                 "success": False,
-                "content": "",
-                "error": "File is not valid UTF-8 text"
+                "stdout": "",
+                "stderr": "File is not valid UTF-8 text"
             }
         except Exception as e:
             return {
                 "success": False,
-                "content": "",
-                "error": str(e)
+                "stdout": "",
+                "stderr": str(e)
             }
 
     @staticmethod
@@ -203,7 +199,7 @@ class READ:
             start_line: Line number to start reading from (1-indexed, defaults to 1)
 
         Returns:
-            Dict with success, content, and optional error
+            Dict with success, stdout, and stderr
         """
         return READ._read(path, cwd, start_line)
 
