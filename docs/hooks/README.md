@@ -582,7 +582,43 @@ else:
     print(json.dumps({"decision": "allow"}))
 ```
 
-### 示例 4: 会话结束统计
+### 示例 4: LLM 提示词注入
+
+```python
+#!/usr/bin/env python3
+# plugin/hooks/UserPromptSubmit/code_guidance.py
+
+import sys
+import json
+
+# 读取 stdin
+input_json = sys.stdin.read()
+data = json.loads(input_json)
+
+# 解析 payload
+payload = data.get("payload", {})
+user_prompt = payload.get("userPrompt", "")
+
+# 检查是否需要注入
+keywords = ["代码", "Python", "函数", "类", "bug", "调试"]
+need_injection = any(keyword in user_prompt for keyword in keywords)
+
+if need_injection:
+    # 注入系统提示词到 LLM
+    additional_context = """## 代码开发指导原则
+
+请遵循以下原则回答用户关于代码的问题：
+1. 使用有意义的变量名和函数名
+2. 添加必要的注释和文档字符串
+3. 遵循 PEP 8 代码风格规范
+"""
+
+    print(json.dumps({
+        "additionalContext": additional_context
+    }, ensure_ascii=False))
+else:
+    # 不需要注入
+    print(json.dumps({}))
 
 ```bash
 #!/bin/bash
