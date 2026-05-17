@@ -1,5 +1,5 @@
 .simple-agent/
-plugins/superpower/
+plugins/superpowers/
 
 *.pyc
 __pycache__/
