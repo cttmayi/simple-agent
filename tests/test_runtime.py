@@ -7,14 +7,14 @@ from simple_agent.config.settings import load_config, Settings
 
 def test_runtime_initialization():
     config = load_config()
-    runtime = Runtime(config)
+    runtime = Runtime(config, skip_api_init=True)
     assert runtime._config == config
 
 
 def test_runtime_process_command():
     # Use Settings() instead of Mock to avoid Path conversion issues
     config = Settings()
-    runtime = Runtime(config)
+    runtime = Runtime(config, skip_api_init=True)
 
     from unittest.mock import patch
     with patch.object(runtime, '_handle_slash_command') as mock_handle:

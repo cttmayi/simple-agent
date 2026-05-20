@@ -46,10 +46,10 @@ tools:
   Agent: true
 
   # 任务管理工具
-  TaskCreate: false
-  TaskGet: false
-  TaskUpdate: false
-  TaskList: false
+  TaskCreate: true
+  TaskGet: true
+  TaskUpdate: true
+  TaskList: true
 
   # 示例：禁用 Bash 工具
   # Bash: false

@@ -1,7 +1,6 @@
 """TODO 任务管理器，负责任务 CRUD、树结构管理和文件持久化。"""
 
 import json
-import uuid
 from dataclasses import dataclass, asdict
 from typing import Dict, List, Optional, Any
 from pathlib import Path
@@ -57,6 +56,7 @@ class TodoManager:
         else:
             self._todos_path = Path.cwd() / ".simple-agent" / "todos.json"
         self._tasks: Dict[str, Task] = {}
+        self._next_id: int = 1
         self._load()
 
     def _load(self) -> None:
@@ -72,6 +72,16 @@ class TodoManager:
                 task_id: Task.from_dict(task_data)
                 for task_id, task_data in data.get("tasks", {}).items()
             }
+            # 计算 _next_id：取现有数字 ID 最大值 + 1
+            if self._tasks:
+                numeric_ids = []
+                for tid in self._tasks:
+                    try:
+                        numeric_ids.append(int(tid))
+                    except ValueError:
+                        pass
+                if numeric_ids:
+                    self._next_id = max(numeric_ids) + 1
         except (json.JSONDecodeError, KeyError, ValueError) as e:
             # 文件损坏，备份后重新初始化
             backup_path = self._todos_path.with_suffix(".json.backup")
@@ -96,9 +106,30 @@ class TodoManager:
         """获取所有任务列表。"""
         return [task.to_dict() for task in self._tasks.values()]
 
+    def _resolve_task_id(self, task_id: str) -> Optional[str]:
+        """解析任务 ID，支持完整 ID 或前缀匹配。
+
+        Args:
+            task_id: 完整或截断的任务 ID
+
+        Returns:
+            完整的任务 ID，未找到返回 None
+        """
+        # 精确匹配
+        if task_id in self._tasks:
+            return task_id
+        # 前缀匹配
+        matches = [tid for tid in self._tasks if tid.startswith(task_id)]
+        if len(matches) == 1:
+            return matches[0]
+        return None
+
     def get_task(self, task_id: str) -> Optional[Task]:
-        """获取指定任务。"""
-        return self._tasks.get(task_id)
+        """获取指定任务（支持完整 ID 或前缀匹配）。"""
+        full_id = self._resolve_task_id(task_id)
+        if full_id:
+            return self._tasks[full_id]
+        return None
 
     def create_task(
         self,
@@ -130,10 +161,14 @@ class TodoManager:
         if priority not in VALID_PRIORITIES:
             return False, f"Invalid priority: must be one of {', '.join(VALID_PRIORITIES)}", None
 
-        if parent_id and parent_id not in self._tasks:
-            return False, "Parent task not found", None
+        if parent_id:
+            resolved_parent = self._resolve_task_id(parent_id)
+            if not resolved_parent:
+                return False, f"Parent task not found: {parent_id}", None
+            parent_id = resolved_parent
 
-        task_id = str(uuid.uuid4())
+        task_id = str(self._next_id)
+        self._next_id += 1
         task = Task(
             id=task_id,
             subject=subject,
@@ -178,9 +213,10 @@ class TodoManager:
         Returns:
             (success, message, task) 元组
         """
-        task = self._tasks.get(task_id)
-        if not task:
-            return False, "Task not found", None
+        full_id = self._resolve_task_id(task_id)
+        if not full_id:
+            return False, f"Task not found: {task_id}", None
+        task = self._tasks[full_id]
 
         if status is not None:
             if status not in VALID_STATUSES:
@@ -203,34 +239,35 @@ class TodoManager:
 
         # 处理父任务变更（检测循环依赖）
         if parent_id is not None:
-            if parent_id not in self._tasks:
-                return False, "Parent task not found", None
+            resolved_parent = self._resolve_task_id(parent_id)
+            if not resolved_parent:
+                return False, f"Parent task not found: {parent_id}", None
 
             # 检测循环依赖
-            current = self._tasks.get(parent_id)
+            current = self._tasks.get(resolved_parent)
             while current and current.parent_id:
-                if current.parent_id == task_id:
+                if current.parent_id == full_id:
                     return False, "Circular dependency: task cannot be its own ancestor", None
                 current = self._tasks.get(current.parent_id)
 
             # 从旧父任务的 subtasks 中移除
             if task.parent_id:
                 old_parent = self._tasks.get(task.parent_id)
-                if old_parent and task_id in old_parent.subtasks:
-                    old_parent.subtasks.remove(task_id)
+                if old_parent and full_id in old_parent.subtasks:
+                    old_parent.subtasks.remove(full_id)
 
             # 更新父任务
-            task.parent_id = parent_id
+            task.parent_id = resolved_parent
             # 添加到新父任务的 subtasks
-            new_parent = self._tasks[parent_id]
-            if task_id not in new_parent.subtasks:
-                new_parent.subtasks.append(task_id)
+            new_parent = self._tasks[resolved_parent]
+            if full_id not in new_parent.subtasks:
+                new_parent.subtasks.append(full_id)
         else:
             # parent_id=None: 移除父任务
             if task.parent_id:
                 old_parent = self._tasks.get(task.parent_id)
-                if old_parent and task_id in old_parent.subtasks:
-                    old_parent.subtasks.remove(task_id)
+                if old_parent and full_id in old_parent.subtasks:
+                    old_parent.subtasks.remove(full_id)
             task.parent_id = None
 
         self._save()
@@ -270,7 +307,7 @@ class TodoManager:
         Returns:
             包含子任务的任务字典，如果任务不存在返回 None
         """
-        task = self._tasks.get(task_id)
+        task = self.get_task(task_id)
         if not task or task.status == "deleted":
             return None
 

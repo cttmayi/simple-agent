@@ -67,7 +67,7 @@ def list_tasks() -> Dict[str, Any]:
         stdout_lines.append(f"Found {len(tasks)} tasks:")
         for t in tasks:
             status_icon = _get_status_icon(t.get("status", "pending"))
-            stdout_lines.append(f"  {status_icon} [{t.get('id', '?')[:8]}] {t.get('subject', 'N/A')}")
+            stdout_lines.append(f"  {status_icon} [#{t.get('id', '?')}] {t.get('subject', 'N/A')}")
     else:
         stdout_lines.append("No tasks found")
 
@@ -119,7 +119,7 @@ def get_task(task_id: str) -> Dict[str, Any]:
 
     stdout_lines = [
         f"{status_icon} Task: {task_dict.get('subject', 'N/A')}",
-        f"  ID: {task_dict.get('id', '?')}",
+        f"  ID: #{task_dict.get('id', '?')}",
         f"  Status: {task_dict.get('status', 'pending')}",
         f"  Priority: {task_dict.get('priority', 'normal')}",
         f"  Progress: {task_dict.get('progress', 0)}%",
@@ -133,7 +133,7 @@ def get_task(task_id: str) -> Dict[str, Any]:
         stdout_lines.append(f"  Subtasks ({len(children)}):")
         for child in children:
             child_status = _get_status_icon(child.get("status", "pending"))
-            stdout_lines.append(f"    {child_status} [{child.get('id', '?')[:8]}] {child.get('subject', 'N/A')}")
+            stdout_lines.append(f"    {child_status} [#{child.get('id', '?')}] {child.get('subject', 'N/A')}")
 
     return {
         "success": True,
@@ -203,8 +203,9 @@ def create_task(
     status_icon = _get_status_icon(status)
     return {
         "success": True,
-        "stdout": f"{status_icon} Task created: [{task.id[:8]}] {subject}",
+        "stdout": f"{status_icon} Task created: [#{task.id}] {subject}",
         "stderr": "",
+        "task_id": task.id,
     }
 
 
@@ -297,8 +298,9 @@ def update_task(
 
     return {
         "success": True,
-        "stdout": f"{status_icon} Task updated: [{task.id[:8]}] {task_dict.get('subject', 'N/A')} (status: {task_dict.get('status', 'pending')}, progress: {task_dict.get('progress', 0)}%)",
+        "stdout": f"{status_icon} Task updated: [#{task.id}] {task_dict.get('subject', 'N/A')} (status: {task_dict.get('status', 'pending')}, progress: {task_dict.get('progress', 0)}%)",
         "stderr": "",
+        "task_id": task.id,
     }
 
 

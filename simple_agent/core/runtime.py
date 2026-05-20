@@ -44,7 +44,7 @@ class Runtime:
         self._hook_context = HookContext()
         # Initialize prompt session with history for better input handling (especially for Chinese characters)
         self._prompt_session = PromptSession(
-            history=InMemoryHistory()
+            history=InMemoryHistory(),
         )
 
         # Initialize logger
@@ -1114,21 +1114,47 @@ class Runtime:
             # Handle both JSON string and already-parsed dict
             arg_data = tool_call["function"]["arguments"]
             if isinstance(arg_data, str):
-                arguments = json.loads(arg_data)
+                if arg_data.strip():
+                    try:
+                        arguments = json.loads(arg_data)
+                    except json.JSONDecodeError as e:
+                        self._renderer.render_error(f"Invalid arguments for {tool_name}: {e}")
+                        arguments = {}
+                else:
+                    arguments = {}
             else:
-                arguments = arg_data
+                arguments = arg_data or {}
 
-            # Build args string for display
+            # Build args string for display (compact format)
             args_str = ""
             if arguments and isinstance(arguments, dict):
+                # Params that should never be truncated
+                no_truncate_keys = {"command"}
+                # Params to skip entirely
+                skip_keys = {"cwd", "timeout", "case_sensitive", "description", "metadata"}
+                # Priority order for display
+                priority_keys = ["subject", "command", "path", "task_id", "query", "skill_name", "agent_name"]
                 args_parts = []
-                for k, v in arguments.items():
-                    # Skip internal params
-                    if k not in ["cwd", "timeout", "case_sensitive"]:
-                        v_str = str(v)
-                        if len(v_str) > 20:
-                            v_str = v_str[:20] + "..."
+                shown_keys = set()
+                # Show priority keys first
+                for k in priority_keys:
+                    if k in arguments and k not in skip_keys:
+                        v_str = str(arguments[k])
+                        if k not in no_truncate_keys and len(v_str) > 30:
+                            v_str = v_str[:29] + "…"
                         args_parts.append(f"{k}={v_str}")
+                        shown_keys.add(k)
+                # Then show remaining keys (up to 3 more)
+                for k, v in arguments.items():
+                    if k in shown_keys or k in skip_keys:
+                        continue
+                    if len(args_parts) >= 4:
+                        args_parts.append("…")
+                        break
+                    v_str = str(v)
+                    if len(v_str) > 20:
+                        v_str = v_str[:19] + "…"
+                    args_parts.append(f"{k}={v_str}")
                 if args_parts:
                     args_str = '[' + ', '.join(args_parts) + ']'
 
@@ -1355,7 +1381,9 @@ class Runtime:
                 sys.stdout.flush()
                 print()  # Add a newline before the prompt
                 # Use prompt_toolkit for better multi-byte character handling (Chinese input)
-                user_input = self._prompt_session.prompt("> ")
+                user_input = self._prompt_session.prompt(
+                    "> ",
+                )
                 result = self.process_input(user_input)
 
                 if result == "exit":
@@ -1406,4 +1434,7 @@ class Runtime:
                 # Hook blocked, continue to next input
                 continue
             except Exception as e:
-                self._renderer.render_error(str(e))
+                import traceback
+                self._renderer.render_error(f"{type(e).__name__}: {e}")
+                if _is_hook_debug():
+                    self._renderer.console.print(f"[dim]{traceback.format_exc()}[/dim]")

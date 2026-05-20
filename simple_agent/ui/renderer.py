@@ -81,8 +81,8 @@ class UIRenderer:
             success = tool_result.get("success", True)
 
             if not success:
-                # Show error from stderr (or stdout if stderr is empty)
-                error_msg = tool_result.get("stderr") or tool_result.get("stdout") or "Unknown error"
+                # Show error from error field, stderr, or stdout
+                error_msg = tool_result.get("error") or tool_result.get("stderr") or tool_result.get("stdout") or "Unknown error"
                 self.console.print(f"  │  [red]Error:[/red] {escape(error_msg)}")
             else:
                 # Show stdout (limit to first 10 lines for display)
@@ -217,8 +217,8 @@ class UIRenderer:
             success = tool_result.get("success", True)
 
             if not success:
-                # Show error from stderr (or stdout if stderr is empty)
-                error_msg = tool_result.get("stderr") or tool_result.get("stdout") or "Unknown error"
+                # Show error from error field, stderr, or stdout
+                error_msg = tool_result.get("error") or tool_result.get("stderr") or tool_result.get("stdout") or "Unknown error"
                 self.console.print(f"  │    [red]Error:[/red] {escape(error_msg)}")
             else:
                 # Show stdout (limit to first 10 lines for display)

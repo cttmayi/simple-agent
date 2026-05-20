@@ -4,6 +4,7 @@ import subprocess
 import os
 import shlex
 import re
+from pathlib import Path
 from typing import Dict, Any, Optional
 from simple_agent.tools.registry import get_global_registry, ToolDefinition
 
@@ -12,7 +13,6 @@ from simple_agent.tools.registry import get_global_registry, ToolDefinition
 DANGEROUS_PATTERNS = [
     r'rm\s+-rf\s+/',          # rm -rf /
     r':\(;\)\:',               # :(){:|:};:  (fork bomb)
-    r'>\s*/dev/',              # Writing to devices
     r'chmod\s+777\s+/',        # chmod 777 /
     r'mkfs\.',                 # Format filesystem
     r'dd\s+if=',               # dd with if=
@@ -70,6 +70,12 @@ class BASH:
         for pattern in DANGEROUS_PATTERNS:
             if re.search(pattern, command, re.IGNORECASE):
                 return False, f"Dangerous command pattern detected: {pattern}"
+
+        # Check for writing to /dev/ devices (but allow /dev/null redirects)
+        for match in re.finditer(r'>\s*/dev/\S+', command):
+            target = match.group().split('/dev/')[-1].strip()
+            if target != 'null':
+                return False, f"Writing to device /dev/{target} is not allowed"
 
         # Check if command contains blocked commands
         for blocked_cmd in BLOCKED_COMMANDS:

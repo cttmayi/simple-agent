@@ -36,7 +36,7 @@
           },
           {
             "type": "command",
-            "file": "python ${CLAUDE_PLUGIN_ROOT}/hooks/UserPromptSubmit/record.py",
+            "command": "python ${CLAUDE_PLUGIN_ROOT}/hooks/UserPromptSubmit/record.py",
             "async": false
           },
           {
