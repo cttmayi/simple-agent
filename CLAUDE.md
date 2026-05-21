@@ -32,6 +32,11 @@ simple-agent --logs              # 查看今日所有对话
 simple-agent --logs -r 5         # 查看最近 5 条对话
 simple-agent --logs -s "error"   # 搜索特定文本
 simple-agent --logs -i           # 仅列出对话 ID
+
+# 启动 Web 聊天 UI
+simple-agent --web-chat                # 默认端口 5002
+simple-agent --web-chat --port 8080    # 指定端口
+simple-agent --web-chat --resume       # 从最近日志恢复
 ```
 
 ## 提交代码

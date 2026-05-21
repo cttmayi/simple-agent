@@ -214,6 +214,33 @@ print(f"Tokens: {conv['response']['usage']}")
 simple-agent
 ```
 
+## Web 聊天 UI
+
+simple-agent 提供浏览器内的交互式聊天界面：
+
+```bash
+# 启动 Web 聊天服务
+simple-agent --web-chat
+
+# 指定端口
+simple-agent --web-chat --port 8080
+
+# 从最近的日志恢复会话
+simple-agent --web-chat --resume
+
+# 从指定日志恢复
+simple-agent --web-chat --resume .simple-agent/logs/llm-20260520-101010.jsonl
+```
+
+浏览器打开 http://localhost:5002（默认端口）即可使用。
+
+特性：
+- 实时对话，工具调用过程以可折叠卡片显示
+- 侧边栏显示 TODOs / 已加载 Skills / 可用 Skills 与 Agents
+- 支持斜杠命令（`/help`、`/clear` 等，与 CLI 一致）
+- Markdown 渲染 + 代码语法高亮
+- 一键从历史日志恢复会话
+
 ## Project Structure
 
 ```
