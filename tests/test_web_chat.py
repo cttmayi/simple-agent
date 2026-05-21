@@ -153,6 +153,51 @@ def test_api_turn_handles_exception_via_sink_error(tmpcwd):
     assert "boom" in error_events[0]["message"]
 
 
+def test_api_turn_rejects_empty_input(tmpcwd):
+    from simple_agent.web import chat_server
+
+    config = Settings()
+    chat_server.init_runtime(config, skip_api_init=True)
+
+    client = chat_server.app.test_client()
+    resp = client.post("/api/turn", json={"input": ""})
+
+    assert resp.status_code == 400
+    assert "error" in resp.get_json()
+
+
+def test_api_turn_rejects_whitespace_input(tmpcwd):
+    from simple_agent.web import chat_server
+
+    config = Settings()
+    chat_server.init_runtime(config, skip_api_init=True)
+
+    client = chat_server.app.test_client()
+    resp = client.post("/api/turn", json={"input": "   \n  "})
+
+    assert resp.status_code == 400
+
+
+def test_api_turn_emits_turn_end_even_on_exception(tmpcwd):
+    """If API raises, the event stream should still include turn_end."""
+    from simple_agent.web import chat_server
+
+    config = Settings()
+    chat_server.init_runtime(config, skip_api_init=True)
+    chat_server._runtime._api_client = MagicMock()
+    chat_server._runtime._api_client.send_message.side_effect = RuntimeError("boom")
+
+    client = chat_server.app.test_client()
+    resp = client.post("/api/turn", json={"input": "hi"})
+
+    assert resp.status_code == 200
+    data = resp.get_json()
+    types = [e["type"] for e in data["events"]]
+    assert "turn_start" in types
+    assert "error" in types
+    assert "turn_end" in types
+
+
 def test_api_sidebar_returns_structured_data(tmpcwd):
     from simple_agent.web import chat_server
 

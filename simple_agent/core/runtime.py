@@ -1127,7 +1127,7 @@ class Runtime:
                     try:
                         arguments = json.loads(arg_data)
                     except json.JSONDecodeError as e:
-                        self._renderer.render_error(f"Invalid arguments for {tool_name}: {e}")
+                        self._sink.on_error(f"Invalid arguments for {tool_name}: {e}")
                         arguments = {}
                 else:
                     arguments = {}
@@ -1198,7 +1198,7 @@ class Runtime:
                 self._session.add_message("tool", tool_content, tool_call_id=tool_call["id"])
             else:
                 # Send message to user for load_skill/load_agent
-                self._renderer.render_message("system", result.get("message", ""))
+                self._sink.on_message("system", result.get("message", ""))
 
                 # Add skill/agent content to session as system message
                 # This ensures AI knows the skill/agent is loaded
@@ -1341,27 +1341,23 @@ class Runtime:
 
         Shared by both CLI run() loop and Web /api/turn handler.
         """
-        messages = self._prepare_messages_with_context()
-        allowed_tools = self._get_allowed_tools()
-        tools = self._tool_registry.to_openai_format(allowed_tools)
+        try:
+            messages = self._prepare_messages_with_context()
+            allowed_tools = self._get_allowed_tools()
+            tools = self._tool_registry.to_openai_format(allowed_tools)
 
-        response = self._api_client.send_message(messages, tools)
-        for msg in response:
-            # Handle tool calls
-            if "tool_calls" in msg and msg["tool_calls"]:
-                self._handle_tool_calls_in_message(msg, response)
-            else:
-                content = msg.get("content", "")
-                self._session.add_message(msg["role"], content)
-                try:
+            response = self._api_client.send_message(messages, tools)
+            for msg in response:
+                # Handle tool calls
+                if "tool_calls" in msg and msg["tool_calls"]:
+                    self._handle_tool_calls_in_message(msg, response)
+                else:
+                    content = msg.get("content", "")
+                    self._session.add_message(msg["role"], content)
                     self._sink.on_message(msg["role"], content)
-                except Exception as e:
-                    self._sink.on_error(f"Failed to render message: {str(e)}")
-                    plain_content = content[:500] if content else ""
-                    print(f"\n{msg['role']}: {plain_content}")
-
-        # Turn finished
-        self._sink.on_turn_end()
+        finally:
+            # Turn finished - always emit, even on exception
+            self._sink.on_turn_end()
 
     def run(self):
         """Main run loop."""

@@ -71,6 +71,9 @@ def api_turn():
     payload = request.get_json(silent=True) or {}
     user_input = payload.get("input", "")
 
+    if not user_input.strip():
+        return jsonify({"error": "empty input"}), 400
+
     with _runtime_lock:
         _sink.events.clear()
         try:
