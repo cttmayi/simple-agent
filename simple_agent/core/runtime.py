@@ -1361,6 +1361,33 @@ class Runtime:
             "context": "startup",
         }))
 
+    def _run_one_turn(self) -> None:
+        """Send current session messages to API and process the response.
+
+        Handles tool_calls recursively (delegated to _handle_tool_calls_in_message).
+        For a plain-text response, adds it to session and renders.
+
+        Shared by both CLI run() loop and Web /api/turn handler.
+        """
+        messages = self._prepare_messages_with_context()
+        allowed_tools = self._get_allowed_tools()
+        tools = self._tool_registry.to_openai_format(allowed_tools)
+
+        response = self._api_client.send_message(messages, tools)
+        for msg in response:
+            # Handle tool calls
+            if "tool_calls" in msg and msg["tool_calls"]:
+                self._handle_tool_calls_in_message(msg, response)
+            else:
+                content = msg.get("content", "")
+                self._session.add_message(msg["role"], content)
+                try:
+                    self._renderer.render_message(msg["role"], content)
+                except Exception as e:
+                    self._renderer.render_error(f"Failed to render message: {str(e)}")
+                    plain_content = content[:500] if content else ""
+                    print(f"\n{msg['role']}: {plain_content}")
+
     def run(self):
         """Main run loop."""
         self.init_session()
@@ -1403,28 +1430,7 @@ class Runtime:
                     }))
                     break
                 elif result == "message_processed" or result == "command_processed":
-                    # Process message with API
-                    messages = self._prepare_messages_with_context()
-                    allowed_tools = self._get_allowed_tools()
-                    tools = self._tool_registry.to_openai_format(allowed_tools)
-
-                    response = self._api_client.send_message(messages, tools)
-                    for msg in response:
-                        # Handle tool calls
-                        if "tool_calls" in msg and msg["tool_calls"]:
-                            self._handle_tool_calls_in_message(msg, response)
-                        else:
-                            # Regular message (no tool calls)
-                            content = msg.get("content", "")
-                            self._session.add_message(msg["role"], content)
-                            try:
-                                self._renderer.render_message(msg["role"], content)
-                            except Exception as e:
-                                # Fallback to plain text if rendering fails
-                                self._renderer.render_error(f"Failed to render message: {str(e)}")
-                                # Try showing first 500 chars as plain text
-                                plain_content = content[:500] if content else ""
-                                print(f"\n{msg['role']}: {plain_content}")
+                    self._run_one_turn()
                 else:
                     # Unknown command result
                     self._renderer.render_message("system", result)
