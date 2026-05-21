@@ -46,3 +46,17 @@ def init_runtime(
             _runtime._session.load_from_log(log_path)
 
     _runtime.init_session()
+
+
+@app.route("/api/session", methods=["GET"])
+def api_session():
+    """Return session metadata for frontend initialization."""
+    if _runtime is None:
+        return jsonify({"error": "Runtime not initialized"}), 500
+
+    return jsonify({
+        "session_id": _runtime._session_id,
+        "model": _runtime._config.api.model,
+        "provider": _runtime._config.api.provider,
+        "messages": _runtime._session.get_messages(),
+    })
