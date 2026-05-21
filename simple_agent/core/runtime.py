@@ -34,12 +34,21 @@ from simple_agent.tools.builtin.run_subagent import RunSubAgent
 
 
 class Runtime:
-    def __init__(self, config: Settings, log_file: Optional[str] = None, skip_api_init: bool = False):
+    def __init__(
+        self,
+        config: Settings,
+        log_file: Optional[str] = None,
+        skip_api_init: bool = False,
+        sink: Optional["OutputSink"] = None,
+    ):
         self._config = config
         self._event_bus = EventBus()
         self._session = Session()
         self._renderer = UIRenderer()
         self._session_id: Optional[str] = None
+        # Output sink: defaults to CliSink wrapping the renderer
+        from simple_agent.core.sinks import CliSink, OutputSink
+        self._sink: OutputSink = sink if sink is not None else CliSink(self._renderer)
         # Initialize HookContext singleton
         self._hook_context = HookContext()
         # Initialize prompt session with history for better input handling (especially for Chinese characters)
@@ -1118,51 +1127,15 @@ class Runtime:
                     try:
                         arguments = json.loads(arg_data)
                     except json.JSONDecodeError as e:
-                        self._renderer.render_error(f"Invalid arguments for {tool_name}: {e}")
+                        self._sink.on_error(f"Invalid arguments for {tool_name}: {e}")
                         arguments = {}
                 else:
                     arguments = {}
             else:
                 arguments = arg_data or {}
 
-            # Build args string for display (compact format)
-            args_str = ""
-            if arguments and isinstance(arguments, dict):
-                # Params that should never be truncated
-                no_truncate_keys = {"command"}
-                # Params to skip entirely
-                skip_keys = {"cwd", "timeout", "case_sensitive", "description", "metadata"}
-                # Priority order for display
-                priority_keys = ["subject", "command", "path", "task_id", "query", "skill_name", "agent_name"]
-                args_parts = []
-                shown_keys = set()
-                # Show priority keys first
-                for k in priority_keys:
-                    if k in arguments and k not in skip_keys:
-                        v_str = str(arguments[k])
-                        if k not in no_truncate_keys and len(v_str) > 30:
-                            v_str = v_str[:29] + "…"
-                        args_parts.append(f"{k}={v_str}")
-                        shown_keys.add(k)
-                # Then show remaining keys (up to 3 more)
-                for k, v in arguments.items():
-                    if k in shown_keys or k in skip_keys:
-                        continue
-                    if len(args_parts) >= 4:
-                        args_parts.append("…")
-                        break
-                    v_str = str(v)
-                    if len(v_str) > 20:
-                        v_str = v_str[:19] + "…"
-                    args_parts.append(f"{k}={v_str}")
-                if args_parts:
-                    args_str = '[' + ', '.join(args_parts) + ']'
-
-            # Print tool name and args before execution (no newline)
-            if args_str:
-                self._renderer.console.print(f"{tool_name} {escape(args_str)}", end="")
-            else:
-                self._renderer.console.print(f"{tool_name}", end="")
+            # Notify sink of tool start
+            self._sink.on_tool_start(tool_name, arguments, tool_call["id"])
 
             # Execute the tool
             result = self._tool_dispatcher.execute({
@@ -1182,14 +1155,10 @@ class Runtime:
                     subagent_agent_name=subagent_agent_name,
                 )
 
-            # Show completion status with checkmark (on same line, then newline)
+            # Notify sink of tool completion
             tool_result = result.get("result", result)
             success = tool_result.get("success", True)
-            status = "[bold green]✓[/bold green]" if success else "[bold red]✗[/bold red]"
-            self._renderer.console.print(f" {status}")  # Add space and status, then newline
-
-            # Render tool result to user in CLI
-            self._renderer.render_tool_result(tool_name, result, arguments)
+            self._sink.on_tool_end(tool_name, arguments, tool_call["id"], result, success)
 
             # Handle load_skill and load_agent tools specially
             # These tools are handled separately - content is added to session
@@ -1229,7 +1198,7 @@ class Runtime:
                 self._session.add_message("tool", tool_content, tool_call_id=tool_call["id"])
             else:
                 # Send message to user for load_skill/load_agent
-                self._renderer.render_message("system", result.get("message", ""))
+                self._sink.on_message("system", result.get("message", ""))
 
                 # Add skill/agent content to session as system message
                 # This ensures AI knows the skill/agent is loaded
@@ -1268,7 +1237,7 @@ class Runtime:
                 content = next_msg.get("content", "")
                 if not content:
                     content = "(工具执行完成，AI 无额外响应)"
-                self._renderer.render_message(next_msg["role"], content)
+                self._sink.on_message(next_msg["role"], content)
 
     def _prepare_messages_with_context(self) -> List[Dict[str, str]]:
         """Prepare messages with agent context, skills, and agents."""
@@ -1315,6 +1284,9 @@ class Runtime:
 
     def process_input(self, input: str) -> str:
         """Process user input."""
+        # Notify sink: turn is starting
+        self._sink.on_turn_start(input)
+
         # Check for slash commands
         command, args = self._parse_slash_command(input)
         if command:
@@ -1331,8 +1303,14 @@ class Runtime:
         }))
         return "message_processed"
 
-    def run(self):
-        """Main run loop."""
+    def init_session(self) -> None:
+        """Initialize a session: restore loaded skills/agents, generate session_id,
+        reset HookContext, log session start, publish SessionStart event.
+
+        Shared by both CLI run() and the Web entrypoint.
+        """
+        import uuid
+
         # Restore loaded skills/agents from session (if resuming)
         loaded_skills = self._session.get_loaded_skills()
         loaded_agents = self._session.get_loaded_agents()
@@ -1342,9 +1320,7 @@ class Runtime:
             self._loaded_agents.update(loaded_agents)
 
         # Generate session ID and log session start
-        import uuid
         self._session_id = str(uuid.uuid4())
-        # Reset HookContext for new session
         self._hook_context.reset(self._session_id)
         if self._logger:
             self._logger.log_session_start(self._session_id)
@@ -1354,8 +1330,38 @@ class Runtime:
             sys.stderr.write(f"[DEBUG] Publishing SessionStart event\n")
         self._event_bus.publish(Event("SessionStart", {
             "session_id": self._session_id,
-            "context": "startup"
+            "context": "startup",
         }))
+
+    def _run_one_turn(self) -> None:
+        """Send current session messages to API and process the response.
+
+        Handles tool_calls recursively (delegated to _handle_tool_calls_in_message).
+        For a plain-text response, adds it to session and renders.
+
+        Shared by both CLI run() loop and Web /api/turn handler.
+        """
+        try:
+            messages = self._prepare_messages_with_context()
+            allowed_tools = self._get_allowed_tools()
+            tools = self._tool_registry.to_openai_format(allowed_tools)
+
+            response = self._api_client.send_message(messages, tools)
+            for msg in response:
+                # Handle tool calls
+                if "tool_calls" in msg and msg["tool_calls"]:
+                    self._handle_tool_calls_in_message(msg, response)
+                else:
+                    content = msg.get("content", "")
+                    self._session.add_message(msg["role"], content)
+                    self._sink.on_message(msg["role"], content)
+        finally:
+            # Turn finished - always emit, even on exception
+            self._sink.on_turn_end()
+
+    def run(self):
+        """Main run loop."""
+        self.init_session()
 
         self._renderer.render_message("system", "Simple Agent started. Type /help for commands.")
 
@@ -1395,28 +1401,7 @@ class Runtime:
                     }))
                     break
                 elif result == "message_processed" or result == "command_processed":
-                    # Process message with API
-                    messages = self._prepare_messages_with_context()
-                    allowed_tools = self._get_allowed_tools()
-                    tools = self._tool_registry.to_openai_format(allowed_tools)
-
-                    response = self._api_client.send_message(messages, tools)
-                    for msg in response:
-                        # Handle tool calls
-                        if "tool_calls" in msg and msg["tool_calls"]:
-                            self._handle_tool_calls_in_message(msg, response)
-                        else:
-                            # Regular message (no tool calls)
-                            content = msg.get("content", "")
-                            self._session.add_message(msg["role"], content)
-                            try:
-                                self._renderer.render_message(msg["role"], content)
-                            except Exception as e:
-                                # Fallback to plain text if rendering fails
-                                self._renderer.render_error(f"Failed to render message: {str(e)}")
-                                # Try showing first 500 chars as plain text
-                                plain_content = content[:500] if content else ""
-                                print(f"\n{msg['role']}: {plain_content}")
+                    self._run_one_turn()
                 else:
                     # Unknown command result
                     self._renderer.render_message("system", result)
