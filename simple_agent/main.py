@@ -93,6 +93,12 @@ def main():
         run_web_server()
         return
 
+    # Check for --web-chat flag (interactive chat UI)
+    if "--web-chat" in sys.argv:
+        sys.argv.remove("--web-chat")
+        run_chat_server()
+        return
+
     # Parse command line arguments
     parser = argparse.ArgumentParser(description='Simple Agent - Claude Code-like CLI tool')
     parser.add_argument('-p', '--plugin', type=str,
@@ -156,6 +162,44 @@ def run_web_server():
     except ImportError:
         print("Error: Flask is not installed. Install with: pip install flask flask-cors")
         sys.exit(1)
+
+
+def run_chat_server():
+    """Run the interactive web chat server."""
+    parser = argparse.ArgumentParser(description="Simple Agent Web Chat")
+    parser.add_argument("-p", "--plugin", type=str,
+                        help="Plugin directory (default: ./plugins/default)")
+    parser.add_argument("--resume", nargs="?", const="auto",
+                        help="Resume from latest log file or specified log file")
+    parser.add_argument("--port", type=int, default=5002,
+                        help="Port to listen on (default: 5002)")
+    args = parser.parse_args()
+
+    resume_log = None
+    if args.resume == "auto":
+        latest = get_latest_log_file()
+        if latest:
+            resume_log = str(latest)
+    elif args.resume:
+        resume_log = args.resume
+
+    config = load_config(plugin_dir=args.plugin)
+    if not config.api.api_key:
+        print("Error: No API key found. Set OPENAI_API_KEY or ANTHROPIC_API_KEY.")
+        sys.exit(1)
+
+    try:
+        from simple_agent.web.chat_server import init_runtime, app
+    except ImportError:
+        print("Error: Flask is not installed. Run: pip install -e .")
+        sys.exit(1)
+
+    init_runtime(config, resume_log=resume_log)
+    print(f"Simple Agent Web Chat: http://localhost:{args.port}")
+    if resume_log:
+        print(f"Resumed from: {resume_log}")
+    print("Press Ctrl+C to stop the server")
+    app.run(host="127.0.0.1", port=args.port, debug=False)
 
 
 if __name__ == "__main__":
