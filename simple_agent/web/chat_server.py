@@ -99,6 +99,7 @@ def api_turn():
                 _sink.on_error(f"{type(e).__name__}: {e}")
             finally:
                 _sink.on_turn_end()
+                _sink._event_callback = None  # Clean up callback
                 event_queue.put(None)  # sentinel: turn finished
 
     thread = threading.Thread(target=run_turn, daemon=True)
