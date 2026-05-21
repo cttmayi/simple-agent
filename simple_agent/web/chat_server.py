@@ -108,3 +108,47 @@ def api_sidebar():
         "available_skills": _runtime._skill_loader.list_skills(),
         "available_agents": _runtime._agent_loader.list_agents(),
     })
+
+
+@app.route("/api/logs", methods=["GET"])
+def api_logs():
+    """List available log files for resume, sorted by mtime descending."""
+    if _runtime is None:
+        return jsonify({"error": "Runtime not initialized"}), 500
+
+    log_dir_str = _runtime._config.logging.log_dir
+    log_dir = Path(log_dir_str) if log_dir_str else Path.cwd() / ".simple-agent" / "logs"
+
+    logs = []
+    if log_dir.exists():
+        files = sorted(
+            log_dir.glob("*.jsonl"),
+            key=lambda f: f.stat().st_mtime,
+            reverse=True,
+        )
+        logs = [{"path": str(f), "name": f.name} for f in files]
+
+    return jsonify({"logs": logs})
+
+
+@app.route("/api/resume", methods=["POST"])
+def api_resume():
+    """Replace the singleton Runtime with a new one resumed from the given log file."""
+    if _runtime is None:
+        return jsonify({"error": "Runtime not initialized"}), 500
+
+    payload = request.get_json(silent=True) or {}
+    log_file = payload.get("log_file")
+    if not log_file:
+        return jsonify({"error": "Missing log_file"}), 400
+
+    log_path = Path(log_file)
+    if not log_path.exists():
+        return jsonify({"error": "Log file not found"}), 404
+
+    with _runtime_lock:
+        config = _runtime._config
+        skip = _runtime._api_client is None
+        init_runtime(config, resume_log=str(log_path), skip_api_init=skip)
+
+    return jsonify({"session_id": _runtime._session_id})

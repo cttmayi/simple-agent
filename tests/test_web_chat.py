@@ -172,3 +172,51 @@ def test_api_sidebar_returns_structured_data(tmpcwd):
     assert isinstance(data["loaded_skills"], list)
     assert isinstance(data["available_skills"], list)
     assert isinstance(data["available_agents"], list)
+
+
+def test_api_logs_returns_list(tmpcwd):
+    from simple_agent.web import chat_server
+
+    config = Settings()
+    chat_server.init_runtime(config, skip_api_init=True)
+
+    log_dir = tmpcwd / ".simple-agent" / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    (log_dir / "llm-20260520-101010.jsonl").write_text("")
+    (log_dir / "llm-20260519-101010.jsonl").write_text("")
+
+    client = chat_server.app.test_client()
+    resp = client.get("/api/logs")
+
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert "logs" in data
+    # At least our 2 test files should be present (init may create an active log too)
+    names = [entry["name"] for entry in data["logs"]]
+    assert "llm-20260520-101010.jsonl" in names
+    assert "llm-20260519-101010.jsonl" in names
+    assert all("path" in entry and "name" in entry for entry in data["logs"])
+
+
+def test_api_resume_replaces_runtime(tmpcwd):
+    from simple_agent.web import chat_server
+
+    log_dir = tmpcwd / ".simple-agent" / "logs"
+    log_dir.mkdir(parents=True)
+    log_file = log_dir / "llm-20260520-101010.jsonl"
+    log_file.write_text(
+        '{"type": "session_start", "session_id": "old-sess"}\n'
+        '{"type": "message", "role": "user", "content": "resumed hi"}\n'
+    )
+
+    config = Settings()
+    chat_server.init_runtime(config, skip_api_init=True)
+    old_runtime_id = id(chat_server._runtime)
+
+    client = chat_server.app.test_client()
+    resp = client.post("/api/resume", json={"log_file": str(log_file)})
+
+    assert resp.status_code == 200
+    assert id(chat_server._runtime) != old_runtime_id
+    messages = chat_server._runtime._session.get_messages()
+    assert any(m.get("content") == "resumed hi" for m in messages)
