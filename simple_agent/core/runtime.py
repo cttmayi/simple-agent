@@ -34,12 +34,21 @@ from simple_agent.tools.builtin.run_subagent import RunSubAgent
 
 
 class Runtime:
-    def __init__(self, config: Settings, log_file: Optional[str] = None, skip_api_init: bool = False):
+    def __init__(
+        self,
+        config: Settings,
+        log_file: Optional[str] = None,
+        skip_api_init: bool = False,
+        sink: Optional["OutputSink"] = None,
+    ):
         self._config = config
         self._event_bus = EventBus()
         self._session = Session()
         self._renderer = UIRenderer()
         self._session_id: Optional[str] = None
+        # Output sink: defaults to CliSink wrapping the renderer
+        from simple_agent.core.sinks import CliSink, OutputSink
+        self._sink: OutputSink = sink if sink is not None else CliSink(self._renderer)
         # Initialize HookContext singleton
         self._hook_context = HookContext()
         # Initialize prompt session with history for better input handling (especially for Chinese characters)

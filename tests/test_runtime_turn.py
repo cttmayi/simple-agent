@@ -81,3 +81,24 @@ def test_run_one_turn_calls_api_and_renders_response():
             runtime._renderer.render_message.assert_any_call("assistant", "Hello, world!")
     finally:
         os.chdir(old_cwd)
+
+
+def test_runtime_has_default_cli_sink():
+    """Runtime 默认应当持有 CliSink 实例。"""
+    from simple_agent.core.sinks import CliSink
+
+    config = Settings()
+    runtime = Runtime(config, skip_api_init=True)
+
+    assert isinstance(runtime._sink, CliSink)
+
+
+def test_runtime_accepts_custom_sink():
+    """Runtime 应该接受注入的 sink。"""
+    from simple_agent.core.sinks import WebTurnSink
+
+    config = Settings()
+    custom_sink = WebTurnSink()
+    runtime = Runtime(config, skip_api_init=True, sink=custom_sink)
+
+    assert runtime._sink is custom_sink
