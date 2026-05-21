@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Simple Agent - Chat</title>
+  <link rel="stylesheet" href="/static/chat.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/atom-one-dark.min.css">
+</head>
+<body>
+  <header id="app-header">
+    <div class="header-left">
+      <span class="brand">Simple Agent</span>
+      <span class="meta">session: <span id="session-id">—</span></span>
+      <span class="meta">model: <span id="model-name">—</span></span>
+    </div>
+    <div class="header-right">
+      <button id="resume-btn" title="从日志恢复">⟳ 恢复</button>
+    </div>
+  </header>
+
+  <div id="app-body">
+    <aside id="sidebar">
+      <section>
+        <h3>TODOs</h3>
+        <ul id="todo-list"><li class="empty">无</li></ul>
+      </section>
+      <section>
+        <h3>已加载 Skills</h3>
+        <ul id="loaded-skills-list"><li class="empty">无</li></ul>
+      </section>
+      <section>
+        <h3>可用 Skills</h3>
+        <ul id="available-skills-list"><li class="empty">无</li></ul>
+      </section>
+      <section>
+        <h3>可用 Agents</h3>
+        <ul id="available-agents-list"><li class="empty">无</li></ul>
+      </section>
+    </aside>
+
+    <main id="chat-area">
+      <div id="messages"></div>
+      <form id="input-form">
+        <textarea id="input-box" placeholder="输入消息或 /help 查看命令... (Ctrl/Cmd+Enter 发送)" rows="3"></textarea>
+        <button type="submit" id="send-btn">发送</button>
+      </form>
+    </main>
+  </div>
+
+  <div id="resume-dialog" class="dialog hidden">
+    <div class="dialog-content">
+      <h3>选择日志恢复</h3>
+      <ul id="log-file-list"></ul>
+      <button id="resume-cancel">取消</button>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/highlight.min.js"></script>
+  <script src="/static/chat.js"></script>
+</body>
+</html>

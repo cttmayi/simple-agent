@@ -220,3 +220,17 @@ def test_api_resume_replaces_runtime(tmpcwd):
     assert id(chat_server._runtime) != old_runtime_id
     messages = chat_server._runtime._session.get_messages()
     assert any(m.get("content") == "resumed hi" for m in messages)
+
+
+def test_index_serves_chat_html(tmpcwd):
+    from simple_agent.web import chat_server
+
+    config = Settings()
+    chat_server.init_runtime(config, skip_api_init=True)
+
+    client = chat_server.app.test_client()
+    resp = client.get("/")
+
+    assert resp.status_code == 200
+    assert b"Simple Agent" in resp.data
+    assert b"chat.js" in resp.data

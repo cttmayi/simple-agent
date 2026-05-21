@@ -19,8 +19,8 @@ _runtime: Optional[Runtime] = None
 _sink: Optional[WebTurnSink] = None
 _runtime_lock = threading.Lock()
 
-# Flask app
-app = Flask(__name__)
+# Flask app (disable default static folder; we register our own /static route)
+app = Flask(__name__, static_folder=None)
 CORS(app)
 
 
@@ -152,3 +152,16 @@ def api_resume():
         init_runtime(config, resume_log=str(log_path), skip_api_init=skip)
 
     return jsonify({"session_id": _runtime._session_id})
+
+
+_STATIC_DIR = Path(__file__).parent / "static"
+
+
+@app.route("/")
+def index():
+    return send_from_directory(str(_STATIC_DIR), "chat.html")
+
+
+@app.route("/static/<path:filename>")
+def static_file(filename: str):
+    return send_from_directory(str(_STATIC_DIR), filename)
