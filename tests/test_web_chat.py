@@ -71,3 +71,83 @@ def test_api_session_includes_existing_messages(tmpcwd):
     assert len(data["messages"]) == 2
     assert data["messages"][0]["role"] == "user"
     assert data["messages"][1]["role"] == "assistant"
+
+
+def test_api_turn_returns_events_for_plain_message(tmpcwd):
+    from simple_agent.web import chat_server
+
+    config = Settings()
+    chat_server.init_runtime(config, skip_api_init=True)
+    chat_server._runtime._api_client = MagicMock()
+    chat_server._runtime._api_client.send_message.return_value = [
+        {"role": "assistant", "content": "Hi there!"}
+    ]
+
+    client = chat_server.app.test_client()
+    resp = client.post("/api/turn", json={"input": "hello"})
+
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert "events" in data
+    types = [e["type"] for e in data["events"]]
+    assert "turn_start" in types
+    assert "message" in types
+    assert "turn_end" in types
+    msg = next(e for e in data["events"] if e["type"] == "message")
+    assert msg["content"] == "Hi there!"
+    assert data["session_id"] == chat_server._runtime._session_id
+
+
+def test_api_turn_clears_events_between_turns(tmpcwd):
+    from simple_agent.web import chat_server
+
+    config = Settings()
+    chat_server.init_runtime(config, skip_api_init=True)
+    chat_server._runtime._api_client = MagicMock()
+    chat_server._runtime._api_client.send_message.return_value = [
+        {"role": "assistant", "content": "ok"}
+    ]
+
+    client = chat_server.app.test_client()
+    data1 = client.post("/api/turn", json={"input": "first"}).get_json()
+    data2 = client.post("/api/turn", json={"input": "second"}).get_json()
+
+    first_inputs = [e for e in data2["events"] if e.get("user_input") == "first"]
+    assert len(first_inputs) == 0
+    second_inputs = [e for e in data2["events"] if e.get("user_input") == "second"]
+    assert len(second_inputs) == 1
+
+
+def test_api_turn_handles_slash_command(tmpcwd):
+    from simple_agent.web import chat_server
+
+    config = Settings()
+    chat_server.init_runtime(config, skip_api_init=True)
+
+    client = chat_server.app.test_client()
+    resp = client.post("/api/turn", json={"input": "/help"})
+
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert any(
+        e["type"] == "message" and "Available Commands" in e.get("content", "")
+        for e in data["events"]
+    )
+
+
+def test_api_turn_handles_exception_via_sink_error(tmpcwd):
+    from simple_agent.web import chat_server
+
+    config = Settings()
+    chat_server.init_runtime(config, skip_api_init=True)
+    chat_server._runtime._api_client = MagicMock()
+    chat_server._runtime._api_client.send_message.side_effect = RuntimeError("boom")
+
+    client = chat_server.app.test_client()
+    resp = client.post("/api/turn", json={"input": "hi"})
+
+    assert resp.status_code == 200
+    data = resp.get_json()
+    error_events = [e for e in data["events"] if e["type"] == "error"]
+    assert len(error_events) == 1
+    assert "boom" in error_events[0]["message"]

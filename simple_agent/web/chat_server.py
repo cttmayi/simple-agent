@@ -60,3 +60,35 @@ def api_session():
         "provider": _runtime._config.api.provider,
         "messages": _runtime._session.get_messages(),
     })
+
+
+@app.route("/api/turn", methods=["POST"])
+def api_turn():
+    """Execute one conversation turn synchronously."""
+    if _runtime is None or _sink is None:
+        return jsonify({"error": "Runtime not initialized"}), 500
+
+    payload = request.get_json(silent=True) or {}
+    user_input = payload.get("input", "")
+
+    with _runtime_lock:
+        _sink.events.clear()
+        try:
+            result = _runtime.process_input(user_input)
+            if result in ("message_processed", "command_processed"):
+                _runtime._run_one_turn()
+            elif result == "exit":
+                _sink.on_message("system", "Session ended.")
+            else:
+                _sink.on_message("system", result)
+        except HookBlockedException as e:
+            _sink.on_message("system", f"[BLOCKED] {e}")
+        except Exception as e:
+            _sink.on_error(f"{type(e).__name__}: {e}")
+
+        events = list(_sink.events)
+
+    return jsonify({
+        "events": events,
+        "session_id": _runtime._session_id,
+    })
