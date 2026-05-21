@@ -142,3 +142,21 @@ def test_web_sink_events_can_be_cleared():
     assert sink.events == [
         {"type": "message", "role": "assistant", "content": "second"}
     ]
+
+
+def test_web_sink_callback_is_called_on_each_event():
+    callback = MagicMock()
+    sink = WebTurnSink(event_callback=callback)
+
+    sink.on_message("assistant", "hi")
+    sink.on_tool_start("READ", {"path": "/x"}, "c1")
+    sink.on_tool_end("READ", {"path": "/x"}, "c1", {"success": True}, True)
+    sink.on_error("boom")
+    sink.on_turn_start("hello")
+    sink.on_turn_end()
+    sink.on_status("skill_loaded", {"name": "x"})
+
+    assert callback.call_count == 7
+    # Verify callback receives same dict as in events list
+    for i, call in enumerate(callback.call_args_list):
+        assert call[0][0] == sink.events[i]

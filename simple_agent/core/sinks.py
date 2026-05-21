@@ -87,19 +87,29 @@ class CliSink:
 
 
 class WebTurnSink:
-    """OutputSink implementation that accumulates events into a list for HTTP return."""
+    """OutputSink implementation that accumulates events into a list for HTTP return.
 
-    def __init__(self):
+    When event_callback is provided, each event is also passed to the callback
+    immediately (used by SSE streaming). Without callback, behavior is unchanged.
+    """
+
+    def __init__(self, event_callback=None):
         self.events: list[dict] = []
+        self._event_callback = event_callback
+
+    def _emit(self, event: dict):
+        self.events.append(event)
+        if self._event_callback:
+            self._event_callback(event)
 
     def on_message(self, role: str, content: str) -> None:
-        self.events.append({"type": "message", "role": role, "content": content})
+        self._emit({"type": "message", "role": role, "content": content})
 
     def on_error(self, message: str) -> None:
-        self.events.append({"type": "error", "message": message})
+        self._emit({"type": "error", "message": message})
 
     def on_tool_start(self, tool_name: str, arguments: dict, call_id: str) -> None:
-        self.events.append({
+        self._emit({
             "type": "tool_start",
             "tool_name": tool_name,
             "arguments": arguments,
@@ -110,7 +120,7 @@ class WebTurnSink:
         self, tool_name: str, arguments: dict, call_id: str,
         result: dict, success: bool,
     ) -> None:
-        self.events.append({
+        self._emit({
             "type": "tool_end",
             "tool_name": tool_name,
             "arguments": arguments,
@@ -120,10 +130,10 @@ class WebTurnSink:
         })
 
     def on_turn_start(self, user_input: str) -> None:
-        self.events.append({"type": "turn_start", "user_input": user_input})
+        self._emit({"type": "turn_start", "user_input": user_input})
 
     def on_turn_end(self) -> None:
-        self.events.append({"type": "turn_end"})
+        self._emit({"type": "turn_end"})
 
     def on_status(self, kind: str, data: dict) -> None:
-        self.events.append({"type": "status", "kind": kind, "data": data})
+        self._emit({"type": "status", "kind": kind, "data": data})
