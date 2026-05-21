@@ -199,7 +199,7 @@ def run_chat_server():
     if resume_log:
         print(f"Resumed from: {resume_log}")
     print("Press Ctrl+C to stop the server")
-    app.run(host="127.0.0.1", port=args.port, debug=False)
+    app.run(host="127.0.0.1", port=args.port, debug=False, threaded=True)
 
 
 if __name__ == "__main__":
