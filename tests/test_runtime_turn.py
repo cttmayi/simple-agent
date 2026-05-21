@@ -102,3 +102,56 @@ def test_runtime_accepts_custom_sink():
     runtime = Runtime(config, skip_api_init=True, sink=custom_sink)
 
     assert runtime._sink is custom_sink
+
+
+def test_run_one_turn_routes_tool_calls_through_sink():
+    """_run_one_turn() 在执行 tool_calls 时应触发 sink.on_tool_start / on_tool_end。"""
+    from simple_agent.core.sinks import WebTurnSink
+
+    old_cwd = os.getcwd()
+    try:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            os.chdir(tmpdir)
+            config = Settings()
+            sink = WebTurnSink()
+            runtime = Runtime(config, skip_api_init=True, sink=sink)
+            runtime.init_session()
+
+            # Mock api_client：第一次返回 tool_calls，第二次返回最终消息
+            runtime._api_client = MagicMock()
+            runtime._api_client.send_message.side_effect = [
+                [{
+                    "role": "assistant",
+                    "content": "",
+                    "tool_calls": [{
+                        "id": "call_1",
+                        "function": {
+                            "name": "Bash",
+                            "arguments": '{"command": "echo hi"}',
+                        },
+                    }],
+                }],
+                [{"role": "assistant", "content": "Done"}],
+            ]
+
+            # Mock tool dispatcher
+            runtime._tool_dispatcher = MagicMock()
+            runtime._tool_dispatcher.execute.return_value = {
+                "success": True,
+                "stdout": "hi",
+            }
+
+            runtime._session.add_message("user", "run echo")
+            runtime._run_one_turn()
+
+            # 验证 sink 收到了 tool_start 和 tool_end 事件
+            types = [e["type"] for e in sink.events]
+            assert "tool_start" in types
+            assert "tool_end" in types
+            tool_start_event = next(e for e in sink.events if e["type"] == "tool_start")
+            assert tool_start_event["tool_name"] == "Bash"
+            assert tool_start_event["call_id"] == "call_1"
+            tool_end_event = next(e for e in sink.events if e["type"] == "tool_end")
+            assert tool_end_event["success"] is True
+    finally:
+        os.chdir(old_cwd)

@@ -1134,44 +1134,8 @@ class Runtime:
             else:
                 arguments = arg_data or {}
 
-            # Build args string for display (compact format)
-            args_str = ""
-            if arguments and isinstance(arguments, dict):
-                # Params that should never be truncated
-                no_truncate_keys = {"command"}
-                # Params to skip entirely
-                skip_keys = {"cwd", "timeout", "case_sensitive", "description", "metadata"}
-                # Priority order for display
-                priority_keys = ["subject", "command", "path", "task_id", "query", "skill_name", "agent_name"]
-                args_parts = []
-                shown_keys = set()
-                # Show priority keys first
-                for k in priority_keys:
-                    if k in arguments and k not in skip_keys:
-                        v_str = str(arguments[k])
-                        if k not in no_truncate_keys and len(v_str) > 30:
-                            v_str = v_str[:29] + "…"
-                        args_parts.append(f"{k}={v_str}")
-                        shown_keys.add(k)
-                # Then show remaining keys (up to 3 more)
-                for k, v in arguments.items():
-                    if k in shown_keys or k in skip_keys:
-                        continue
-                    if len(args_parts) >= 4:
-                        args_parts.append("…")
-                        break
-                    v_str = str(v)
-                    if len(v_str) > 20:
-                        v_str = v_str[:19] + "…"
-                    args_parts.append(f"{k}={v_str}")
-                if args_parts:
-                    args_str = '[' + ', '.join(args_parts) + ']'
-
-            # Print tool name and args before execution (no newline)
-            if args_str:
-                self._renderer.console.print(f"{tool_name} {escape(args_str)}", end="")
-            else:
-                self._renderer.console.print(f"{tool_name}", end="")
+            # Notify sink of tool start
+            self._sink.on_tool_start(tool_name, arguments, tool_call["id"])
 
             # Execute the tool
             result = self._tool_dispatcher.execute({
@@ -1191,14 +1155,10 @@ class Runtime:
                     subagent_agent_name=subagent_agent_name,
                 )
 
-            # Show completion status with checkmark (on same line, then newline)
+            # Notify sink of tool completion
             tool_result = result.get("result", result)
             success = tool_result.get("success", True)
-            status = "[bold green]✓[/bold green]" if success else "[bold red]✗[/bold red]"
-            self._renderer.console.print(f" {status}")  # Add space and status, then newline
-
-            # Render tool result to user in CLI
-            self._renderer.render_tool_result(tool_name, result, arguments)
+            self._sink.on_tool_end(tool_name, arguments, tool_call["id"], result, success)
 
             # Handle load_skill and load_agent tools specially
             # These tools are handled separately - content is added to session
@@ -1277,7 +1237,7 @@ class Runtime:
                 content = next_msg.get("content", "")
                 if not content:
                     content = "(工具执行完成，AI 无额外响应)"
-                self._renderer.render_message(next_msg["role"], content)
+                self._sink.on_message(next_msg["role"], content)
 
     def _prepare_messages_with_context(self) -> List[Dict[str, str]]:
         """Prepare messages with agent context, skills, and agents."""
