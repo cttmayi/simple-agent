@@ -92,3 +92,19 @@ def api_turn():
         "events": events,
         "session_id": _runtime._session_id,
     })
+
+
+@app.route("/api/sidebar", methods=["GET"])
+def api_sidebar():
+    """Return sidebar data: todos, loaded skills, available skills/agents."""
+    if _runtime is None:
+        return jsonify({"error": "Runtime not initialized"}), 500
+
+    todos = _runtime._todo_manager.get_all_tasks() if _runtime._todo_manager else []
+
+    return jsonify({
+        "todos": todos,
+        "loaded_skills": sorted(_runtime._loaded_skills),
+        "available_skills": _runtime._skill_loader.list_skills(),
+        "available_agents": _runtime._agent_loader.list_agents(),
+    })

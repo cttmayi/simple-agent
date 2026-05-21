@@ -151,3 +151,24 @@ def test_api_turn_handles_exception_via_sink_error(tmpcwd):
     error_events = [e for e in data["events"] if e["type"] == "error"]
     assert len(error_events) == 1
     assert "boom" in error_events[0]["message"]
+
+
+def test_api_sidebar_returns_structured_data(tmpcwd):
+    from simple_agent.web import chat_server
+
+    config = Settings()
+    chat_server.init_runtime(config, skip_api_init=True)
+
+    client = chat_server.app.test_client()
+    resp = client.get("/api/sidebar")
+
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert "todos" in data
+    assert "loaded_skills" in data
+    assert "available_skills" in data
+    assert "available_agents" in data
+    assert isinstance(data["todos"], list)
+    assert isinstance(data["loaded_skills"], list)
+    assert isinstance(data["available_skills"], list)
+    assert isinstance(data["available_agents"], list)
