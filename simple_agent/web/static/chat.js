@@ -132,8 +132,36 @@ async function sendTurn(input) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ input }),
     });
-    const data = await resp.json();
-    for (const ev of (data.events || [])) renderEvent(ev);
+
+    if (!resp.ok) {
+      const err = await resp.json();
+      appendError(`Error: ${err.error || resp.statusText}`);
+      return;
+    }
+
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      const parts = buffer.split('\n\n');
+      buffer = parts.pop();
+      for (const part of parts) {
+        const line = part.trim();
+        if (!line.startsWith('data: ')) continue;
+        try {
+          const event = JSON.parse(line.slice(6));
+          if (event.type === 'turn_done') continue;
+          renderEvent(event);
+        } catch (e) {
+          console.warn('Failed to parse SSE event', line, e);
+        }
+      }
+    }
     refreshSidebar();
   } catch (e) {
     appendError(`Request failed: ${e.message || e}`);
