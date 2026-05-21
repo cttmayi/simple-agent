@@ -2,10 +2,12 @@
 
 Single-session model: one Runtime instance shared by all browser tabs.
 """
+import json
+import queue
 import threading
 from pathlib import Path
 from typing import Optional
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, jsonify, request, send_from_directory, Response, stream_with_context
 from flask_cors import CORS
 
 from simple_agent.config.settings import Settings
@@ -64,7 +66,7 @@ def api_session():
 
 @app.route("/api/turn", methods=["POST"])
 def api_turn():
-    """Execute one conversation turn synchronously."""
+    """Execute one conversation turn, streaming events via SSE."""
     if _runtime is None or _sink is None:
         return jsonify({"error": "Runtime not initialized"}), 500
 
@@ -74,27 +76,47 @@ def api_turn():
     if not user_input.strip():
         return jsonify({"error": "empty input"}), 400
 
-    with _runtime_lock:
-        _sink.events.clear()
-        try:
-            result = _runtime.process_input(user_input)
-            if result in ("message_processed", "command_processed"):
-                _runtime._run_one_turn()
-            elif result == "exit":
-                _sink.on_message("system", "Session ended.")
-            else:
-                _sink.on_message("system", result)
-        except HookBlockedException as e:
-            _sink.on_message("system", f"[BLOCKED] {e}")
-        except Exception as e:
-            _sink.on_error(f"{type(e).__name__}: {e}")
+    event_queue: queue.Queue = queue.Queue()
 
-        events = list(_sink.events)
+    def on_event(event: dict):
+        event_queue.put(event)
 
-    return jsonify({
-        "events": events,
-        "session_id": _runtime._session_id,
-    })
+    def run_turn():
+        with _runtime_lock:
+            _sink.events.clear()
+            _sink._event_callback = on_event
+            try:
+                result = _runtime.process_input(user_input)
+                if result in ("message_processed", "command_processed"):
+                    _runtime._run_one_turn()
+                elif result == "exit":
+                    _sink.on_message("system", "Session ended.")
+                else:
+                    _sink.on_message("system", result)
+            except HookBlockedException as e:
+                _sink.on_message("system", f"[BLOCKED] {e}")
+            except Exception as e:
+                _sink.on_error(f"{type(e).__name__}: {e}")
+            finally:
+                _sink.on_turn_end()
+                event_queue.put(None)  # sentinel: turn finished
+
+    thread = threading.Thread(target=run_turn, daemon=True)
+    thread.start()
+
+    def generate():
+        while True:
+            event = event_queue.get()
+            if event is None:
+                yield f"data: {json.dumps({'type': 'turn_done', 'session_id': _runtime._session_id})}\n\n"
+                break
+            yield f"data: {json.dumps(event)}\n\n"
+
+    return Response(
+        stream_with_context(generate()),
+        mimetype="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @app.route("/api/sidebar", methods=["GET"])
