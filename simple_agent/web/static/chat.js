@@ -157,6 +157,112 @@ inputBox.addEventListener('keydown', (e) => {
   }
 });
 
-function refreshSidebar() {}
+async function refreshSidebar() {
+  try {
+    const resp = await fetch('/api/sidebar');
+    const data = await resp.json();
+    renderTodoList(data.todos || []);
+    renderSimpleList('loaded-skills-list', data.loaded_skills || [], (s) => s);
+    renderSimpleList(
+      'available-skills-list',
+      data.available_skills || [],
+      (s) => `<strong>${escapeHtml(s.name)}</strong>: ${escapeHtml(s.description || '')}`,
+      true,
+    );
+    renderSimpleList(
+      'available-agents-list',
+      data.available_agents || [],
+      (a) => `<strong>${escapeHtml(a.name)}</strong>: ${escapeHtml(a.description || '')}`,
+      true,
+    );
+  } catch (e) {
+    console.warn('refreshSidebar failed', e);
+  }
+}
 
+function renderTodoList(todos) {
+  const ul = $('todo-list');
+  if (!todos.length) {
+    ul.innerHTML = '<li class="empty">无</li>';
+    return;
+  }
+  ul.innerHTML = '';
+  for (const t of todos) {
+    const li = document.createElement('li');
+    const status = t.status || 'pending';
+    const icon = { completed: '✓', in_progress: '⚙', pending: '◯', blocked: '🚫' }[status] || '◯';
+    li.innerHTML = `<span class="todo-status todo-${status}">${icon}</span> ${escapeHtml(t.subject || '')}`;
+    ul.appendChild(li);
+  }
+}
+
+function renderSimpleList(elId, items, render, isHtml = false) {
+  const ul = $(elId);
+  if (!items.length) {
+    ul.innerHTML = '<li class="empty">无</li>';
+    return;
+  }
+  ul.innerHTML = '';
+  for (const item of items) {
+    const li = document.createElement('li');
+    const content = render(item);
+    if (isHtml) li.innerHTML = content;
+    else li.textContent = content;
+    ul.appendChild(li);
+  }
+}
+
+// Resume dialog
+const resumeBtn = $('resume-btn');
+const resumeDialog = $('resume-dialog');
+const logFileList = $('log-file-list');
+const resumeCancel = $('resume-cancel');
+
+resumeBtn.addEventListener('click', async () => {
+  try {
+    const resp = await fetch('/api/logs');
+    const data = await resp.json();
+    logFileList.innerHTML = '';
+    if (!data.logs || !data.logs.length) {
+      logFileList.innerHTML = '<li class="empty">无可用日志</li>';
+    } else {
+      for (const log of data.logs) {
+        const li = document.createElement('li');
+        li.textContent = log.name;
+        li.addEventListener('click', () => doResume(log.path));
+        logFileList.appendChild(li);
+      }
+    }
+    resumeDialog.classList.remove('hidden');
+  } catch (e) {
+    appendError(`Load logs failed: ${e.message || e}`);
+  }
+});
+
+resumeCancel.addEventListener('click', () => {
+  resumeDialog.classList.add('hidden');
+});
+
+async function doResume(logPath) {
+  resumeDialog.classList.add('hidden');
+  try {
+    const resp = await fetch('/api/resume', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ log_file: logPath }),
+    });
+    if (!resp.ok) {
+      const err = await resp.json();
+      appendError(`Resume failed: ${err.error}`);
+      return;
+    }
+    await loadSession();
+    await refreshSidebar();
+  } catch (e) {
+    appendError(`Resume failed: ${e.message || e}`);
+  }
+}
+
+// Boot
 loadSession();
+refreshSidebar();
