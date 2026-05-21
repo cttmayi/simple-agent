@@ -1331,8 +1331,14 @@ class Runtime:
         }))
         return "message_processed"
 
-    def run(self):
-        """Main run loop."""
+    def init_session(self) -> None:
+        """Initialize a session: restore loaded skills/agents, generate session_id,
+        reset HookContext, log session start, publish SessionStart event.
+
+        Shared by both CLI run() and the Web entrypoint.
+        """
+        import uuid
+
         # Restore loaded skills/agents from session (if resuming)
         loaded_skills = self._session.get_loaded_skills()
         loaded_agents = self._session.get_loaded_agents()
@@ -1342,9 +1348,7 @@ class Runtime:
             self._loaded_agents.update(loaded_agents)
 
         # Generate session ID and log session start
-        import uuid
         self._session_id = str(uuid.uuid4())
-        # Reset HookContext for new session
         self._hook_context.reset(self._session_id)
         if self._logger:
             self._logger.log_session_start(self._session_id)
@@ -1354,8 +1358,12 @@ class Runtime:
             sys.stderr.write(f"[DEBUG] Publishing SessionStart event\n")
         self._event_bus.publish(Event("SessionStart", {
             "session_id": self._session_id,
-            "context": "startup"
+            "context": "startup",
         }))
+
+    def run(self):
+        """Main run loop."""
+        self.init_session()
 
         self._renderer.render_message("system", "Simple Agent started. Type /help for commands.")
 
