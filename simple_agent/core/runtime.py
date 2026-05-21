@@ -1284,6 +1284,9 @@ class Runtime:
 
     def process_input(self, input: str) -> str:
         """Process user input."""
+        # Notify sink: turn is starting
+        self._sink.on_turn_start(input)
+
         # Check for slash commands
         command, args = self._parse_slash_command(input)
         if command:
@@ -1356,6 +1359,9 @@ class Runtime:
                     self._renderer.render_error(f"Failed to render message: {str(e)}")
                     plain_content = content[:500] if content else ""
                     print(f"\n{msg['role']}: {plain_content}")
+
+        # Turn finished
+        self._sink.on_turn_end()
 
     def run(self):
         """Main run loop."""

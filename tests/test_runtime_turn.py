@@ -155,3 +155,32 @@ def test_run_one_turn_routes_tool_calls_through_sink():
             assert tool_end_event["success"] is True
     finally:
         os.chdir(old_cwd)
+
+
+def test_turn_start_and_end_events_are_emitted():
+    """完整一轮对话应当发出 turn_start 和 turn_end 事件。"""
+    from simple_agent.core.sinks import WebTurnSink
+
+    old_cwd = os.getcwd()
+    try:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            os.chdir(tmpdir)
+            config = Settings()
+            sink = WebTurnSink()
+            runtime = Runtime(config, skip_api_init=True, sink=sink)
+            runtime.init_session()
+
+            runtime._api_client = MagicMock()
+            runtime._api_client.send_message.return_value = [
+                {"role": "assistant", "content": "OK"}
+            ]
+
+            runtime.process_input("hello")
+            runtime._run_one_turn()
+
+            types = [e["type"] for e in sink.events]
+            assert types[0] == "turn_start"
+            assert types[-1] == "turn_end"
+            assert sink.events[0]["user_input"] == "hello"
+    finally:
+        os.chdir(old_cwd)
