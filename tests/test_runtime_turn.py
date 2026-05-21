@@ -48,37 +48,36 @@ def test_init_session_publishes_session_start_event():
 
 
 def test_run_one_turn_calls_api_and_renders_response():
-    """_run_one_turn() 应该调 API，处理纯文本响应并 render。"""
+    """_run_one_turn() 应该调 API，处理纯文本响应并通过 sink 输出。"""
+    from simple_agent.core.sinks import WebTurnSink
+
     old_cwd = os.getcwd()
     try:
         with tempfile.TemporaryDirectory() as tmpdir:
             os.chdir(tmpdir)
             config = Settings()
-            runtime = Runtime(config, skip_api_init=True)
+            sink = WebTurnSink()
+            runtime = Runtime(config, skip_api_init=True, sink=sink)
             runtime.init_session()
 
-            # Mock api_client - 返回一条无 tool_calls 的简单响应
             runtime._api_client = MagicMock()
             runtime._api_client.send_message.return_value = [
                 {"role": "assistant", "content": "Hello, world!"}
             ]
 
-            # Mock renderer 以验证调用
-            runtime._renderer = MagicMock()
-            runtime._renderer.console = MagicMock()
-
-            # 用户输入已通过 process_input 加入 session
             runtime._session.add_message("user", "hi")
             runtime._run_one_turn()
 
-            # 验证 send_message 被调用
             runtime._api_client.send_message.assert_called_once()
-            # 验证响应被加入 session
             messages = runtime._session.get_messages()
             assert messages[-1]["role"] == "assistant"
             assert messages[-1]["content"] == "Hello, world!"
-            # 验证 renderer 收到了响应
-            runtime._renderer.render_message.assert_any_call("assistant", "Hello, world!")
+            # Plain-text response should reach the sink
+            message_events = [e for e in sink.events if e["type"] == "message"]
+            assert any(
+                e["role"] == "assistant" and e["content"] == "Hello, world!"
+                for e in message_events
+            )
     finally:
         os.chdir(old_cwd)
 

@@ -1354,9 +1354,9 @@ class Runtime:
                 content = msg.get("content", "")
                 self._session.add_message(msg["role"], content)
                 try:
-                    self._renderer.render_message(msg["role"], content)
+                    self._sink.on_message(msg["role"], content)
                 except Exception as e:
-                    self._renderer.render_error(f"Failed to render message: {str(e)}")
+                    self._sink.on_error(f"Failed to render message: {str(e)}")
                     plain_content = content[:500] if content else ""
                     print(f"\n{msg['role']}: {plain_content}")
 
