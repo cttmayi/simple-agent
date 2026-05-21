@@ -1,9 +1,22 @@
 import os
 import tempfile
+import json
 from pathlib import Path
 import pytest
 from unittest.mock import MagicMock
 from simple_agent.config.settings import Settings
+
+
+def parse_sse_events(response_data: bytes) -> list[dict]:
+    """Parse SSE response body into a list of event dicts."""
+    events = []
+    text = response_data.decode("utf-8")
+    for part in text.split("\n\n"):
+        part = part.strip()
+        if not part.startswith("data: "):
+            continue
+        events.append(json.loads(part[6:]))
+    return events
 
 
 @pytest.fixture
@@ -87,15 +100,17 @@ def test_api_turn_returns_events_for_plain_message(tmpcwd):
     resp = client.post("/api/turn", json={"input": "hello"})
 
     assert resp.status_code == 200
-    data = resp.get_json()
-    assert "events" in data
-    types = [e["type"] for e in data["events"]]
+    assert resp.content_type.startswith("text/event-stream")
+    events = parse_sse_events(resp.data)
+    types = [e["type"] for e in events]
     assert "turn_start" in types
     assert "message" in types
     assert "turn_end" in types
-    msg = next(e for e in data["events"] if e["type"] == "message")
+    assert "turn_done" in types
+    msg = next(e for e in events if e["type"] == "message")
     assert msg["content"] == "Hi there!"
-    assert data["session_id"] == chat_server._runtime._session_id
+    turn_done = next(e for e in events if e["type"] == "turn_done")
+    assert turn_done["session_id"] == chat_server._runtime._session_id
 
 
 def test_api_turn_clears_events_between_turns(tmpcwd):
@@ -109,12 +124,15 @@ def test_api_turn_clears_events_between_turns(tmpcwd):
     ]
 
     client = chat_server.app.test_client()
-    data1 = client.post("/api/turn", json={"input": "first"}).get_json()
-    data2 = client.post("/api/turn", json={"input": "second"}).get_json()
+    resp1 = client.post("/api/turn", json={"input": "first"})
+    events1 = parse_sse_events(resp1.data)
+    resp2 = client.post("/api/turn", json={"input": "second"})
+    events2 = parse_sse_events(resp2.data)
 
-    first_inputs = [e for e in data2["events"] if e.get("user_input") == "first"]
+    # 第二轮的 events 不应含第一轮的 turn_start
+    first_inputs = [e for e in events2 if e.get("user_input") == "first"]
     assert len(first_inputs) == 0
-    second_inputs = [e for e in data2["events"] if e.get("user_input") == "second"]
+    second_inputs = [e for e in events2 if e.get("user_input") == "second"]
     assert len(second_inputs) == 1
 
 
@@ -128,11 +146,12 @@ def test_api_turn_handles_slash_command(tmpcwd):
     resp = client.post("/api/turn", json={"input": "/help"})
 
     assert resp.status_code == 200
-    data = resp.get_json()
+    events = parse_sse_events(resp.data)
     assert any(
         e["type"] == "message" and "Available Commands" in e.get("content", "")
-        for e in data["events"]
+        for e in events
     )
+    assert any(e["type"] == "turn_done" for e in events)
 
 
 def test_api_turn_handles_exception_via_sink_error(tmpcwd):
@@ -147,8 +166,8 @@ def test_api_turn_handles_exception_via_sink_error(tmpcwd):
     resp = client.post("/api/turn", json={"input": "hi"})
 
     assert resp.status_code == 200
-    data = resp.get_json()
-    error_events = [e for e in data["events"] if e["type"] == "error"]
+    events = parse_sse_events(resp.data)
+    error_events = [e for e in events if e["type"] == "error"]
     assert len(error_events) == 1
     assert "boom" in error_events[0]["message"]
 
@@ -179,7 +198,7 @@ def test_api_turn_rejects_whitespace_input(tmpcwd):
 
 
 def test_api_turn_emits_turn_end_even_on_exception(tmpcwd):
-    """If API raises, the event stream should still include turn_end."""
+    """If API raises, the SSE stream should still include turn_end and turn_done."""
     from simple_agent.web import chat_server
 
     config = Settings()
@@ -191,11 +210,12 @@ def test_api_turn_emits_turn_end_even_on_exception(tmpcwd):
     resp = client.post("/api/turn", json={"input": "hi"})
 
     assert resp.status_code == 200
-    data = resp.get_json()
-    types = [e["type"] for e in data["events"]]
+    events = parse_sse_events(resp.data)
+    types = [e["type"] for e in events]
     assert "turn_start" in types
     assert "error" in types
     assert "turn_end" in types
+    assert "turn_done" in types
 
 
 def test_api_sidebar_returns_structured_data(tmpcwd):
