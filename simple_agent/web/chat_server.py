@@ -2,16 +2,12 @@
 
 Single-session model: one Runtime instance shared by all browser tabs.
 """
-import json
-import queue
-import socket
 import threading
 import uuid
 from pathlib import Path
 from typing import Optional
-from flask import Flask, jsonify, request, send_from_directory, Response
+from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
-from werkzeug.serving import WSGIRequestHandler
 
 from simple_agent.config.settings import Settings
 from simple_agent.core.runtime import Runtime
@@ -19,24 +15,13 @@ from simple_agent.core.sinks import WebTurnSink
 from simple_agent.core.events import HookBlockedException
 
 
-class SSERequestHandler(WSGIRequestHandler):
-    """WSGI request handler with TCP_NODELAY for SSE streaming."""
-
-    def handle(self):
-        try:
-            self.request.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, True)
-        except (OSError, AttributeError):
-            pass
-        super().handle()
-
-
 # Module-level singletons (single-session model)
 _runtime: Optional[Runtime] = None
 _sink: Optional[WebTurnSink] = None
 _runtime_lock = threading.Lock()
 
-# Active turn streams: turn_id -> queue.Queue
-_turn_streams: dict[str, queue.Queue] = {}
+# Active turns: turn_id -> {"events": list, "done": bool}
+_turns: dict[str, dict] = {}
 
 # Flask app (disable default static folder; we register our own /static route)
 app = Flask(__name__, static_folder=None)
@@ -83,7 +68,7 @@ def api_session():
 
 @app.route("/api/turn", methods=["POST"])
 def api_turn():
-    """Start a conversation turn. Returns turn_id for streaming via EventSource."""
+    """Start a conversation turn. Returns turn_id for polling events."""
     if _runtime is None or _sink is None:
         return jsonify({"error": "Runtime not initialized"}), 500
 
@@ -94,11 +79,11 @@ def api_turn():
         return jsonify({"error": "empty input"}), 400
 
     turn_id = uuid.uuid4().hex[:12]
-    event_queue: queue.Queue = queue.Queue()
-    _turn_streams[turn_id] = event_queue
+    turn_state = {"events": [], "done": False}
+    _turns[turn_id] = turn_state
 
     def on_event(event: dict):
-        event_queue.put(event)
+        turn_state["events"].append(event)
 
     def run_turn():
         with _runtime_lock:
@@ -119,7 +104,7 @@ def api_turn():
             finally:
                 _sink.on_turn_end()
                 _sink._event_callback = None
-                event_queue.put(None)  # sentinel
+                turn_state["done"] = True
 
     thread = threading.Thread(target=run_turn, daemon=True)
     thread.start()
@@ -127,30 +112,28 @@ def api_turn():
     return jsonify({"turn_id": turn_id})
 
 
-@app.route("/api/turn/stream/<turn_id>")
-def api_turn_stream(turn_id: str):
-    """SSE stream for a turn. Use EventSource on this GET endpoint."""
-    if turn_id not in _turn_streams:
+@app.route("/api/turn/events/<turn_id>")
+def api_turn_events(turn_id: str):
+    """Poll for new events since index `after`."""
+    if turn_id not in _turns:
         return jsonify({"error": "Unknown turn_id"}), 404
 
-    event_queue = _turn_streams.pop(turn_id)
+    turn_state = _turns[turn_id]
+    after = request.args.get("after", 0, type=int)
+    events = turn_state["events"][after:]
 
-    def generate():
-        while True:
-            event = event_queue.get()
-            if event is None:
-                yield f"data: {json.dumps({'type': 'turn_done', 'session_id': _runtime._session_id})}\n\n"
-                break
-            yield f"data: {json.dumps(event)}\n\n"
+    return jsonify({
+        "events": events,
+        "done": turn_state["done"],
+        "next_after": len(turn_state["events"]),
+    })
 
-    return Response(
-        generate(),
-        mimetype="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",
-        },
-    )
+
+@app.route("/api/turn/events/<turn_id>", methods=["DELETE"])
+def api_turn_events_cleanup(turn_id: str):
+    """Clean up turn state after frontend is done."""
+    _turns.pop(turn_id, None)
+    return jsonify({"ok": True})
 
 
 @app.route("/api/sidebar", methods=["GET"])

@@ -165,22 +165,22 @@ async function sendTurn(input) {
 
     const { turn_id } = await resp.json();
 
-    // Step 2: Open EventSource for the SSE stream (GET)
-    const es = new EventSource(`/api/turn/stream/${turn_id}`);
-
-    es.onmessage = function (e) {
-      const event = JSON.parse(e.data);
-      if (event.type === 'turn_done') {
-        es.close();
-        refreshSidebar();
-        return;
+    // Step 2: Poll for events
+    let after = 0;
+    while (true) {
+      const pollResp = await fetch(`/api/turn/events/${turn_id}?after=${after}`);
+      const data = await pollResp.json();
+      for (const event of data.events) {
+        renderEvent(event);
       }
-      renderEvent(event);
-    };
+      after = data.next_after;
+      if (data.done) break;
+      await new Promise(r => setTimeout(r, 200));
+    }
 
-    es.onerror = function () {
-      es.close();
-    };
+    // Clean up server state
+    fetch(`/api/turn/events/${turn_id}`, { method: 'DELETE' });
+    refreshSidebar();
   } catch (e) {
     appendError(`Request failed: ${e.message || e}`);
   } finally {

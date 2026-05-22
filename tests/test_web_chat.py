@@ -1,22 +1,9 @@
 import os
 import tempfile
-import json
 from pathlib import Path
 import pytest
 from unittest.mock import MagicMock
 from simple_agent.config.settings import Settings
-
-
-def parse_sse_events(response_data: bytes) -> list[dict]:
-    """Parse SSE response body into a list of event dicts."""
-    events = []
-    text = response_data.decode("utf-8")
-    for part in text.split("\n\n"):
-        part = part.strip()
-        if not part.startswith("data: "):
-            continue
-        events.append(json.loads(part[6:]))
-    return events
 
 
 @pytest.fixture
@@ -86,17 +73,24 @@ def test_api_session_includes_existing_messages(tmpcwd):
     assert data["messages"][1]["role"] == "assistant"
 
 
-def _start_turn_and_stream(client, user_input):
-    """Helper: POST /api/turn, then GET /api/turn/stream/<id>, return events."""
+def _start_turn_and_poll(client, user_input):
+    """Helper: POST /api/turn, then poll GET /api/turn/events until done."""
     resp = client.post("/api/turn", json={"input": user_input})
     assert resp.status_code == 200
-    turn_data = resp.get_json()
-    turn_id = turn_data["turn_id"]
+    turn_id = resp.get_json()["turn_id"]
 
-    stream_resp = client.get(f"/api/turn/stream/{turn_id}")
-    assert stream_resp.status_code == 200
-    assert stream_resp.content_type.startswith("text/event-stream")
-    return parse_sse_events(stream_resp.data)
+    all_events = []
+    after = 0
+    while True:
+        poll_resp = client.get(f"/api/turn/events/{turn_id}?after={after}")
+        assert poll_resp.status_code == 200
+        data = poll_resp.get_json()
+        all_events.extend(data["events"])
+        after = data["next_after"]
+        if data["done"]:
+            break
+
+    return all_events
 
 
 def test_api_turn_returns_events_for_plain_message(tmpcwd):
@@ -110,17 +104,14 @@ def test_api_turn_returns_events_for_plain_message(tmpcwd):
     ]
 
     client = chat_server.app.test_client()
-    events = _start_turn_and_stream(client, "hello")
+    events = _start_turn_and_poll(client, "hello")
 
     types = [e["type"] for e in events]
     assert "turn_start" in types
     assert "message" in types
     assert "turn_end" in types
-    assert "turn_done" in types
     msg = next(e for e in events if e["type"] == "message")
     assert msg["content"] == "Hi there!"
-    turn_done = next(e for e in events if e["type"] == "turn_done")
-    assert turn_done["session_id"] == chat_server._runtime._session_id
 
 
 def test_api_turn_clears_events_between_turns(tmpcwd):
@@ -134,10 +125,9 @@ def test_api_turn_clears_events_between_turns(tmpcwd):
     ]
 
     client = chat_server.app.test_client()
-    events1 = _start_turn_and_stream(client, "first")
-    events2 = _start_turn_and_stream(client, "second")
+    events1 = _start_turn_and_poll(client, "first")
+    events2 = _start_turn_and_poll(client, "second")
 
-    # 第二轮的 events 不应含第一轮的 turn_start
     first_inputs = [e for e in events2 if e.get("user_input") == "first"]
     assert len(first_inputs) == 0
     second_inputs = [e for e in events2 if e.get("user_input") == "second"]
@@ -151,13 +141,12 @@ def test_api_turn_handles_slash_command(tmpcwd):
     chat_server.init_runtime(config, skip_api_init=True)
 
     client = chat_server.app.test_client()
-    events = _start_turn_and_stream(client, "/help")
+    events = _start_turn_and_poll(client, "/help")
 
     assert any(
         e["type"] == "message" and "Available Commands" in e.get("content", "")
         for e in events
     )
-    assert any(e["type"] == "turn_done" for e in events)
 
 
 def test_api_turn_handles_exception_via_sink_error(tmpcwd):
@@ -169,7 +158,7 @@ def test_api_turn_handles_exception_via_sink_error(tmpcwd):
     chat_server._runtime._api_client.send_message.side_effect = RuntimeError("boom")
 
     client = chat_server.app.test_client()
-    events = _start_turn_and_stream(client, "hi")
+    events = _start_turn_and_poll(client, "hi")
 
     error_events = [e for e in events if e["type"] == "error"]
     assert len(error_events) == 1
@@ -202,7 +191,7 @@ def test_api_turn_rejects_whitespace_input(tmpcwd):
 
 
 def test_api_turn_emits_turn_end_even_on_exception(tmpcwd):
-    """If API raises, the SSE stream should still include turn_end and turn_done."""
+    """If API raises, the event stream should still include turn_end."""
     from simple_agent.web import chat_server
 
     config = Settings()
@@ -211,25 +200,55 @@ def test_api_turn_emits_turn_end_even_on_exception(tmpcwd):
     chat_server._runtime._api_client.send_message.side_effect = RuntimeError("boom")
 
     client = chat_server.app.test_client()
-    events = _start_turn_and_stream(client, "hi")
+    events = _start_turn_and_poll(client, "hi")
 
     types = [e["type"] for e in events]
     assert "turn_start" in types
     assert "error" in types
     assert "turn_end" in types
-    assert "turn_done" in types
 
 
-def test_api_turn_stream_unknown_id_returns_404(tmpcwd):
+def test_api_turn_events_unknown_id_returns_404(tmpcwd):
     from simple_agent.web import chat_server
 
     config = Settings()
     chat_server.init_runtime(config, skip_api_init=True)
 
     client = chat_server.app.test_client()
-    resp = client.get("/api/turn/stream/nonexistent123")
+    resp = client.get("/api/turn/events/nonexistent123")
 
     assert resp.status_code == 404
+
+
+def test_api_turn_events_incremental(tmpcwd):
+    """Events should be available incrementally via ?after parameter."""
+    from simple_agent.web import chat_server
+
+    config = Settings()
+    chat_server.init_runtime(config, skip_api_init=True)
+    chat_server._runtime._api_client = MagicMock()
+    chat_server._runtime._api_client.send_message.return_value = [
+        {"role": "assistant", "content": "ok"}
+    ]
+
+    client = chat_server.app.test_client()
+    resp = client.post("/api/turn", json={"input": "hello"})
+    turn_id = resp.get_json()["turn_id"]
+
+    # First poll: get early events
+    poll1 = client.get(f"/api/turn/events/{turn_id}?after=0").get_json()
+    assert len(poll1["events"]) > 0
+    assert poll1["next_after"] > 0
+
+    # Second poll with after: should only get new events (or none if done)
+    poll2 = client.get(f"/api/turn/events/{turn_id}?after={poll1['next_after']}").get_json()
+    # All events from poll1 should not appear in poll2
+    if poll2["events"]:
+        for e in poll2["events"]:
+            assert e not in poll1["events"]
+
+    # Cleanup
+    client.delete(f"/api/turn/events/{turn_id}")
 
 
 def test_api_sidebar_returns_structured_data(tmpcwd):

@@ -189,7 +189,7 @@ def run_chat_server():
         sys.exit(1)
 
     try:
-        from simple_agent.web.chat_server import init_runtime, app, SSERequestHandler
+        from simple_agent.web.chat_server import init_runtime, app
     except ImportError:
         print("Error: Flask is not installed. Run: pip install -e .")
         sys.exit(1)
@@ -199,8 +199,7 @@ def run_chat_server():
     if resume_log:
         print(f"Resumed from: {resume_log}")
     print("Press Ctrl+C to stop the server")
-    app.run(host="127.0.0.1", port=args.port, debug=False,
-            threaded=True, request_handler=SSERequestHandler)
+    app.run(host="127.0.0.1", port=args.port, debug=False, threaded=True)
 
 
 if __name__ == "__main__":
