@@ -211,4 +211,8 @@ def index():
 
 @app.route("/static/<path:filename>")
 def static_file(filename: str):
-    return send_from_directory(str(_STATIC_DIR), filename)
+    resp = send_from_directory(str(_STATIC_DIR), filename)
+    resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    resp.headers["Pragma"] = "no-cache"
+    resp.headers["Expires"] = "0"
+    return resp

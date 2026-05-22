@@ -63,6 +63,23 @@ function appendToolCard(event) {
   });
   messagesEl.appendChild(card);
   messagesEl.scrollTop = messagesEl.scrollHeight;
+  return card;
+}
+
+function appendToolLoading(event) {
+  const card = document.createElement('div');
+  card.className = 'tool-card loading';
+  const argsStr = formatArgs(event.arguments);
+  card.innerHTML = `
+    <div class="tool-header">
+      <span>${escapeHtml(event.tool_name)} ${escapeHtml(argsStr)}</span>
+      <span class="status spinner">⚙</span>
+    </div>
+  `;
+  card.dataset.callId = event.call_id;
+  messagesEl.appendChild(card);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+  return card;
 }
 
 function formatArgs(args) {
@@ -95,10 +112,16 @@ function renderEvent(ev) {
     case 'error':
       appendError(ev.message);
       break;
-    case 'tool_end':
+    case 'tool_start':
+      appendToolLoading(ev);
+      break;
+    case 'tool_end': {
+      // Replace the loading card with the result card
+      const loading = document.querySelector(`.tool-card.loading[data-call-id="${ev.call_id}"]`);
+      if (loading) loading.remove();
       appendToolCard(ev);
       break;
-    case 'tool_start':
+    }
     case 'turn_start':
     case 'turn_end':
     case 'status':
@@ -120,55 +143,61 @@ async function loadSession() {
   }
 }
 
-async function sendTurn(input) {
+function sendTurn(input) {
   appendBubble('user', input);
   inputBox.value = '';
   sendBtn.disabled = true;
   sendBtn.innerHTML = '发送 <span class="loading"></span>';
 
-  try {
-    const resp = await fetch('/api/turn', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ input }),
-    });
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', '/api/turn', true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
 
-    if (!resp.ok) {
-      const err = await resp.json();
-      appendError(`Error: ${err.error || resp.statusText}`);
-      return;
-    }
+  let processed = 0;
 
-    const reader = resp.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
+  xhr.onprogress = function () {
+    const text = xhr.responseText;
+    const newData = text.substring(processed);
+    processed = text.length;
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-
-      const parts = buffer.split('\n\n');
-      buffer = parts.pop();
-      for (const part of parts) {
-        const line = part.trim();
-        if (!line.startsWith('data: ')) continue;
-        try {
-          const event = JSON.parse(line.slice(6));
-          if (event.type === 'turn_done') continue;
-          renderEvent(event);
-        } catch (e) {
-          console.warn('Failed to parse SSE event', line, e);
-        }
+    const parts = newData.split('\n\n');
+    for (const part of parts) {
+      const line = part.trim();
+      if (!line.startsWith('data: ')) continue;
+      try {
+        const event = JSON.parse(line.slice(6));
+        if (event.type === 'turn_done') continue;
+        renderEvent(event);
+      } catch (e) {
+        // Incomplete event chunk, ignore
       }
     }
-    refreshSidebar();
-  } catch (e) {
-    appendError(`Request failed: ${e.message || e}`);
-  } finally {
+  };
+
+  xhr.onload = function () {
+    if (xhr.status >= 400) {
+      try {
+        const err = JSON.parse(xhr.responseText);
+        appendError(`Error: ${err.error || xhr.statusText}`);
+      } catch (e) {
+        appendError(`Error: ${xhr.statusText}`);
+      }
+    } else {
+      // Process any remaining data
+      xhr.onprogress();
+      refreshSidebar();
+    }
     sendBtn.disabled = false;
     sendBtn.textContent = '发送';
-  }
+  };
+
+  xhr.onerror = function () {
+    appendError('Request failed');
+    sendBtn.disabled = false;
+    sendBtn.textContent = '发送';
+  };
+
+  xhr.send(JSON.stringify({ input }));
 }
 
 inputForm.addEventListener('submit', (e) => {

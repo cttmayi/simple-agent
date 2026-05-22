@@ -128,6 +128,12 @@ html, body {
   font-size: 12px; max-height: 400px; overflow-y: auto;
 }
 .tool-card.expanded .tool-body { display: block; }
+.tool-card.loading .tool-header { opacity: 0.7; }
+.tool-card.loading .status.spinner {
+  color: var(--system);
+  animation: spin 1s linear infinite;
+  display: inline-block;
+}
 .tool-body pre {
   white-space: pre-wrap; word-wrap: break-word; margin: 0;
 }
