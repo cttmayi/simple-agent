@@ -6,15 +6,18 @@ const inputBox = $('input-box');
 const sendBtn = $('send-btn');
 const inputForm = $('input-form');
 
-// Configure marked + highlight.js
+// Configure marked + highlight.js (safe fallback if hljs CDN fails)
 marked.setOptions({
   breaks: true,
   gfm: true,
   highlight: (code, lang) => {
-    if (lang && hljs.getLanguage(lang)) {
+    if (typeof hljs !== 'undefined' && lang && hljs.getLanguage(lang)) {
       return hljs.highlight(code, { language: lang }).value;
     }
-    return hljs.highlightAuto(code).value;
+    if (typeof hljs !== 'undefined') {
+      return hljs.highlightAuto(code).value;
+    }
+    return code;
   },
 });
 
@@ -31,7 +34,9 @@ function appendBubble(role, content, klass) {
   `;
   messagesEl.appendChild(div);
   messagesEl.scrollTop = messagesEl.scrollHeight;
-  div.querySelectorAll('pre code').forEach((b) => hljs.highlightElement(b));
+  if (typeof hljs !== 'undefined') {
+    div.querySelectorAll('pre code').forEach((b) => hljs.highlightElement(b));
+  }
   return div;
 }
 
@@ -156,7 +161,6 @@ async function sendTurn(input) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ input }),
     });
-    console.log('[sendTurn] POST status:', resp.status);
 
     if (!resp.ok) {
       const err = await resp.json();
@@ -165,27 +169,20 @@ async function sendTurn(input) {
     }
 
     const respData = await resp.json();
-    console.log('[sendTurn] POST response:', respData);
     const turn_id = respData.turn_id;
 
     // Step 2: Poll for events
     let after = 0;
-    let pollCount = 0;
     while (true) {
       const pollResp = await fetch(`/api/turn/events/${turn_id}?after=${after}`);
       const data = await pollResp.json();
-      pollCount++;
-      if (data.events.length > 0 || pollCount <= 3) {
-        console.log(`[sendTurn] poll #${pollCount}: ${data.events.length} events, done=${data.done}`);
-      }
       for (const event of data.events) {
         renderEvent(event);
       }
       after = data.next_after;
       if (data.done) break;
-      await new Promise(r => setTimeout(r, 200));
+      await new Promise(r => setTimeout(r, 50));
     }
-    console.log('[sendTurn] polling complete, total polls:', pollCount);
 
     // Clean up server state
     fetch(`/api/turn/events/${turn_id}`, { method: 'DELETE' });

@@ -109,7 +109,6 @@ def api_turn():
     thread = threading.Thread(target=run_turn, daemon=True)
     thread.start()
 
-    print(f"[api_turn] started turn {turn_id} for input: {user_input!r}")
     return jsonify({"turn_id": turn_id})
 
 
@@ -122,7 +121,6 @@ def api_turn_events(turn_id: str):
     turn_state = _turns[turn_id]
     after = request.args.get("after", 0, type=int)
     events = turn_state["events"][after:]
-    print(f"[api_turn_events] turn={turn_id} after={after} events={len(events)} done={turn_state['done']}")
 
     return jsonify({
         "events": events,
