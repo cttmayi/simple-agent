@@ -86,6 +86,19 @@ def test_api_session_includes_existing_messages(tmpcwd):
     assert data["messages"][1]["role"] == "assistant"
 
 
+def _start_turn_and_stream(client, user_input):
+    """Helper: POST /api/turn, then GET /api/turn/stream/<id>, return events."""
+    resp = client.post("/api/turn", json={"input": user_input})
+    assert resp.status_code == 200
+    turn_data = resp.get_json()
+    turn_id = turn_data["turn_id"]
+
+    stream_resp = client.get(f"/api/turn/stream/{turn_id}")
+    assert stream_resp.status_code == 200
+    assert stream_resp.content_type.startswith("text/event-stream")
+    return parse_sse_events(stream_resp.data)
+
+
 def test_api_turn_returns_events_for_plain_message(tmpcwd):
     from simple_agent.web import chat_server
 
@@ -97,11 +110,8 @@ def test_api_turn_returns_events_for_plain_message(tmpcwd):
     ]
 
     client = chat_server.app.test_client()
-    resp = client.post("/api/turn", json={"input": "hello"})
+    events = _start_turn_and_stream(client, "hello")
 
-    assert resp.status_code == 200
-    assert resp.content_type.startswith("text/event-stream")
-    events = parse_sse_events(resp.data)
     types = [e["type"] for e in events]
     assert "turn_start" in types
     assert "message" in types
@@ -124,10 +134,8 @@ def test_api_turn_clears_events_between_turns(tmpcwd):
     ]
 
     client = chat_server.app.test_client()
-    resp1 = client.post("/api/turn", json={"input": "first"})
-    events1 = parse_sse_events(resp1.data)
-    resp2 = client.post("/api/turn", json={"input": "second"})
-    events2 = parse_sse_events(resp2.data)
+    events1 = _start_turn_and_stream(client, "first")
+    events2 = _start_turn_and_stream(client, "second")
 
     # 第二轮的 events 不应含第一轮的 turn_start
     first_inputs = [e for e in events2 if e.get("user_input") == "first"]
@@ -143,10 +151,8 @@ def test_api_turn_handles_slash_command(tmpcwd):
     chat_server.init_runtime(config, skip_api_init=True)
 
     client = chat_server.app.test_client()
-    resp = client.post("/api/turn", json={"input": "/help"})
+    events = _start_turn_and_stream(client, "/help")
 
-    assert resp.status_code == 200
-    events = parse_sse_events(resp.data)
     assert any(
         e["type"] == "message" and "Available Commands" in e.get("content", "")
         for e in events
@@ -163,10 +169,8 @@ def test_api_turn_handles_exception_via_sink_error(tmpcwd):
     chat_server._runtime._api_client.send_message.side_effect = RuntimeError("boom")
 
     client = chat_server.app.test_client()
-    resp = client.post("/api/turn", json={"input": "hi"})
+    events = _start_turn_and_stream(client, "hi")
 
-    assert resp.status_code == 200
-    events = parse_sse_events(resp.data)
     error_events = [e for e in events if e["type"] == "error"]
     assert len(error_events) == 1
     assert "boom" in error_events[0]["message"]
@@ -207,15 +211,25 @@ def test_api_turn_emits_turn_end_even_on_exception(tmpcwd):
     chat_server._runtime._api_client.send_message.side_effect = RuntimeError("boom")
 
     client = chat_server.app.test_client()
-    resp = client.post("/api/turn", json={"input": "hi"})
+    events = _start_turn_and_stream(client, "hi")
 
-    assert resp.status_code == 200
-    events = parse_sse_events(resp.data)
     types = [e["type"] for e in events]
     assert "turn_start" in types
     assert "error" in types
     assert "turn_end" in types
     assert "turn_done" in types
+
+
+def test_api_turn_stream_unknown_id_returns_404(tmpcwd):
+    from simple_agent.web import chat_server
+
+    config = Settings()
+    chat_server.init_runtime(config, skip_api_init=True)
+
+    client = chat_server.app.test_client()
+    resp = client.get("/api/turn/stream/nonexistent123")
+
+    assert resp.status_code == 404
 
 
 def test_api_sidebar_returns_structured_data(tmpcwd):
@@ -256,7 +270,6 @@ def test_api_logs_returns_list(tmpcwd):
     assert resp.status_code == 200
     data = resp.get_json()
     assert "logs" in data
-    # At least our 2 test files should be present (init may create an active log too)
     names = [entry["name"] for entry in data["logs"]]
     assert "llm-20260520-101010.jsonl" in names
     assert "llm-20260519-101010.jsonl" in names

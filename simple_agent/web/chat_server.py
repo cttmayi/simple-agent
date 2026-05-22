@@ -6,6 +6,7 @@ import json
 import queue
 import socket
 import threading
+import uuid
 from pathlib import Path
 from typing import Optional
 from flask import Flask, jsonify, request, send_from_directory, Response
@@ -33,6 +34,9 @@ class SSERequestHandler(WSGIRequestHandler):
 _runtime: Optional[Runtime] = None
 _sink: Optional[WebTurnSink] = None
 _runtime_lock = threading.Lock()
+
+# Active turn streams: turn_id -> queue.Queue
+_turn_streams: dict[str, queue.Queue] = {}
 
 # Flask app (disable default static folder; we register our own /static route)
 app = Flask(__name__, static_folder=None)
@@ -79,7 +83,7 @@ def api_session():
 
 @app.route("/api/turn", methods=["POST"])
 def api_turn():
-    """Execute one conversation turn, streaming events via SSE."""
+    """Start a conversation turn. Returns turn_id for streaming via EventSource."""
     if _runtime is None or _sink is None:
         return jsonify({"error": "Runtime not initialized"}), 500
 
@@ -89,7 +93,9 @@ def api_turn():
     if not user_input.strip():
         return jsonify({"error": "empty input"}), 400
 
+    turn_id = uuid.uuid4().hex[:12]
     event_queue: queue.Queue = queue.Queue()
+    _turn_streams[turn_id] = event_queue
 
     def on_event(event: dict):
         event_queue.put(event)
@@ -112,17 +118,24 @@ def api_turn():
                 _sink.on_error(f"{type(e).__name__}: {e}")
             finally:
                 _sink.on_turn_end()
-                _sink._event_callback = None  # Clean up callback
-                event_queue.put(None)  # sentinel: turn finished
+                _sink._event_callback = None
+                event_queue.put(None)  # sentinel
 
     thread = threading.Thread(target=run_turn, daemon=True)
     thread.start()
 
+    return jsonify({"turn_id": turn_id})
+
+
+@app.route("/api/turn/stream/<turn_id>")
+def api_turn_stream(turn_id: str):
+    """SSE stream for a turn. Use EventSource on this GET endpoint."""
+    if turn_id not in _turn_streams:
+        return jsonify({"error": "Unknown turn_id"}), 404
+
+    event_queue = _turn_streams.pop(turn_id)
+
     def generate():
-        # SSE padding: browsers buffer ~1KB before processing streams.
-        # Send 2KB of comment lines so the browser starts delivering
-        # events to JS immediately rather than waiting for buffer fill.
-        yield ": " + " " * 2048 + "\n\n"
         while True:
             event = event_queue.get()
             if event is None:
@@ -136,7 +149,6 @@ def api_turn():
         headers={
             "Cache-Control": "no-cache",
             "X-Accel-Buffering": "no",
-            "Connection": "keep-alive",
         },
     )
 

@@ -143,61 +143,50 @@ async function loadSession() {
   }
 }
 
-function sendTurn(input) {
+async function sendTurn(input) {
   appendBubble('user', input);
   inputBox.value = '';
   sendBtn.disabled = true;
   sendBtn.innerHTML = '发送 <span class="loading"></span>';
 
-  const xhr = new XMLHttpRequest();
-  xhr.open('POST', '/api/turn', true);
-  xhr.setRequestHeader('Content-Type', 'application/json');
+  try {
+    // Step 1: POST to start the turn
+    const resp = await fetch('/api/turn', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ input }),
+    });
 
-  let processed = 0;
-
-  xhr.onprogress = function () {
-    const text = xhr.responseText;
-    const newData = text.substring(processed);
-    processed = text.length;
-
-    const parts = newData.split('\n\n');
-    for (const part of parts) {
-      const line = part.trim();
-      if (!line.startsWith('data: ')) continue;
-      try {
-        const event = JSON.parse(line.slice(6));
-        if (event.type === 'turn_done') continue;
-        renderEvent(event);
-      } catch (e) {
-        // Incomplete event chunk, ignore
-      }
+    if (!resp.ok) {
+      const err = await resp.json();
+      appendError(`Error: ${err.error || resp.statusText}`);
+      return;
     }
-  };
 
-  xhr.onload = function () {
-    if (xhr.status >= 400) {
-      try {
-        const err = JSON.parse(xhr.responseText);
-        appendError(`Error: ${err.error || xhr.statusText}`);
-      } catch (e) {
-        appendError(`Error: ${xhr.statusText}`);
+    const { turn_id } = await resp.json();
+
+    // Step 2: Open EventSource for the SSE stream (GET)
+    const es = new EventSource(`/api/turn/stream/${turn_id}`);
+
+    es.onmessage = function (e) {
+      const event = JSON.parse(e.data);
+      if (event.type === 'turn_done') {
+        es.close();
+        refreshSidebar();
+        return;
       }
-    } else {
-      // Process any remaining data
-      xhr.onprogress();
-      refreshSidebar();
-    }
+      renderEvent(event);
+    };
+
+    es.onerror = function () {
+      es.close();
+    };
+  } catch (e) {
+    appendError(`Request failed: ${e.message || e}`);
+  } finally {
     sendBtn.disabled = false;
     sendBtn.textContent = '发送';
-  };
-
-  xhr.onerror = function () {
-    appendError('Request failed');
-    sendBtn.disabled = false;
-    sendBtn.textContent = '发送';
-  };
-
-  xhr.send(JSON.stringify({ input }));
+  }
 }
 
 inputForm.addEventListener('submit', (e) => {
