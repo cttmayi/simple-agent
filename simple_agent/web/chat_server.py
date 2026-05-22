@@ -86,25 +86,27 @@ def api_turn():
         turn_state["events"].append(event)
 
     def run_turn():
-        with _runtime_lock:
-            _sink.events.clear()
-            _sink._event_callback = on_event
-            try:
-                result = _runtime.process_input(user_input)
-                if result in ("message_processed", "command_processed"):
-                    _runtime._run_one_turn()
-                elif result == "exit":
-                    _sink.on_message("system", "Session ended.")
-                else:
-                    _sink.on_message("system", result)
-            except HookBlockedException as e:
-                _sink.on_message("system", f"[BLOCKED] {e}")
-            except Exception as e:
-                _sink.on_error(f"{type(e).__name__}: {e}")
-            finally:
-                _sink.on_turn_end()
-                _sink._event_callback = None
-                turn_state["done"] = True
+        try:
+            with _runtime_lock:
+                _sink.events.clear()
+                _sink._event_callback = on_event
+                try:
+                    result = _runtime.process_input(user_input)
+                    if result in ("message_processed", "command_processed"):
+                        _runtime._run_one_turn()
+                    elif result == "exit":
+                        _sink.on_message("system", "Session ended.")
+                    else:
+                        _sink.on_message("system", result)
+                except HookBlockedException as e:
+                    _sink.on_message("system", f"[BLOCKED] {e}")
+                except Exception as e:
+                    _sink.on_error(f"{type(e).__name__}: {e}")
+                finally:
+                    _sink._event_callback = None
+        finally:
+            _sink.on_turn_end()
+            turn_state["done"] = True
 
     thread = threading.Thread(target=run_turn, daemon=True)
     thread.start()
