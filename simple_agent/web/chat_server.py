@@ -201,12 +201,26 @@ _STATIC_DIR = Path(__file__).parent / "static"
 
 @app.route("/")
 def index():
-    return send_from_directory(str(_STATIC_DIR), "chat.html")
+    return _send_nocache("chat.html")
 
 
 @app.route("/static/<path:filename>")
 def static_file(filename: str):
-    resp = send_from_directory(str(_STATIC_DIR), filename)
+    return _send_nocache(filename)
+
+
+def _send_nocache(filename: str):
+    """Send a static file with all caching disabled (no ETag, no 304)."""
+    path = _STATIC_DIR / filename
+    if not path.exists():
+        return jsonify({"error": "Not found"}), 404
+    data = path.read_bytes()
+    from flask import make_response
+    resp = make_response(data)
+    ext = path.suffix.lower()
+    mimes = {".html": "text/html", ".js": "application/javascript",
+             ".css": "text/css", ".json": "application/json"}
+    resp.headers["Content-Type"] = mimes.get(ext, "application/octet-stream")
     resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     resp.headers["Pragma"] = "no-cache"
     resp.headers["Expires"] = "0"
