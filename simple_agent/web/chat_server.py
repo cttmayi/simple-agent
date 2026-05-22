@@ -4,16 +4,29 @@ Single-session model: one Runtime instance shared by all browser tabs.
 """
 import json
 import queue
+import socket
 import threading
 from pathlib import Path
 from typing import Optional
-from flask import Flask, jsonify, request, send_from_directory, Response, stream_with_context
+from flask import Flask, jsonify, request, send_from_directory, Response
 from flask_cors import CORS
+from werkzeug.serving import WSGIRequestHandler
 
 from simple_agent.config.settings import Settings
 from simple_agent.core.runtime import Runtime
 from simple_agent.core.sinks import WebTurnSink
 from simple_agent.core.events import HookBlockedException
+
+
+class SSERequestHandler(WSGIRequestHandler):
+    """WSGI request handler with TCP_NODELAY for SSE streaming."""
+
+    def handle(self):
+        try:
+            self.request.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, True)
+        except (OSError, AttributeError):
+            pass
+        super().handle()
 
 
 # Module-level singletons (single-session model)
@@ -106,6 +119,10 @@ def api_turn():
     thread.start()
 
     def generate():
+        # SSE padding: browsers buffer ~1KB before processing streams.
+        # Send 2KB of comment lines so the browser starts delivering
+        # events to JS immediately rather than waiting for buffer fill.
+        yield ": " + " " * 2048 + "\n\n"
         while True:
             event = event_queue.get()
             if event is None:
