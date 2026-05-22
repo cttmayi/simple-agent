@@ -156,6 +156,7 @@ async function sendTurn(input) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ input }),
     });
+    console.log('[sendTurn] POST status:', resp.status);
 
     if (!resp.ok) {
       const err = await resp.json();
@@ -163,13 +164,20 @@ async function sendTurn(input) {
       return;
     }
 
-    const { turn_id } = await resp.json();
+    const respData = await resp.json();
+    console.log('[sendTurn] POST response:', respData);
+    const turn_id = respData.turn_id;
 
     // Step 2: Poll for events
     let after = 0;
+    let pollCount = 0;
     while (true) {
       const pollResp = await fetch(`/api/turn/events/${turn_id}?after=${after}`);
       const data = await pollResp.json();
+      pollCount++;
+      if (data.events.length > 0 || pollCount <= 3) {
+        console.log(`[sendTurn] poll #${pollCount}: ${data.events.length} events, done=${data.done}`);
+      }
       for (const event of data.events) {
         renderEvent(event);
       }
@@ -177,11 +185,13 @@ async function sendTurn(input) {
       if (data.done) break;
       await new Promise(r => setTimeout(r, 200));
     }
+    console.log('[sendTurn] polling complete, total polls:', pollCount);
 
     // Clean up server state
     fetch(`/api/turn/events/${turn_id}`, { method: 'DELETE' });
     refreshSidebar();
   } catch (e) {
+    console.error('[sendTurn] error:', e);
     appendError(`Request failed: ${e.message || e}`);
   } finally {
     sendBtn.disabled = false;
