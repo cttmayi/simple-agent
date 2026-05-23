@@ -1,5 +1,6 @@
 import os
 import tempfile
+import time
 from pathlib import Path
 import pytest
 from unittest.mock import MagicMock
@@ -73,7 +74,7 @@ def test_api_session_includes_existing_messages(tmpcwd):
     assert data["messages"][1]["role"] == "assistant"
 
 
-def _start_turn_and_poll(client, user_input):
+def _start_turn_and_poll(client, user_input, max_wait=5.0):
     """Helper: POST /api/turn, then poll GET /api/turn/events until done."""
     resp = client.post("/api/turn", json={"input": user_input})
     assert resp.status_code == 200
@@ -81,7 +82,8 @@ def _start_turn_and_poll(client, user_input):
 
     all_events = []
     after = 0
-    while True:
+    deadline = time.monotonic() + max_wait
+    while time.monotonic() < deadline:
         poll_resp = client.get(f"/api/turn/events/{turn_id}?after={after}")
         assert poll_resp.status_code == 200
         data = poll_resp.get_json()
@@ -89,6 +91,7 @@ def _start_turn_and_poll(client, user_input):
         after = data["next_after"]
         if data["done"]:
             break
+        time.sleep(0.05)
 
     return all_events
 
