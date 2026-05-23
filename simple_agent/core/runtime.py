@@ -63,6 +63,8 @@ class Runtime:
 
         # Initialize TodoManager for task tracking
         self._todo_manager = TodoManager()
+        if log_file is None:
+            self._todo_manager.clear()
 
         # Set up TODO tools
         from simple_agent.tools.builtin.todo import set_todo_manager

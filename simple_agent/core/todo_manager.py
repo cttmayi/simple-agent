@@ -102,6 +102,12 @@ class TodoManager:
         with open(self._todos_path, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
 
+    def clear(self) -> None:
+        """清空所有任务并保存。"""
+        self._tasks = {}
+        self._next_id = 1
+        self._save()
+
     def get_all_tasks(self) -> List[Dict[str, Any]]:
         """获取所有任务列表。"""
         return [task.to_dict() for task in self._tasks.values()]
