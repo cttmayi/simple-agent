@@ -150,7 +150,7 @@ def api_sidebar():
     if _runtime is None:
         return jsonify({"error": "Runtime not initialized"}), 500
 
-    todos = _runtime._todo_manager.get_all_tasks() if _runtime._todo_manager else []
+    todos = _runtime._todo_manager.get_task_tree() if _runtime._todo_manager else []
 
     return jsonify({
         "todos": todos,

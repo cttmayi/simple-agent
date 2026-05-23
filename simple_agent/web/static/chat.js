@@ -229,13 +229,20 @@ function renderTodoList(todos) {
     return;
   }
   ul.innerHTML = '';
-  for (const t of todos) {
-    const li = document.createElement('li');
-    const status = t.status || 'pending';
-    const icon = { completed: '✓', in_progress: '⚙', pending: '◯', blocked: '🚫' }[status] || '◯';
-    li.innerHTML = `<span class="todo-status todo-${status}">${icon}</span> ${escapeHtml(t.subject || '')}`;
-    ul.appendChild(li);
+  function renderTree(items, depth) {
+    for (const t of items) {
+      const li = document.createElement('li');
+      const status = t.status || 'pending';
+      const icon = { completed: '✓', in_progress: '⚙', pending: '◯', blocked: '🚫' }[status] || '◯';
+      li.style.paddingLeft = `${depth * 16}px`;
+      li.innerHTML = `<span class="todo-status todo-${status}">${icon}</span> ${escapeHtml(t.subject || '')}`;
+      ul.appendChild(li);
+      if (t.children && t.children.length) {
+        renderTree(t.children, depth + 1);
+      }
+    }
   }
+  renderTree(todos, 0);
 }
 
 function renderSimpleList(elId, items, render, isHtml = false) {
