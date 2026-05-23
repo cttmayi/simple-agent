@@ -91,7 +91,6 @@ def _start_turn_and_poll(client, user_input, max_wait=5.0):
         after = data["next_after"]
         if data["done"]:
             break
-        time.sleep(0.05)
 
     return all_events
 

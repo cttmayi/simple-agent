@@ -48,29 +48,6 @@ function appendError(message) {
   messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 
-function appendToolCard(event) {
-  const card = document.createElement('div');
-  card.className = 'tool-card';
-  const statusClass = event.success ? 'ok' : 'fail';
-  const statusIcon = event.success ? '✓' : '✗';
-  const argsStr = formatArgs(event.arguments);
-  card.innerHTML = `
-    <div class="tool-header">
-      <span>${escapeHtml(event.tool_name)} ${escapeHtml(argsStr)}</span>
-      <span class="status ${statusClass}">${statusIcon}</span>
-    </div>
-    <div class="tool-body">
-      <pre>${escapeHtml(JSON.stringify(event.result, null, 2))}</pre>
-    </div>
-  `;
-  card.querySelector('.tool-header').addEventListener('click', () => {
-    card.classList.toggle('expanded');
-  });
-  messagesEl.appendChild(card);
-  messagesEl.scrollTop = messagesEl.scrollHeight;
-  return card;
-}
-
 function appendToolLoading(event) {
   const card = document.createElement('div');
   card.className = 'tool-card loading';
@@ -121,10 +98,23 @@ function renderEvent(ev) {
       appendToolLoading(ev);
       break;
     case 'tool_end': {
-      // Replace the loading card with the result card
-      const loading = document.querySelector(`.tool-card.loading[data-call-id="${ev.call_id}"]`);
-      if (loading) loading.remove();
-      appendToolCard(ev);
+      // Update the existing loading card in-place
+      const card = document.querySelector(`.tool-card.loading[data-call-id="${ev.call_id}"]`);
+      if (card) {
+        card.classList.remove('loading');
+        const statusClass = ev.success ? 'ok' : 'fail';
+        const statusIcon = ev.success ? '✓' : '✗';
+        const statusEl = card.querySelector('.status');
+        statusEl.className = `status ${statusClass}`;
+        statusEl.textContent = statusIcon;
+        const body = document.createElement('div');
+        body.className = 'tool-body';
+        body.innerHTML = `<pre>${escapeHtml(JSON.stringify(ev.result, null, 2))}</pre>`;
+        card.appendChild(body);
+        card.querySelector('.tool-header').addEventListener('click', () => {
+          card.classList.toggle('expanded');
+        });
+      }
       break;
     }
     case 'turn_start':
@@ -181,7 +171,6 @@ async function sendTurn(input) {
       }
       after = data.next_after;
       if (data.done) break;
-      await new Promise(r => setTimeout(r, 50));
     }
 
     // Clean up server state

@@ -79,11 +79,12 @@ def api_turn():
         return jsonify({"error": "empty input"}), 400
 
     turn_id = uuid.uuid4().hex[:12]
-    turn_state = {"events": [], "done": False}
+    turn_state = {"events": [], "done": False, "wake": threading.Event()}
     _turns[turn_id] = turn_state
 
     def on_event(event: dict):
         turn_state["events"].append(event)
+        turn_state["wake"].set()
 
     def run_turn():
         try:
@@ -123,6 +124,11 @@ def api_turn_events(turn_id: str):
     turn_state = _turns[turn_id]
     after = request.args.get("after", 0, type=int)
     events = turn_state["events"][after:]
+
+    if not events and not turn_state["done"]:
+        turn_state["wake"].clear()
+        turn_state["wake"].wait(timeout=30)
+        events = turn_state["events"][after:]
 
     return jsonify({
         "events": events,
