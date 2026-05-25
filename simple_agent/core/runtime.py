@@ -1166,6 +1166,10 @@ class Runtime:
             if tool_name in ("TaskCreate", "TaskUpdate"):
                 self._sink.on_status("todo_update", {})
 
+            # Notify web UI when skills/agents are loaded
+            if tool_name in ("load_skill", "load_agent") and success:
+                self._sink.on_status("skill_update", {})
+
             # Handle load_skill and load_agent tools specially
             # These tools are handled separately - content is added to session
             # and we don't format/send their result to the API

@@ -121,7 +121,7 @@ function renderEvent(ev) {
     case 'turn_end':
       break;
     case 'status':
-      if (ev.kind === 'todo_update') refreshSidebar();
+      if (ev.kind === 'todo_update' || ev.kind === 'skill_update') refreshSidebar();
       break;
     default:
       console.warn('Unknown event type', ev);
