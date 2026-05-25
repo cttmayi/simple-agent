@@ -1162,6 +1162,10 @@ class Runtime:
             success = tool_result.get("success", True)
             self._sink.on_tool_end(tool_name, arguments, tool_call["id"], result, success)
 
+            # Notify web UI to refresh sidebar after TODO changes
+            if tool_name in ("TaskCreate", "TaskUpdate"):
+                self._sink.on_status("todo_update", {})
+
             # Handle load_skill and load_agent tools specially
             # These tools are handled separately - content is added to session
             # and we don't format/send their result to the API

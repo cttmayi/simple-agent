@@ -119,7 +119,9 @@ function renderEvent(ev) {
     }
     case 'turn_start':
     case 'turn_end':
+      break;
     case 'status':
+      if (ev.kind === 'todo_update') refreshSidebar();
       break;
     default:
       console.warn('Unknown event type', ev);
