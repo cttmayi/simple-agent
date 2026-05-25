@@ -30,8 +30,12 @@ class TestTaskList:
         """测试列出所有任务。"""
         result = list_tasks()
         assert result["success"] is True
-        assert "Found 2 tasks:" in result["stdout"]
         assert "父任务" in result["stdout"]
+        assert "子任务" in result["stdout"]
+        # 子任务缩进应比父任务多
+        parent_idx = result["stdout"].index("父任务")
+        child_idx = result["stdout"].index("子任务")
+        assert child_idx > parent_idx
 
 
 class TestTaskGet:

@@ -51,7 +51,7 @@ def _get_status_icon(status: str) -> str:
 
 
 def list_tasks() -> Dict[str, Any]:
-    """列出所有任务及其状态。
+    """列出所有任务及其状态，体现父子层级关系。
 
     Returns:
         包含任务列表的字典
@@ -59,15 +59,21 @@ def list_tasks() -> Dict[str, Any]:
     if _todo_manager is None:
         return {"success": False, "stdout": "", "stderr": "TodoManager not initialized"}
 
-    tasks = _todo_manager.get_all_tasks()
+    tree = _todo_manager.get_task_tree()
 
-    # Build stdout string for display
+    # Build stdout string with tree indentation
     stdout_lines = []
-    if tasks:
-        stdout_lines.append(f"Found {len(tasks)} tasks:")
-        for t in tasks:
+
+    def render_tree(items, depth):
+        indent = "  " * depth
+        for t in items:
             status_icon = _get_status_icon(t.get("status", "pending"))
-            stdout_lines.append(f"  {status_icon} [#{t.get('id', '?')}] {t.get('subject', 'N/A')}")
+            stdout_lines.append(f"{indent}{status_icon} [#{t.get('id', '?')}] {t.get('subject', 'N/A')}")
+            if t.get("children"):
+                render_tree(t["children"], depth + 1)
+
+    if tree:
+        render_tree(tree, 0)
     else:
         stdout_lines.append("No tasks found")
 
