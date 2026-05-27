@@ -305,7 +305,8 @@ def test_api_resume_replaces_runtime(tmpcwd):
     log_file = log_dir / "llm-20260520-101010.jsonl"
     log_file.write_text(
         '{"type": "session_start", "session_id": "old-sess"}\n'
-        '{"type": "message", "role": "user", "content": "resumed hi"}\n'
+        '{"type": "request", "request_id": "r1", "timestamp": "2026-05-20T10:10:10Z", "model": "gpt-4o", "messages": [{"role": "system", "content": "sys"}, {"role": "user", "content": "resumed hi"}]}\n'
+        '{"type": "response", "request_id": "r1", "timestamp": "2026-05-20T10:10:15Z", "content": "hello back"}\n'
     )
 
     config = Settings()

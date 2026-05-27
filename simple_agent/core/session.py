@@ -13,6 +13,8 @@ class Session:
     def load_from_log(self, log_file: Path) -> None:
         """Load conversation history from a log file.
 
+        Reconstructs messages from request/response/tool_execution log entries.
+
         Args:
             log_file: Path to the log file
         """
@@ -24,6 +26,11 @@ class Session:
         if not log_file or not log_file.exists():
             return
 
+        # Track how many user messages we've already added to avoid duplicates.
+        # Each request contains the full message history, so user message count
+        # increases monotonically across requests.
+        user_msg_count = 0
+
         with open(log_file, "r", encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
@@ -32,19 +39,42 @@ class Session:
 
                 try:
                     entry = json.loads(line)
+                    entry_type = entry.get("type")
 
-                    if entry.get("type") == "session_start":
+                    if entry_type == "session_start":
                         self._session_id = entry.get("session_id")
-                    elif entry.get("type") == "message":
+
+                    elif entry_type == "request":
+                        # Extract new user messages from the full message history
+                        user_msgs = [m for m in entry.get("messages", []) if m.get("role") == "user"]
+                        if len(user_msgs) > user_msg_count:
+                            for msg in user_msgs[user_msg_count:]:
+                                self._messages.append({
+                                    "role": "user",
+                                    "content": msg.get("content", ""),
+                                })
+                            user_msg_count = len(user_msgs)
+
+                    elif entry_type == "response":
                         self._messages.append({
-                            "role": entry.get("role"),
+                            "role": "assistant",
                             "content": entry.get("content", ""),
-                            "tool_call_id": entry.get("tool_call_id"),
                             "tool_calls": entry.get("tool_calls"),
                         })
-                    elif entry.get("type") == "skill_loaded":
+
+                    elif entry_type == "tool_execution":
+                        result = entry.get("result", {})
+                        tool_content = json.dumps(result, ensure_ascii=False) if isinstance(result, dict) else str(result)
+                        self._messages.append({
+                            "role": "tool",
+                            "content": tool_content,
+                            "tool_call_id": entry.get("tool_call_id"),
+                        })
+
+                    elif entry_type == "SkillLoaded":
                         self._skills_loaded.add(entry.get("skill_name"))
-                    elif entry.get("type") == "agent_loaded":
+
+                    elif entry_type == "AgentLoaded":
                         self._agents_loaded.add(entry.get("agent_name"))
 
                 except (json.JSONDecodeError, KeyError):

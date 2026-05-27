@@ -129,45 +129,50 @@ function renderEvent(ev) {
 }
 
 async function loadSession() {
-  const resp = await fetch('/api/session');
-  const data = await resp.json();
-  $('session-id').textContent = (data.session_id || '—').slice(0, 8) + '…';
-  $('model-name').textContent = data.model || '—';
-  messagesEl.innerHTML = '';
-  const toolResultMap = {};
-  for (const msg of data.messages || []) {
-    if (msg.role === 'tool' && msg.tool_call_id) {
-      toolResultMap[msg.tool_call_id] = msg.content;
-    }
-  }
-  for (const msg of data.messages || []) {
-    if (msg.role === 'tool') continue;
-    if (msg.tool_calls && msg.tool_calls.length) {
-      for (const tc of msg.tool_calls) {
-        const args = typeof tc.function.arguments === 'string'
-          ? JSON.parse(tc.function.arguments || '{}')
-          : (tc.function.arguments || {});
-        const resultContent = toolResultMap[tc.id] || '(no result recorded)';
-        const ev = { tool_name: tc.function.name, arguments: args, call_id: tc.id };
-        const card = appendToolLoading(ev);
-        card.classList.remove('loading');
-        const success = !resultContent.includes('Error:');
-        const statusClass = success ? 'ok' : 'fail';
-        const statusIcon = success ? '✓' : '✗';
-        card.querySelector('.status').className = `status ${statusClass}`;
-        card.querySelector('.status').textContent = statusIcon;
-        const body = document.createElement('div');
-        body.className = 'tool-body';
-        body.innerHTML = `<pre>${escapeHtml(resultContent)}</pre>`;
-        card.appendChild(body);
-        card.querySelector('.tool-header').addEventListener('click', () => {
-          card.classList.toggle('expanded');
-        });
+  try {
+    const resp = await fetch('/api/session');
+    const data = await resp.json();
+    $('session-id').textContent = (data.session_id || '—').slice(0, 8) + '…';
+    $('model-name').textContent = data.model || '—';
+    messagesEl.innerHTML = '';
+    const toolResultMap = {};
+    for (const msg of data.messages || []) {
+      if (msg.role === 'tool' && msg.tool_call_id) {
+        toolResultMap[msg.tool_call_id] = msg.content;
       }
     }
-    if (msg.content) {
-      appendBubble(msg.role, msg.content);
+    for (const msg of data.messages || []) {
+      if (msg.role === 'tool') continue;
+      if (msg.tool_calls && msg.tool_calls.length) {
+        for (const tc of msg.tool_calls) {
+          if (!tc.function) continue;
+          const args = typeof tc.function.arguments === 'string'
+            ? JSON.parse(tc.function.arguments || '{}')
+            : (tc.function.arguments || {});
+          const resultContent = toolResultMap[tc.id] || '(no result recorded)';
+          const ev = { tool_name: tc.function.name, arguments: args, call_id: tc.id };
+          const card = appendToolLoading(ev);
+          card.classList.remove('loading');
+          const success = !resultContent.includes('Error:');
+          const statusClass = success ? 'ok' : 'fail';
+          const statusIcon = success ? '✓' : '✗';
+          card.querySelector('.status').className = `status ${statusClass}`;
+          card.querySelector('.status').textContent = statusIcon;
+          const body = document.createElement('div');
+          body.className = 'tool-body';
+          body.innerHTML = `<pre>${escapeHtml(resultContent)}</pre>`;
+          card.appendChild(body);
+          card.querySelector('.tool-header').addEventListener('click', () => {
+            card.classList.toggle('expanded');
+          });
+        }
+      }
+      if (msg.content) {
+        appendBubble(msg.role, msg.content);
+      }
     }
+  } catch (e) {
+    console.error('[loadSession] failed:', e);
   }
 }
 
@@ -226,7 +231,7 @@ inputForm.addEventListener('submit', (e) => {
 });
 
 inputBox.addEventListener('keydown', (e) => {
-  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+  if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault();
     inputForm.requestSubmit();
   }

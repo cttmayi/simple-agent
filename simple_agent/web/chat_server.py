@@ -37,7 +37,7 @@ def init_runtime(
     global _runtime, _sink
 
     _sink = WebTurnSink()
-    _runtime = Runtime(
+    new_runtime = Runtime(
         config,
         log_file=resume_log,
         skip_api_init=skip_api_init,
@@ -47,9 +47,12 @@ def init_runtime(
     if resume_log:
         log_path = Path(resume_log)
         if log_path.exists():
-            _runtime._session.load_from_log(log_path)
+            new_runtime._session.load_from_log(log_path)
 
-    _runtime.init_session()
+    new_runtime.init_session()
+
+    # Assign global only after fully initialized to avoid race with api_session
+    _runtime = new_runtime
 
 
 @app.route("/api/session", methods=["GET"])
@@ -58,12 +61,16 @@ def api_session():
     if _runtime is None:
         return jsonify({"error": "Runtime not initialized"}), 500
 
-    return jsonify({
+    resp = jsonify({
         "session_id": _runtime._session_id,
         "model": _runtime._config.api.model,
         "provider": _runtime._config.api.provider,
         "messages": _runtime._session.get_messages(),
     })
+    resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    resp.headers["Pragma"] = "no-cache"
+    resp.headers["Expires"] = "0"
+    return resp
 
 
 @app.route("/api/turn", methods=["POST"])
@@ -152,12 +159,16 @@ def api_sidebar():
 
     todos = _runtime._todo_manager.get_task_tree() if _runtime._todo_manager else []
 
-    return jsonify({
+    resp = jsonify({
         "todos": todos,
         "loaded_skills": sorted(_runtime._loaded_skills),
         "available_skills": _runtime._skill_loader.list_skills(),
         "available_agents": _runtime._agent_loader.list_agents(),
     })
+    resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    resp.headers["Pragma"] = "no-cache"
+    resp.headers["Expires"] = "0"
+    return resp
 
 
 @app.route("/api/logs", methods=["GET"])

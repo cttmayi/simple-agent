@@ -53,6 +53,12 @@ def run_web_servers(args):
 
     config = load_config(plugin_dir=args.plugin)
 
+    # Print startup info
+    print(f"插件目录: {config.paths.plugin_dir}")
+    print(f"API: {config.api.provider} / {config.api.model}")
+    print(f"Skills: {len(config.paths.skills_dirs)} 个目录 ({', '.join(config.paths.skills_dirs)})")
+    print(f"Agents: {len(config.paths.agents_dirs)} 个目录 ({', '.join(config.paths.agents_dirs)})")
+
     def _start_analyzer():
         try:
             from simple_agent.web.server import app, set_log_dir
