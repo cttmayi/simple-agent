@@ -49,7 +49,7 @@ def init_runtime(
         if log_path.exists():
             new_runtime._session.load_from_log(log_path)
 
-    new_runtime.init_session()
+    new_runtime.init_session(is_resume=bool(resume_log))
 
     # Assign global only after fully initialized to avoid race with api_session
     _runtime = new_runtime
@@ -187,7 +187,7 @@ def api_logs():
             key=lambda f: f.stat().st_mtime,
             reverse=True,
         )
-        logs = [{"path": str(f), "name": f.name} for f in files]
+        logs = [{"path": str(f), "name": f.name, "size": f.stat().st_size} for f in files]
 
     return jsonify({"logs": logs})
 

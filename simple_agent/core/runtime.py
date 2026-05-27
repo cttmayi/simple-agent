@@ -1314,7 +1314,7 @@ class Runtime:
         }))
         return "message_processed"
 
-    def init_session(self) -> None:
+    def init_session(self, is_resume: bool = False) -> None:
         """Initialize a session: restore loaded skills/agents, generate session_id,
         reset HookContext, log session start, publish SessionStart event.
 
@@ -1330,10 +1330,17 @@ class Runtime:
         if loaded_agents:
             self._loaded_agents.update(loaded_agents)
 
-        # Generate session ID and log session start
-        self._session_id = str(uuid.uuid4())
+        # Use restored session_id from log if available, otherwise generate new
+        restored_id = self._session._session_id
+        if restored_id:
+            self._session_id = restored_id
+        else:
+            self._session_id = str(uuid.uuid4())
+
         self._hook_context.reset(self._session_id)
-        if self._logger:
+
+        # Only log session_start for new sessions, not resumes
+        if not is_resume and self._logger:
             self._logger.log_session_start(self._session_id)
 
         # Publish SessionStart event
