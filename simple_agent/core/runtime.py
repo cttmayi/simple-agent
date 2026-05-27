@@ -880,7 +880,7 @@ class Runtime:
 
     def get_agent_context(self) -> Optional[str]:
         """Load AGENT.md from plugin directory."""
-        agent_md = Path.cwd() / "plugin" / "AGENT.md"
+        agent_md = Path.cwd() / self._config.paths.plugin_dir / "AGENT.md"
         if agent_md.exists():
             return agent_md.read_text()
         return None
