@@ -80,42 +80,48 @@ def test_tool_dispatcher_invalid_arguments():
     assert result["result"] == "not an int"
 
 def test_bash_output_limiting():
-    """Test that bash output is limited to 5 lines."""
+    """Test that bash display output is limited but AI stdout is full."""
     from simple_agent.tools.builtin.bash import BASH
 
     # Generate output with more than 5 lines
     result = BASH._execute("for i in {1..10}; do echo \"line $i\"; done")
 
     assert result["success"] is True
+    # Full stdout for AI — all 10 lines
     stdout = result["stdout"]
-    # Should show only first 5 lines (no truncation message)
     assert "line 1" in stdout
-    assert "line 2" in stdout
-    assert "line 3" in stdout
-    assert "line 4" in stdout
-    assert "line 5" in stdout
-    assert "line 6" not in stdout
-    # Should have exactly 5 lines
-    assert len(stdout.strip().split('\n')) == 5
+    assert "line 6" in stdout
+    assert "line 10" in stdout
+    assert len(stdout.strip().split('\n')) == 10
+
+    # Display output truncated to 5 lines
+    output = result["output"]
+    assert "line 1" in output
+    assert "line 5" in output
+    assert "line 6" not in output
+    assert len(output.strip().split('\n')) == 5
 
 def test_bash_stderr_limiting():
-    """Test that bash stderr is limited to 5 lines."""
+    """Test that bash display stderr is limited but AI stderr is full."""
     from simple_agent.tools.builtin.bash import BASH
 
     # Generate stderr with more than 5 lines
     result = BASH._execute('for i in {1..10}; do echo "error $i" >&2; done')
 
     assert result["success"] is True
+    # Full stderr for AI — all 10 lines
     stderr = result["stderr"]
-    # Should show only first 5 errors (no truncation message)
     assert "error 1" in stderr
-    assert "error 2" in stderr
-    assert "error 3" in stderr
-    assert "error 4" in stderr
-    assert "error 5" in stderr
-    assert "error 6" not in stderr
-    # Should have exactly 5 lines
-    assert len(stderr.strip().split('\n')) == 5
+    assert "error 6" in stderr
+    assert "error 10" in stderr
+    assert len(stderr.strip().split('\n')) == 10
+
+    # Display output truncated (stderr shown as "Error: ..." prefix)
+    output = result["output"]
+    assert "error 1" in output
+    assert "error 5" in output
+    assert "error 6" not in output
+    assert len(output.strip().split('\n')) == 5
 
 def test_tool_snapshot_isolation():
     """Test that snapshot is not modified after restore and subsequent registry changes."""

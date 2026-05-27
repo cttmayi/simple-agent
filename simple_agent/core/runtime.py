@@ -1119,6 +1119,11 @@ class Runtime:
         # Add assistant message with tool_calls to session
         self._session.add_message(msg["role"], msg.get("content", ""), tool_calls=msg["tool_calls"])
 
+        # Emit text content first, then tool calls
+        text_content = msg.get("content", "")
+        if text_content.strip():
+            self._sink.on_message(msg["role"], text_content)
+
         # Execute each tool call and show details
         for tool_call in msg["tool_calls"]:
             tool_name = tool_call["function"]["name"]

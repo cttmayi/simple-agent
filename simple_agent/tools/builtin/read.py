@@ -9,8 +9,8 @@ from simple_agent.tools.registry import get_global_registry, ToolDefinition
 # Max file size: 1MB
 MAX_FILE_SIZE = 1024 * 1024
 
-# Max lines to return (default 200)
-MAX_LINES = 200
+# Max lines to return (default 500)
+MAX_LINES = 500
 
 
 class READ:

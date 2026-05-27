@@ -161,36 +161,37 @@ class BASH:
             stdout = result.stdout
             stderr = result.stderr
 
-            # Limit output to first 5 lines for stdout and stderr
-            if stdout:
-                stdout_lines = stdout.split('\n')
+            # Truncate display output only — AI gets full stdout/stderr
+            display_stdout = stdout
+            display_stderr = stderr
+            if display_stdout:
+                stdout_lines = display_stdout.split('\n')
                 if len(stdout_lines) > 5:
-                    stdout = '\n'.join(stdout_lines[:5])
-
-            if stderr:
-                stderr_lines = stderr.split('\n')
+                    display_stdout = '\n'.join(stdout_lines[:5])
+            if display_stderr:
+                stderr_lines = display_stderr.split('\n')
                 if len(stderr_lines) > 5:
-                    stderr = '\n'.join(stderr_lines[:5])
+                    display_stderr = '\n'.join(stderr_lines[:5])
+
+            # Build output string for CLI/Web display (truncated)
+            output_parts = []
+            if display_stdout:
+                output_parts.append(display_stdout)
+            if display_stderr:
+                output_parts.append(f"Error: {display_stderr}")
+            output = "\n".join(output_parts) if output_parts else "(Command completed with no output)"
 
             # If both stdout and stderr are empty, add a message
-            if not stdout and not stderr:
+            if not output_parts:
                 if result.returncode == 0:
-                    stdout = "(Command completed with no output)"
+                    output = "(Command completed with no output)"
                 else:
-                    stderr = f"(Command exited with code {result.returncode} and no output)"
-
-            # Build output string for CLI/Web display
-            output_parts = []
-            if stdout:
-                output_parts.append(stdout)
-            if stderr:
-                output_parts.append(f"Error: {stderr}")
-            output = "\n".join(output_parts) if output_parts else "(Command completed with no output)"
+                    output = f"(Command exited with code {result.returncode} and no output)"
 
             return {
                 "success": result.returncode == 0,
-                "output": output,  # For CLI/Web display
-                "stdout": stdout,  # For AI (legacy)
+                "output": output,     # Truncated — for CLI/Web display
+                "stdout": stdout,     # Full — for AI context
                 "stderr": stderr,
                 "returncode": result.returncode,
             }
