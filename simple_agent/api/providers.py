@@ -2,9 +2,15 @@ from abc import ABC, abstractmethod
 from typing import Any, Generator, Dict, List, Optional
 from openai import OpenAI, Stream
 from openai.types.chat import ChatCompletion, ChatCompletionChunk
+import httpx
 import time
 import re
 from simple_agent.core.llm_logger import LLMLogger
+
+
+def _build_http_client() -> httpx.Client:
+    """Build an httpx client that ignores system proxy environment variables."""
+    return httpx.Client(proxy=None, trust_env=False, timeout=httpx.Timeout(300.0, connect=10.0))
 
 
 class RetryConfig:
@@ -100,6 +106,7 @@ class OpenAIProvider(BaseProvider):
         self.client = OpenAI(
             api_key=config.get("api_key") or "test-key",  # Fallback for tests
             base_url=base_url,
+            http_client=_build_http_client(),
         )
         self.model = config.get("model", "gpt-4o")
         self._logger = logger
@@ -238,6 +245,7 @@ class AnthropicProvider(BaseProvider):
         self.client = OpenAI(
             api_key=config.get("api_key") or "test-key",  # Fallback for tests
             base_url=base_url,
+            http_client=_build_http_client(),
         )
         self.model = config.get("model", "claude-sonnet-4-20250514")
         self._logger = logger
