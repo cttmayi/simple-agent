@@ -160,11 +160,13 @@ class LLMLogger:
 
         self._write_entry(entry)
 
-    def log_session_start(self, session_id: str) -> None:
+    def log_session_start(self, session_id: str, cwd: str = "", plugin_dir: str = "") -> None:
         """Log a session start.
 
         Args:
             session_id: Unique identifier for this session
+            cwd: Working directory at session start
+            plugin_dir: Plugin directory in use
         """
         if not self._enabled:
             return
@@ -173,6 +175,8 @@ class LLMLogger:
             "type": "session_start",
             "session_id": session_id,
             "timestamp": datetime.now(timezone.utc).isoformat(),
+            "cwd": cwd,
+            "plugin_dir": plugin_dir,
         }
 
         self._write_entry(entry)

@@ -86,6 +86,13 @@ function escapeHtml(s) {
     .replaceAll("'", '&#39;');
 }
 
+function formatSize(bytes) {
+  if (bytes == null) return '';
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
 function renderEvent(ev) {
   switch (ev.type) {
     case 'message':
@@ -315,7 +322,12 @@ resumeBtn.addEventListener('click', async () => {
     } else {
       for (const log of data.logs) {
         const li = document.createElement('li');
-        li.textContent = log.name;
+        const metaParts = [];
+        if (log.plugin_dir) metaParts.push(log.plugin_dir);
+        if (log.cwd) metaParts.push(log.cwd);
+        const meta = metaParts.length ? `\n${metaParts.join('  ')}` : '';
+        li.textContent = `${log.name}  (${formatSize(log.size)})${meta}`;
+        li.style.whiteSpace = 'pre-wrap';
         li.addEventListener('click', () => doResume(log.path));
         logFileList.appendChild(li);
       }

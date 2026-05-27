@@ -2,6 +2,7 @@
 
 Single-session model: one Runtime instance shared by all browser tabs.
 """
+import json
 import threading
 import uuid
 from pathlib import Path
@@ -187,7 +188,18 @@ def api_logs():
             key=lambda f: f.stat().st_mtime,
             reverse=True,
         )
-        logs = [{"path": str(f), "name": f.name, "size": f.stat().st_size} for f in files]
+        for f in files:
+            info = {"path": str(f), "name": f.name, "size": f.stat().st_size}
+            # Extract session_start metadata from first line
+            try:
+                first_line = f.read_text(encoding="utf-8").split("\n", 1)[0]
+                entry = json.loads(first_line)
+                if entry.get("type") == "session_start":
+                    info["cwd"] = entry.get("cwd", "")
+                    info["plugin_dir"] = entry.get("plugin_dir", "")
+            except Exception:
+                pass
+            logs.append(info)
 
     return jsonify({"logs": logs})
 

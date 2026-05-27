@@ -282,7 +282,9 @@ def test_api_logs_returns_list(tmpcwd):
 
     log_dir = tmpcwd / ".simple-agent" / "logs"
     log_dir.mkdir(parents=True, exist_ok=True)
-    (log_dir / "llm-20260520-101010.jsonl").write_text("")
+    (log_dir / "llm-20260520-101010.jsonl").write_text(
+        '{"type": "session_start", "session_id": "s1", "cwd": "/tmp/proj", "plugin_dir": "plugins/default"}\n'
+    )
     (log_dir / "llm-20260519-101010.jsonl").write_text("")
 
     client = chat_server.app.test_client()
@@ -294,7 +296,11 @@ def test_api_logs_returns_list(tmpcwd):
     names = [entry["name"] for entry in data["logs"]]
     assert "llm-20260520-101010.jsonl" in names
     assert "llm-20260519-101010.jsonl" in names
-    assert all("path" in entry and "name" in entry for entry in data["logs"])
+    assert all("path" in entry and "name" in entry and "size" in entry for entry in data["logs"])
+    # Verify session_start metadata is extracted
+    log1 = next(e for e in data["logs"] if e["name"] == "llm-20260520-101010.jsonl")
+    assert log1.get("cwd") == "/tmp/proj"
+    assert log1.get("plugin_dir") == "plugins/default"
 
 
 def test_api_resume_replaces_runtime(tmpcwd):

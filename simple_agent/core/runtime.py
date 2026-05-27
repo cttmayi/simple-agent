@@ -1341,7 +1341,11 @@ class Runtime:
 
         # Only log session_start for new sessions, not resumes
         if not is_resume and self._logger:
-            self._logger.log_session_start(self._session_id)
+            self._logger.log_session_start(
+                self._session_id,
+                cwd=str(Path.cwd()),
+                plugin_dir=self._config.paths.plugin_dir,
+            )
 
         # Publish SessionStart event
         if _is_hook_debug():
