@@ -26,16 +26,13 @@ class LLMLogger:
             log_dir = Path.cwd() / ".simple-agent" / "logs"
 
         self._log_dir = Path(log_dir)
-        self._log_dir.mkdir(parents=True, exist_ok=True)
 
-        # Use log_file if provided, otherwise create a timestamped file
         if log_file:
             self._log_file = Path(log_file)
+            self._session_started = True  # Resuming existing session
         else:
-            # Format: llm-YYYYMMDD-HHMMSS.jsonl
-            now = datetime.now(timezone.utc)
-            timestamp = now.strftime("%Y%m%d-%H%M%S")
-            self._log_file = self._log_dir / f"llm-{timestamp}.jsonl"
+            self._log_file = None  # Deferred until first write
+            self._session_started = False
 
     def log_request(
         self,
@@ -161,15 +158,16 @@ class LLMLogger:
         self._write_entry(entry)
 
     def log_session_start(self, session_id: str, cwd: str = "", plugin_dir: str = "") -> None:
-        """Log a session start.
+        """Log a session start (idempotent — only writes once per logger instance).
 
         Args:
             session_id: Unique identifier for this session
             cwd: Working directory at session start
             plugin_dir: Plugin directory in use
         """
-        if not self._enabled:
+        if not self._enabled or self._session_started:
             return
+        self._session_started = True
 
         entry = {
             "type": "session_start",
@@ -287,6 +285,14 @@ class LLMLogger:
 
         self._write_entry(entry)
 
+    def _ensure_log_file(self) -> None:
+        """Create log file path and directory if not already set."""
+        if self._log_file is None:
+            self._log_dir.mkdir(parents=True, exist_ok=True)
+            now = datetime.now(timezone.utc)
+            timestamp = now.strftime("%Y%m%d-%H%M%S")
+            self._log_file = self._log_dir / f"llm-{timestamp}.jsonl"
+
     def _write_entry(self, entry: Dict[str, Any]) -> None:
         """Write a log entry to the log file.
 
@@ -294,6 +300,7 @@ class LLMLogger:
             entry: The log entry to write
         """
         with self._lock:
+            self._ensure_log_file()
             with open(self._log_file, "a", encoding="utf-8") as f:
                 f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
@@ -329,11 +336,11 @@ class LLMLogger:
         """
         return str(uuid.uuid4())
 
-    def get_log_file_path(self) -> Path:
-        """Get the current log file path.
+    def get_log_file_path(self) -> Optional[Path]:
+        """Get the current log file path (None if not yet created).
 
         Returns:
-            Path to the current log file
+            Path to the current log file, or None if no entries have been written
         """
         return self._log_file
 

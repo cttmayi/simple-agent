@@ -1295,6 +1295,14 @@ class Runtime:
 
     def process_input(self, input: str) -> str:
         """Process user input."""
+        # Log session start on first user input (deferred from init_session)
+        if self._logger:
+            self._logger.log_session_start(
+                self._session_id,
+                cwd=str(Path.cwd()),
+                plugin_dir=self._config.paths.plugin_dir,
+            )
+
         # Notify sink: turn is starting
         self._sink.on_turn_start(input)
 
@@ -1314,9 +1322,9 @@ class Runtime:
         }))
         return "message_processed"
 
-    def init_session(self, is_resume: bool = False) -> None:
+    def init_session(self) -> None:
         """Initialize a session: restore loaded skills/agents, generate session_id,
-        reset HookContext, log session start, publish SessionStart event.
+        reset HookContext, publish SessionStart event.
 
         Shared by both CLI run() and the Web entrypoint.
         """
@@ -1338,14 +1346,6 @@ class Runtime:
             self._session_id = str(uuid.uuid4())
 
         self._hook_context.reset(self._session_id)
-
-        # Only log session_start for new sessions, not resumes
-        if not is_resume and self._logger:
-            self._logger.log_session_start(
-                self._session_id,
-                cwd=str(Path.cwd()),
-                plugin_dir=self._config.paths.plugin_dir,
-            )
 
         # Publish SessionStart event
         if _is_hook_debug():

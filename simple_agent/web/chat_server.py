@@ -50,7 +50,7 @@ def init_runtime(
         if log_path.exists():
             new_runtime._session.load_from_log(log_path)
 
-    new_runtime.init_session(is_resume=bool(resume_log))
+    new_runtime.init_session()
 
     # Assign global only after fully initialized to avoid race with api_session
     _runtime = new_runtime
