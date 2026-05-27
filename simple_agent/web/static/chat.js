@@ -237,8 +237,12 @@ inputForm.addEventListener('submit', (e) => {
   sendTurn(text);
 });
 
+let composing = false;
+inputBox.addEventListener('compositionstart', () => { composing = true; });
+inputBox.addEventListener('compositionend', () => { composing = false; });
+
 inputBox.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' && !e.shiftKey) {
+  if (e.key === 'Enter' && !e.shiftKey && !composing) {
     e.preventDefault();
     inputForm.requestSubmit();
   }

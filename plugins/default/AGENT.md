@@ -63,3 +63,20 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 ---
 
 **These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
+
+## Environment
+
+- **Date**: {{DATE}}
+- **Working Directory**: {{CWD}}
+- **Plugin Directory**: {{PLUGIN_DIR}}
+- **Session ID**: {{SESSION_ID}}
+
+## Available Skills
+The following skills are available. Ask to load them by name.
+
+{{SKILLS}}
+
+## Available Agents
+The following agents are available as subagents. Use run_subagent(agent_name, task) to invoke them.
+
+{{AGENTS}}

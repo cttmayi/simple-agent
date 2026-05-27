@@ -1,6 +1,7 @@
 import os
 import sys
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional
 from shlex import split
@@ -119,11 +120,9 @@ class Runtime:
 
         # Load skills and build skills context (only metadata for lazy loading)
         self._loaded_skills = set()  # Track which skills have been fully loaded
-        self._skills_context = self._build_skills_context()
 
         # Load agents and build agents context (only metadata for lazy loading)
         self._loaded_agents = set()  # Track which agents have been fully loaded
-        self._agents_context = self._build_agents_context()
 
         # Set up load_skill and run_subagent tools
         LoadSkill.set_runtime(self._skill_loader, self._loaded_skills, self, self._event_bus)
@@ -145,13 +144,9 @@ class Runtime:
         if not skills:
             return ""
 
-        context_parts = ["# Available Skills\n"]
-        context_parts.append("The following skills are available. Ask to load them by name.\n\n")
-
-        for skill in skills:
-            context_parts.append(f"- **{skill['name']}**: {skill['description']}")
-
-        return "\n".join(context_parts)
+        return "\n".join(
+            f"- **{skill['name']}**: {skill['description']}" for skill in skills
+        )
 
     def _build_agents_context(self) -> str:
         """Build context string from all available agents (metadata only).
@@ -163,16 +158,13 @@ class Runtime:
         if not agents:
             return ""
 
-        context_parts = ["# Available Agents\n"]
-        context_parts.append("The following agents are available as subagents. Use run_subagent(agent_name, task) to invoke them.\n\n")
-
+        lines = []
         for agent in agents:
             tools = agent['metadata'].get('tools', [])
             tools_str = ', '.join(tools) if tools else 'all tools'
-            context_parts.append(f"- **{agent['name']}**: {agent['description']}")
-            context_parts.append(f"  Tools: {tools_str}\n")
-
-        return "\n".join(context_parts)
+            lines.append(f"- **{agent['name']}**: {agent['description']}")
+            lines.append(f"  Tools: {tools_str}")
+        return "\n".join(lines)
 
     def _get_allowed_tools(self) -> Optional[List[str]]:
         """Get list of allowed tools based on configuration.
@@ -1250,40 +1242,60 @@ class Runtime:
                     content = "(工具执行完成，AI 无额外响应)"
                 self._sink.on_message(next_msg["role"], content)
 
+    def _build_tools_context(self) -> str:
+        """Build context string from all available tools."""
+        tools = self._tool_registry.list_tools()
+        if not tools:
+            return ""
+
+        lines = []
+        for t in tools:
+            lines.append(f"- **{t['name']}**: {t['description']}")
+
+        return "\n".join(lines)
+
     def _prepare_messages_with_context(self) -> List[Dict[str, str]]:
-        """Prepare messages with agent context, skills, and agents."""
+        """Prepare messages with agent context from AGENT.md as the system prompt.
+
+        AGENT.md is the sole system prompt template. Placeholders are replaced:
+        {{SKILLS}} {{AGENTS}} {{TOOLS}} {{CWD}} {{DATE}} {{SESSION_ID}} {{PLUGIN_DIR}}
+        """
         messages = self._session.get_messages()
 
-        # Build system context with AGENT.md, skills, and agents
-        system_parts = []
+        # Build system prompt from AGENT.md with placeholder replacement
+        system_content = self.get_agent_context() or ""
 
-        # Add AGENT.md context first (base agent instructions)
-        agent_context = self.get_agent_context()
-        if agent_context:
-            system_parts.append("# Agent Context\n")
-            system_parts.append(agent_context)
+        # Replace placeholders
+        now = datetime.now(timezone.utc)
+        replacements = {
+            "{{SKILLS}}": self._build_skills_context(),
+            "{{AGENTS}}": self._build_agents_context(),
+            "{{TOOLS}}": self._build_tools_context(),
+            "{{CWD}}": str(Path.cwd()),
+            "{{DATE}}": now.strftime("%Y-%m-%d %H:%M:%S UTC"),
+            "{{SESSION_ID}}": self._session_id or "",
+            "{{PLUGIN_DIR}}": self._config.paths.plugin_dir,
+        }
+        for placeholder, value in replacements.items():
+            system_content = system_content.replace(placeholder, value)
 
-        # Add skills context (includes loaded skills with full content)
-        if self._skills_context:
-            system_parts.append(self._skills_context)
-
-        # Add agents context
-        if self._agents_context:
-            system_parts.append(self._agents_context)
-
-        # Add command system messages (from slash commands)
+        # Collect command system messages
+        command_context = []
         for msg in messages:
             if msg.get("role") == "system" and msg.get("content"):
-                system_parts.append(msg["content"])
+                command_context.append(msg["content"])
 
         # Prepare messages for API
         api_messages = []
 
-        # Add combined system context if available
-        if system_parts:
+        # Add system prompt
+        if system_content.strip():
+            system_text = system_content
+            if command_context:
+                system_text += "\n\n" + "\n\n".join(command_context)
             api_messages.append({
                 "role": "system",
-                "content": "\n\n".join(system_parts)
+                "content": system_text,
             })
 
         # Add non-system session messages (user, assistant, tool)
