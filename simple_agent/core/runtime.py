@@ -1212,11 +1212,7 @@ class Runtime:
                 # Add tool result to session with tool_call_id
                 self._session.add_message("tool", tool_content, tool_call_id=tool_call["id"])
             else:
-                # Send message to user for load_skill/load_agent
-                self._sink.on_message("system", result.get("message", ""))
-
-                # Add skill/agent content to session as system message
-                # This ensures AI knows the skill/agent is loaded
+                # Add skill/agent content to session as tool message
                 if tool_name == "load_skill" and result.get("success"):
                     skill_name = arguments.get("skill_name")
                     skill_content = result.get("content", "")
